@@ -6,12 +6,21 @@
 import Foundation
 import SwiftUI
 
-/// Observable store holding the user's challenge state, persisted to the
-/// app's documents directory as JSON.
+/// Observable store for the user's challenge.
+///
+/// Remote Supabase submissions are the source of truth for check-ins, verified
+/// totals and money earned. The challenge *configuration* (deposit, reward,
+/// dates, shared id) is cached locally so the home screen can render instantly,
+/// but workout rows are never seeded locally — they come only from Supabase.
 @Observable
+@MainActor
 final class ChallengeStore {
 
     private(set) var challenge: Challenge
+    private(set) var challengeId: UUID?
+    private(set) var isLoading = false
+    private(set) var loadError: String?
+
     private let saveURL: URL
 
     init(saveURL: URL? = nil) {
@@ -22,41 +31,64 @@ final class ChallengeStore {
             self.saveURL = docs.appendingPathComponent("gymtaxx_challenge.json")
         }
 
+        // Load cached challenge *config* only. Workouts always start empty and
+        // are populated from remote submissions on refresh.
         if let data = try? Data(contentsOf: self.saveURL),
            let decoded = try? JSONDecoder().decode(Challenge.self, from: data) {
-            self.challenge = decoded
+            var cached = decoded
+            cached.workouts = []
+            self.challenge = cached
         } else {
-            // MVP demo state: a fresh challenge with one verified workout this
-            // week so the home screen feels alive on first launch.
-            let now = Date()
-            let cal = Calendar.current
-            let start = cal.date(byAdding: .day, value: -2, to: now) ?? now
-            var fresh = Challenge(depositAmount: 60, rewardPerWorkout: 5, startDate: start)
-            fresh.workouts = [
-                Workout(capturedAt: cal.date(byAdding: .hour, value: -20, to: now) ?? now,
-                        status: .verified, weekIndex: 0)
-            ]
-            self.challenge = fresh
-            persist()
+            self.challenge = Challenge(depositAmount: 60, rewardPerWorkout: 5)
         }
     }
 
-    /// Adds a freshly captured workout as pending verification.
-    func addPendingWorkout(capturedAt: Date = Date()) {
-        let week = ChallengeEngine.currentWeekIndex(for: challenge)
-        let workout = Workout(capturedAt: capturedAt, status: .pending, weekIndex: week)
-        challenge.workouts.append(workout)
-        persist()
+    /// Fetch the shared challenge and this user's submissions from Supabase and
+    /// rebuild the local view. Remote data fully replaces any in-memory workouts.
+    func refresh() async {
+        isLoading = true
+        loadError = nil
+        do {
+            let remote = try await WorkoutService.fetchChallenge()
+            challengeId = remote.id
+
+            var updated = Challenge(
+                depositAmount: remote.depositAmount,
+                rewardPerWorkout: remote.rewardPerWorkout,
+                startDate: remote.startDate,
+                workoutsPerWeek: remote.workoutsPerWeek,
+                numberOfWeeks: remote.numberOfWeeks
+            )
+
+            let submissions = try await WorkoutService.fetchSubmissions(challengeId: remote.id)
+            updated.workouts = submissions.map { submission in
+                Workout(
+                    id: submission.id,
+                    capturedAt: submission.capturedAt,
+                    status: submission.workoutStatus,
+                    weekIndex: Self.weekIndex(for: submission.capturedAt, start: remote.startDate)
+                )
+            }
+
+            challenge = updated
+            persistConfig()
+        } catch {
+            print("GymTaxx: failed to refresh challenge: \(error.localizedDescription)")
+            loadError = "Couldn't load your challenge. Pull to refresh to try again."
+        }
+        isLoading = false
     }
 
-    /// Marks the most recent pending workout as verified (manual MVP path).
-    func verifyMostRecentPendingWorkout() {
-        guard let index = challenge.workouts.lastIndex(where: { $0.status == .pending }) else { return }
-        challenge.workouts[index].status = .verified
-        persist()
+    /// Clear in-memory workout data (e.g. on sign out) so one user's data can't
+    /// bleed into another session.
+    func clear() {
+        challenge.workouts = []
+        challengeId = nil
+        loadError = nil
     }
 
-    /// Convenience accessors derived from the engine.
+    // MARK: - Derived accessors (unchanged engine math)
+
     var currentWeek: Int { ChallengeEngine.currentWeekIndex(for: challenge) }
     var completedThisWeek: Int { ChallengeEngine.completedThisWeek(for: challenge) }
     var remainingThisWeek: Int { ChallengeEngine.remainingWorkoutsThisWeek(for: challenge) }
@@ -67,12 +99,19 @@ final class ChallengeStore {
     var totalVerified: Int { ChallengeEngine.totalVerified(for: challenge) }
     var totalWorkoutsToEarnBack: Int { ChallengeEngine.totalWorkoutsToEarnBack(for: challenge) }
 
-    private func persist() {
+    // MARK: - Helpers
+
+    private static func weekIndex(for date: Date, start: Date) -> Int {
+        let days = Calendar.current.dateComponents([.day], from: start, to: date).day ?? 0
+        return max(0, days) / 7
+    }
+
+    private func persistConfig() {
         do {
             let data = try JSONEncoder().encode(challenge)
             try data.write(to: saveURL, options: [.atomic])
         } catch {
-            print("GymTaxx: failed to persist challenge: \(error)")
+            print("GymTaxx: failed to persist challenge config: \(error.localizedDescription)")
         }
     }
 }

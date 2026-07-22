@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct GymTaxxApp: App {
+    @State private var auth = AuthManager()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView(auth: auth)
         }
     }
 }

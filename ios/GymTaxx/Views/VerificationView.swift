@@ -5,6 +5,7 @@
 
 import SwiftUI
 import UIKit
+import Supabase
 
 /// The gym verification flow: capture a photo, then show "pending".
 /// Pushed onto the app's NavigationStack from Home.
@@ -16,6 +17,8 @@ struct VerificationView: View {
     @State private var phase: VerificationPhase = .capture
     @State private var showCamera = false
     @State private var animating = false
+    @State private var isSubmitting = false
+    @State private var submitError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,10 +52,10 @@ struct VerificationView: View {
             Spacer()
 
             VStack(spacing: 14) {
-                Image(systemName: "camera.viewfinder")
+                Image(systemName: isSubmitting ? "arrow.up.circle" : "camera.viewfinder")
                     .font(.system(size: 64, weight: .semibold))
                     .foregroundStyle(Color.mintDeep)
-                Text("Snap a photo at the gym")
+                Text(isSubmitting ? "Uploading your proof…" : "Snap a photo at the gym")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(Color.navy)
                 Text("Capture the date, time and your surroundings. We'll verify it's a real gym session.")
@@ -60,6 +63,15 @@ struct VerificationView: View {
                     .foregroundStyle(Color.navy.opacity(0.55))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
+
+                if let submitError {
+                    Text(submitError)
+                        .font(.footnote)
+                        .foregroundStyle(Color.appRed)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.top, 4)
+                }
             }
 
             Spacer()
@@ -68,8 +80,12 @@ struct VerificationView: View {
                 showCamera = true
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "camera.fill")
-                    Text("Open Camera")
+                    if isSubmitting {
+                        ProgressView().tint(Color.navy)
+                    } else {
+                        Image(systemName: "camera.fill")
+                        Text(submitError == nil ? "Open Camera" : "Try Again")
+                    }
                 }
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(Color.navy)
@@ -77,8 +93,10 @@ struct VerificationView: View {
                 .padding(.vertical, 18)
                 .background(Color.mintGreen)
                 .clipShape(.rect(cornerRadius: 20))
+                .opacity(isSubmitting ? 0.6 : 1)
             }
             .buttonStyle(.plain)
+            .disabled(isSubmitting)
             .padding(.horizontal, 20)
             .padding(.bottom, 28)
         }
@@ -106,31 +124,21 @@ struct VerificationView: View {
 
             Spacer()
 
-            VStack(spacing: 12) {
-                Button {
+            Button {
+                Task {
+                    await store.refresh()
                     path = []
-                } label: {
-                    Text("Back to Home")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(Color.navy)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.appCard)
-                        .clipShape(.rect(cornerRadius: 18))
                 }
-                .buttonStyle(.plain)
-
-                // MVP helper: simulate the manual verification step.
-                Button {
-                    store.verifyMostRecentPendingWorkout()
-                    path = [.success]
-                } label: {
-                    Text("Simulate verified (MVP)")
-                        .font(.footnote)
-                        .foregroundStyle(Color.navy.opacity(0.45))
-                        .padding(.vertical, 6)
-                }
+            } label: {
+                Text("Back to Home")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color.navy)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.appCard)
+                    .clipShape(.rect(cornerRadius: 18))
             }
+            .buttonStyle(.plain)
             .padding(.horizontal, 20)
             .padding(.bottom, 28)
         }
@@ -157,11 +165,40 @@ struct VerificationView: View {
     // MARK: - Submit
 
     private func submit() {
-        guard capturedImage != nil else { return }
-        store.addPendingWorkout()
-        withAnimation(.easeInOut(duration: 0.3)) {
-            phase = .pending
+        guard let image = capturedImage else { return }
+        guard let userId = supabaseUserId, let challengeId = store.challengeId else {
+            submitError = "We couldn't confirm your challenge. Please go back and try again."
+            capturedImage = nil
+            return
         }
+
+        submitError = nil
+        isSubmitting = true
+        let capturedAt = Date()
+
+        Task {
+            do {
+                try await WorkoutService.submitWorkout(
+                    image: image,
+                    userId: userId,
+                    challengeId: challengeId,
+                    capturedAt: capturedAt
+                )
+                isSubmitting = false
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    phase = .pending
+                }
+            } catch {
+                isSubmitting = false
+                submitError = (error as? LocalizedError)?.errorDescription
+                    ?? "Something went wrong. Please try again."
+            }
+            capturedImage = nil
+        }
+    }
+
+    private var supabaseUserId: String? {
+        supabase.auth.currentUser?.id.uuidString
     }
 }
 

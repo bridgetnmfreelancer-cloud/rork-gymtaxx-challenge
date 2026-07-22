@@ -8,11 +8,15 @@ import SwiftUI
 struct HomeView: View {
     @Bindable var store: ChallengeStore
     @Binding var path: [AppRoute]
+    @Bindable var auth: AuthManager
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
                 headerCard
+                if let loadError = store.loadError {
+                    errorBanner(loadError)
+                }
                 progressRingCard
                 statsGrid
                 recentWorkoutsCard
@@ -22,10 +26,23 @@ struct HomeView: View {
             .padding(.bottom, 120)
         }
         .background(Color.white)
+        .refreshable {
+            await store.refresh()
+        }
         .safeAreaInset(edge: .bottom) {
             verifyButton
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        Text(message)
+            .font(.footnote)
+            .foregroundStyle(Color.appRed)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color.appRed.opacity(0.08))
+            .clipShape(.rect(cornerRadius: 14))
     }
 
     // MARK: - Header
@@ -36,6 +53,17 @@ struct HomeView: View {
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(Color.navy)
             Spacer()
+            Menu {
+                Button(role: .destructive) {
+                    Task { await auth.signOut() }
+                } label: {
+                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            } label: {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 26, weight: .regular))
+                    .foregroundStyle(Color.navy.opacity(0.7))
+            }
         }
         .padding(.top, 12)
     }
