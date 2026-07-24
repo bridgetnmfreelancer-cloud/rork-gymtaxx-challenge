@@ -65,20 +65,12 @@ struct VerificationView: View {
                     .padding(.horizontal, 32)
 
                 if let submitError {
-                    ScrollView {
-                        Text(submitError)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(Color.appRed)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                            .padding(12)
-                    }
-                    .frame(maxHeight: 220)
-                    .background(Color.appCard)
-                    .clipShape(.rect(cornerRadius: 12))
-                    .padding(.horizontal, 20)
-                    .padding(.top, 4)
+                    Text(submitError)
+                        .font(.footnote)
+                        .foregroundStyle(Color.appRed)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.top, 4)
                 }
             }
 
