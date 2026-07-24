@@ -87,7 +87,10 @@ nonisolated enum WorkoutService {
             throw WorkoutServiceError.imageEncodingFailed
         }
 
-        let path = "\(userId)/\(UUID().uuidString).jpg"
+        // Supabase Storage RLS compares the folder name as text against
+        // auth.uid()::text, which Postgres returns lowercase. Swift's uuidString is
+        // uppercase, so we must lowercase the id or the own-folder policy 403s.
+        let path = "\(userId.lowercased())/\(UUID().uuidString.lowercased()).jpg"
         NSLog("%@", """
         GymTaxx[submit] image encoded OK
           jpeg byte count:      \(data.count)
