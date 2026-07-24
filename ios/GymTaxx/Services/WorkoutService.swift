@@ -11,15 +11,19 @@ import Supabase
 nonisolated enum WorkoutServiceError: LocalizedError {
     case notSignedIn
     case imageEncodingFailed
-    case uploadFailed
-    case recordCreationFailed
+    /// Upload to Storage failed (before DB insert). `detail` carries raw diagnostics.
+    case uploadFailed(detail: String)
+    /// DB insert failed (after upload succeeded). `detail` carries raw diagnostics.
+    case recordCreationFailed(detail: String)
 
     var errorDescription: String? {
         switch self {
         case .notSignedIn: return "You need to be signed in to submit a workout."
         case .imageEncodingFailed: return "We couldn't process that photo. Please try again."
-        case .uploadFailed: return "Your photo couldn't be uploaded. Check your connection and try again."
-        case .recordCreationFailed: return "We couldn't save your submission. Please try again."
+        case let .uploadFailed(detail):
+            return "Your photo couldn't be uploaded (Storage stage).\n\n\(detail)"
+        case let .recordCreationFailed(detail):
+            return "We couldn't save your submission (database stage).\n\n\(detail)"
         }
     }
 }
@@ -98,15 +102,17 @@ nonisolated enum WorkoutService {
                 .upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
             NSLog("%@", "GymTaxx[submit] stage 1: Storage upload SUCCEEDED for '\(bucket)/\(path)'")
         } catch {
-            NSLog("%@", """
-            GymTaxx[submit] FAILED at stage: STORAGE UPLOAD (before database insert).
-              bucket:             \(bucket)
-              full path:          \(bucket)/\(path)
-              user id used:       \(userId)
-              localizedError:     \(error.localizedDescription)
-              full error:         \(String(reflecting: error))
-            """)
-            throw WorkoutServiceError.uploadFailed
+            let detail = """
+            stage: STORAGE UPLOAD (before DB insert)
+            bucket: \(bucket)
+            path: \(path)
+            userId: \(userId)
+            session: \(sessionUserId ?? "nil") | active: \(hasSession) | match: \(sessionUserId == userId)
+            error: \(error.localizedDescription)
+            raw: \(String(reflecting: error))
+            """
+            NSLog("%@", "GymTaxx[submit] FAILED\n\(detail)")
+            throw WorkoutServiceError.uploadFailed(detail: detail)
         }
 
         // 2. Create the pending DB row. On failure, try once to remove the image.
@@ -143,7 +149,16 @@ nonisolated enum WorkoutService {
                   full error:       \(String(reflecting: error))
                 """)
             }
-            throw WorkoutServiceError.recordCreationFailed
+            let detail = """
+            stage: DATABASE INSERT (upload already succeeded)
+            bucket: \(bucket)
+            path: \(path)
+            userId: \(userId)
+            session: \(sessionUserId ?? "nil") | active: \(hasSession) | match: \(sessionUserId == userId)
+            error: \(error.localizedDescription)
+            raw: \(String(reflecting: error))
+            """
+            throw WorkoutServiceError.recordCreationFailed(detail: detail)
         }
     }
 }
