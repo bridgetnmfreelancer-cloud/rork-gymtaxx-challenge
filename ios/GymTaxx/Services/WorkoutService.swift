@@ -68,7 +68,7 @@ nonisolated enum WorkoutService {
         // --- Diagnostics: identity & session state before we touch Storage ---
         let sessionUserId = supabase.auth.currentUser?.id.uuidString
         let hasSession = supabase.auth.currentSession != nil
-        print("""
+        NSLog("%@", """
         GymTaxx[submit] --- begin ---
           passed userId:        \(userId)
           session user id:      \(sessionUserId ?? "<nil: no current user>")
@@ -79,12 +79,12 @@ nonisolated enum WorkoutService {
         """)
 
         guard let data = image.jpegData(compressionQuality: 0.7) else {
-            print("GymTaxx[submit] FAILED at stage: IMAGE ENCODING (before Storage). Could not build JPEG data.")
+            NSLog("%@", "GymTaxx[submit] FAILED at stage: IMAGE ENCODING (before Storage). Could not build JPEG data.")
             throw WorkoutServiceError.imageEncodingFailed
         }
 
         let path = "\(userId)/\(UUID().uuidString).jpg"
-        print("""
+        NSLog("%@", """
         GymTaxx[submit] image encoded OK
           jpeg byte count:      \(data.count)
           full storage path:    \(bucket)/\(path)
@@ -92,13 +92,13 @@ nonisolated enum WorkoutService {
 
         // 1. Upload the proof image.
         do {
-            print("GymTaxx[submit] stage 1: uploading to Storage at path '\(path)' in bucket '\(bucket)'...")
+            NSLog("%@", "GymTaxx[submit] stage 1: uploading to Storage at path '\(path)' in bucket '\(bucket)'...")
             try await supabase.storage
                 .from(bucket)
                 .upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
-            print("GymTaxx[submit] stage 1: Storage upload SUCCEEDED for '\(bucket)/\(path)'")
+            NSLog("%@", "GymTaxx[submit] stage 1: Storage upload SUCCEEDED for '\(bucket)/\(path)'")
         } catch {
-            print("""
+            NSLog("%@", """
             GymTaxx[submit] FAILED at stage: STORAGE UPLOAD (before database insert).
               bucket:             \(bucket)
               full path:          \(bucket)/\(path)
@@ -111,7 +111,7 @@ nonisolated enum WorkoutService {
 
         // 2. Create the pending DB row. On failure, try once to remove the image.
         do {
-            print("GymTaxx[submit] stage 2: inserting workout_submissions row (upload already succeeded)...")
+            NSLog("%@", "GymTaxx[submit] stage 2: inserting workout_submissions row (upload already succeeded)...")
             try await supabase
                 .from("workout_submissions")
                 .insert(WorkoutSubmissionInsert(
@@ -121,9 +121,9 @@ nonisolated enum WorkoutService {
                     storagePath: path
                 ))
                 .execute()
-            print("GymTaxx[submit] stage 2: DB insert SUCCEEDED. --- done ---")
+            NSLog("%@", "GymTaxx[submit] stage 2: DB insert SUCCEEDED. --- done ---")
         } catch {
-            print("""
+            NSLog("%@", """
             GymTaxx[submit] FAILED at stage: DATABASE INSERT (AFTER Storage upload succeeded).
               bucket:             \(bucket)
               full path:          \(bucket)/\(path)
@@ -132,12 +132,12 @@ nonisolated enum WorkoutService {
               full error:         \(String(reflecting: error))
             """)
             do {
-                print("GymTaxx[submit] attempting orphan cleanup delete of '\(bucket)/\(path)'...")
+                NSLog("%@", "GymTaxx[submit] attempting orphan cleanup delete of '\(bucket)/\(path)'...")
                 _ = try await supabase.storage.from(bucket).remove(paths: [path])
-                print("GymTaxx[submit] orphan cleanup delete SUCCEEDED for '\(bucket)/\(path)'")
+                NSLog("%@", "GymTaxx[submit] orphan cleanup delete SUCCEEDED for '\(bucket)/\(path)'")
             } catch {
                 // Best-effort cleanup only; nothing more to do for the MVP.
-                print("""
+                NSLog("%@", """
                 GymTaxx[submit] orphan cleanup delete FAILED for '\(bucket)/\(path)':
                   localizedError:   \(error.localizedDescription)
                   full error:       \(String(reflecting: error))
