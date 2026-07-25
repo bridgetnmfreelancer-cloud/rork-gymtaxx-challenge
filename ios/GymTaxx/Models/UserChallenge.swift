@@ -41,10 +41,11 @@ nonisolated struct UserChallenge: Codable, Identifiable, Sendable, Hashable {
 }
 
 /// Deposit lifecycle for a participation record.
+/// Refunds are issued by hand in the Stripe Dashboard, so the app only ever
+/// needs to know whether the deposit has been taken.
 nonisolated enum PaymentStatus: String, Codable, Sendable {
     case unpaid
     case paid
-    case refunded
 }
 
 /// Lifecycle of the participation itself, independent of whether the user hit

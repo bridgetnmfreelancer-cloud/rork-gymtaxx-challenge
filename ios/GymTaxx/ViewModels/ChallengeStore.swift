@@ -29,6 +29,9 @@ final class ChallengeStore {
     private(set) var participation: UserChallenge?
     private(set) var isLoading = false
     private(set) var loadError: String?
+    /// True when the user is signed in but hasn't committed to a weekly goal yet
+    /// (e.g. they signed up on another device, or reinstalled the app).
+    private(set) var needsGoal = false
 
     private let saveURL: URL
 
@@ -63,15 +66,21 @@ final class ChallengeStore {
 
             await syncProfileIfNeeded()
 
-            guard let participation = await resolveParticipation(for: remote) else {
-                // Not enrolled yet (or enrolment failed) — keep showing cached
-                // config rather than inventing numbers, and let the next refresh retry.
+            let outcome = await resolveParticipation(for: remote)
+
+            guard case .joined(let participation) = outcome else {
+                // Keep showing cached config rather than inventing numbers, and
+                // let the next refresh retry.
                 self.participation = nil
-                loadError = "We couldn't load your challenge place. Pull to refresh to try again."
+                needsGoal = (outcome == .needsGoal)
+                if !needsGoal {
+                    loadError = "We couldn't load your challenge place. Pull to refresh to try again."
+                }
                 isLoading = false
                 return
             }
 
+            needsGoal = false
             self.participation = participation
 
             var updated = Challenge(
@@ -114,6 +123,7 @@ final class ChallengeStore {
         challenge.workouts = []
         challengeId = nil
         participation = nil
+        needsGoal = false
         loadError = nil
     }
 
@@ -164,16 +174,21 @@ final class ChallengeStore {
 
     /// The user's participation record, creating it on first sign-in from the goal
     /// chosen during onboarding.
-    private func resolveParticipation(for remote: RemoteChallenge) async -> UserChallenge? {
+    private func resolveParticipation(for remote: RemoteChallenge) async -> ParticipationOutcome {
         do {
             if let existing = try await WorkoutService.fetchParticipation(challengeId: remote.id) {
                 // The server row wins from now on, so drop the local hand-off value.
                 Self.clearPendingGoal()
-                return existing
+                return .joined(existing)
             }
 
-            guard let userId = supabase.auth.currentUser?.id.uuidString,
-                  let goal = Self.pendingGoal() else { return nil }
+            guard let userId = supabase.auth.currentUser?.id.uuidString else {
+                return .failed
+            }
+
+            // No goal waiting on this device: the account exists but the choice was
+            // never made here, so ask for it rather than dead-ending.
+            guard let goal = Self.pendingGoal() else { return .needsGoal }
 
             let created = try await WorkoutService.createParticipation(
                 userId: userId,
@@ -181,10 +196,40 @@ final class ChallengeStore {
                 goal: goal
             )
             Self.clearPendingGoal()
-            return created
+            return .joined(created)
         } catch {
             print("GymTaxx: failed to resolve participation: \(error.localizedDescription)")
-            return nil
+            return .failed
+        }
+    }
+
+    /// Commit to a weekly goal, creating the participation record. Used when the
+    /// signed-in account has no commitment yet, so the deposit can be priced.
+    @discardableResult
+    func commit(goal: WeeklyGoal) async -> Bool {
+        isLoading = true
+        loadError = nil
+        do {
+            guard let userId = supabase.auth.currentUser?.id.uuidString else {
+                loadError = "You need to be signed in to join the challenge."
+                isLoading = false
+                return false
+            }
+            let remote = try await WorkoutService.fetchChallenge()
+            _ = try await WorkoutService.createParticipation(
+                userId: userId,
+                challenge: remote,
+                goal: goal
+            )
+            Self.clearPendingGoal()
+            isLoading = false
+            await refresh()
+            return participation != nil
+        } catch {
+            print("GymTaxx: failed to commit to goal: \(error.localizedDescription)")
+            loadError = "We couldn't save your commitment. Please try again."
+            isLoading = false
+            return false
         }
     }
 

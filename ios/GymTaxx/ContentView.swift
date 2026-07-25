@@ -59,7 +59,12 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if store.needsDeposit {
+            if store.needsGoal {
+                // Signed in, but no commitment on record — ask before pricing.
+                CommitmentView(store: store) {
+                    Task { await auth.signOut() }
+                }
+            } else if store.needsDeposit {
                 // An unpaid user cannot enter the challenge. The database enforces
                 // this too, so this screen is the way in — not the only lock.
                 DepositPaymentView(store: store) {
