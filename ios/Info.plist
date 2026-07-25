@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Registers the gymtaxx:// URL scheme so Supabase password-recovery links
+	  open the app directly instead of Safari.
+
+	  Everything else in this app's Info.plist is generated from the
+	  INFOPLIST_KEY_* build settings in project.pbxproj (GENERATE_INFOPLIST_FILE
+	  stays YES and Xcode merges those keys into this file). CFBundleURLTypes has
+	  no INFOPLIST_KEY_ equivalent, which is the only reason this file exists —
+	  add new keys as build settings, not here.
+
+	  It lives beside the .xcodeproj rather than inside GymTaxx/, because that
+	  folder is a file-system-synchronized group: a plist in there would also be
+	  copied in as a bundle resource and collide with this processed one.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>app.rork.qy1ifqwse06xc88h27qw8</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>gymtaxx</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

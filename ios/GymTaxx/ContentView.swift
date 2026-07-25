@@ -8,6 +8,10 @@ import SwiftUI
 /// Auth gate: first-time visitors see the onboarding flow, returning
 /// logged-out users see the sign-in flow, and signed-in users see the app.
 /// supabase-swift restores any persisted session on launch.
+///
+/// Password recovery is checked before everything else: a recovery deep link
+/// creates a real session, so without that ordering the user would land in the
+/// challenge holding a password they don't know.
 struct RootView: View {
     @Bindable var auth: AuthManager
 
@@ -17,7 +21,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if auth.isLoading {
+            if auth.isRecoveringPassword {
+                NewPasswordView(auth: auth)
+            } else if auth.isLoading || auth.isHandlingRecoveryLink {
                 splash
             } else if auth.isSignedIn {
                 ContentView(auth: auth)
@@ -38,6 +44,17 @@ struct RootView: View {
                     onLogIn: { wantsLogIn = true }
                 )
             }
+        }
+        .alert(
+            "Reset link didn't work",
+            isPresented: Binding(
+                get: { auth.recoveryLinkError != nil },
+                set: { if !$0 { auth.recoveryLinkError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { auth.recoveryLinkError = nil }
+        } message: {
+            Text(auth.recoveryLinkError ?? "")
         }
     }
 

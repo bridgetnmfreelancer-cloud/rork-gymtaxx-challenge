@@ -5,13 +5,11 @@
 
 import SwiftUI
 
-/// Two-step password recovery: request the email, then bring the token back.
+/// Requests a password recovery email.
 ///
-/// GymTaxx has no registered URL scheme, so the recovery email can't hand the
-/// token straight to the app. Instead the user copies the reset link out of the
-/// email and pastes it here — the token is extracted from it. A pasted link and a
-/// typed code are both accepted, so this keeps working if the email template ever
-/// starts including a short code.
+/// This screen's job ends when the email is sent. Tapping the link in that email
+/// opens GymTaxx through the `gymtaxx://` scheme, and `RootView` takes over by
+/// showing `NewPasswordView` — so there is nothing to copy, paste, or type back.
 struct PasswordResetView: View {
     let auth: AuthManager
     /// Pre-filled from the login form so the user doesn't retype it.
@@ -20,14 +18,11 @@ struct PasswordResetView: View {
 
     private enum Step {
         case request
-        case confirm
-        case done
+        case sent
     }
 
     @State private var step: Step = .request
     @State private var email: String
-    @State private var pastedLink = ""
-    @State private var newPassword = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
@@ -45,8 +40,7 @@ struct PasswordResetView: View {
 
                 switch step {
                 case .request: requestStep
-                case .confirm: confirmStep
-                case .done: doneStep
+                case .sent: sentStep
                 }
             }
             .padding(.horizontal, 24)
@@ -74,7 +68,7 @@ struct PasswordResetView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(step == .request ? "Reset your password" : "Check your email")
                 .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(Color.navy)
                 .fixedSize(horizontal: false, vertical: true)
@@ -88,22 +82,12 @@ struct PasswordResetView: View {
         .padding(.bottom, 28)
     }
 
-    private var title: String {
-        switch step {
-        case .request: return "Reset your password"
-        case .confirm: return "Check your email"
-        case .done: return "Password updated"
-        }
-    }
-
     private var subtitle: String {
         switch step {
         case .request:
             return "We'll email you a reset link. Your deposit and progress stay exactly as they are."
-        case .confirm:
-            return "Don't tap the link in the email — press and hold it, choose Copy, then paste it below."
-        case .done:
-            return "You're all set. Log in with your new password to get back to your challenge."
+        case .sent:
+            return "We sent a link to \(email). Tap it and GymTaxx will open right on the new-password screen."
         }
     }
 
@@ -131,72 +115,40 @@ struct PasswordResetView: View {
         }
     }
 
-    private var confirmStep: some View {
-        VStack(spacing: 14) {
+    private var sentStep: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "envelope.badge.fill")
+                .font(.system(size: 48, weight: .semibold))
+                .foregroundStyle(Color.mintDeep)
+                .padding(.vertical, 4)
+
             hint
-
-            field {
-                TextField("Paste the reset link", text: $pastedLink, axis: .vertical)
-                    .textContentType(.oneTimeCode)
-                    .lineLimit(1...4)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-            }
-
-            field {
-                SecureField("New password", text: $newPassword)
-                    .textContentType(.newPassword)
-            }
 
             errorLabel
 
-            primaryButton(
-                title: "Save new password",
-                busyTitle: "Saving…",
-                isEnabled: canSubmitNewPassword
-            ) {
-                await saveNewPassword()
-            }
-
             Button {
-                Task { await sendEmail(resend: true) }
+                Task {
+                    isSubmitting = true
+                    await sendEmail()
+                    isSubmitting = false
+                }
             } label: {
-                Text("Send another email")
+                Text(isSubmitting ? "Sending…" : "Send another email")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.mintDeep)
             }
             .buttonStyle(.plain)
             .disabled(isSubmitting)
         }
-    }
-
-    private var doneStep: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 56, weight: .bold))
-                .foregroundStyle(Color.mintDeep)
-                .padding(.top, 12)
-
-            Button(action: onDismiss) {
-                Text("Back to log in")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Color.navy)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(Color.mintGreen)
-                    .clipShape(.rect(cornerRadius: 20))
-            }
-            .buttonStyle(.plain)
-        }
         .frame(maxWidth: .infinity)
     }
 
     private var hint: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "info.circle.fill")
+            Image(systemName: "iphone.badge.play")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.mintDeep)
-            Text("Reset links work only once. Tapping the link uses it up, so this screen can no longer accept it — press and hold instead, choose Copy, and paste it here.")
+            Text("Open the link on this phone — that's where the reset was started, and links only work once. If nothing arrives, check your spam folder.")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.navy.opacity(0.7))
                 .fixedSize(horizontal: false, vertical: true)
@@ -260,42 +212,17 @@ struct PasswordResetView: View {
         .disabled(!isEnabled || isSubmitting)
     }
 
-    private var canSubmitNewPassword: Bool {
-        AuthManager.recoveryToken(from: pastedLink) != nil && newPassword.count >= 6
-    }
-
     // MARK: - Actions
 
-    private func sendEmail(resend: Bool = false) async {
+    private func sendEmail() async {
         errorMessage = nil
         do {
             try await auth.sendPasswordReset(email: email)
             withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                step = .confirm
+                step = .sent
             }
         } catch {
             errorMessage = friendlyRequestError(error)
-        }
-    }
-
-    private func saveNewPassword() async {
-        errorMessage = nil
-        guard let token = AuthManager.recoveryToken(from: pastedLink) else {
-            errorMessage = "That doesn't look like the reset link. Copy the whole thing from the email, starting with https://"
-            return
-        }
-        do {
-            try await auth.completePasswordReset(
-                email: email,
-                token: token,
-                newPassword: newPassword
-            )
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                step = .done
-            }
-        } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription
-                ?? "We couldn't reset your password. Please try again."
         }
     }
 

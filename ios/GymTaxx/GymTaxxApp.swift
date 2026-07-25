@@ -14,6 +14,10 @@ struct GymTaxxApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(auth: auth)
+                .onOpenURL { url in
+                    // Recovery links arrive as gymtaxx://reset-password?code=…
+                    Task { await auth.handleOpenURL(url) }
+                }
         }
     }
 }
