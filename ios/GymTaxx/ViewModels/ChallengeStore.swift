@@ -10,19 +10,22 @@ import Supabase
 /// Observable store for the user's challenge.
 ///
 /// Remote Supabase submissions are the source of truth for check-ins, verified
-/// totals and money earned. The challenge *configuration* (deposit, reward,
-/// dates, shared id) is cached locally so the home screen can render instantly,
-/// but workout rows are never seeded locally — they come only from Supabase.
+/// totals and money earned. The challenge *configuration* is cached locally so
+/// the home screen can render instantly, but workout rows are never seeded
+/// locally — they come only from Supabase.
 ///
-/// The deposit and weekly target come from the user's own `challenge_enrollments`
-/// row, which is created from the goal they picked during onboarding. The shared
-/// `challenges` row only supplies its defaults as a fallback.
+/// Shape of the data:
+/// - `challenges` supplies what everyone shares: length, reward per workout, name.
+/// - `user_challenges` supplies this user's commitment: goal per week and window.
+/// - The deposit is *derived* (goal x weeks x reward), never stored twice.
 @Observable
 @MainActor
 final class ChallengeStore {
 
     private(set) var challenge: Challenge
     private(set) var challengeId: UUID?
+    /// The user's participation record id — the parent of every submission.
+    private(set) var participationId: UUID?
     private(set) var isLoading = false
     private(set) var loadError: String?
 
@@ -48,8 +51,8 @@ final class ChallengeStore {
         }
     }
 
-    /// Fetch the shared challenge and this user's submissions from Supabase and
-    /// rebuild the local view. Remote data fully replaces any in-memory workouts.
+    /// Fetch the challenge, the user's participation and their submissions, then
+    /// rebuild the local view. Remote data fully replaces in-memory workouts.
     func refresh() async {
         isLoading = true
         loadError = nil
@@ -57,23 +60,39 @@ final class ChallengeStore {
             let remote = try await WorkoutService.fetchChallenge()
             challengeId = remote.id
 
-            let enrollment = await resolveEnrollment(for: remote)
+            await syncProfileIfNeeded()
+
+            guard let participation = await resolveParticipation(for: remote) else {
+                // Not enrolled yet (or enrolment failed) — keep showing cached
+                // config rather than inventing numbers, and let the next refresh retry.
+                participationId = nil
+                loadError = "We couldn't load your challenge place. Pull to refresh to try again."
+                isLoading = false
+                return
+            }
+
+            participationId = participation.id
 
             var updated = Challenge(
-                depositAmount: enrollment?.depositAmount ?? remote.depositAmount,
+                depositAmount: Self.deposit(for: participation, challenge: remote),
                 rewardPerWorkout: remote.rewardPerWorkout,
-                startDate: remote.startDate,
-                workoutsPerWeek: enrollment?.workoutsPerWeek ?? remote.workoutsPerWeek,
+                startDate: participation.startedAt,
+                workoutsPerWeek: participation.goalWorkoutsPerWeek,
                 numberOfWeeks: remote.numberOfWeeks
             )
 
-            let submissions = try await WorkoutService.fetchSubmissions(challengeId: remote.id)
+            let submissions = try await WorkoutService.fetchSubmissions(
+                userChallengeId: participation.id
+            )
             updated.workouts = submissions.map { submission in
                 Workout(
                     id: submission.id,
                     capturedAt: submission.capturedAt,
                     status: submission.workoutStatus,
-                    weekIndex: Self.weekIndex(for: submission.capturedAt, start: remote.startDate)
+                    weekIndex: Self.weekIndex(
+                        for: submission.capturedAt,
+                        start: participation.startedAt
+                    )
                 )
             }
 
@@ -91,6 +110,7 @@ final class ChallengeStore {
     func clear() {
         challenge.workouts = []
         challengeId = nil
+        participationId = nil
         loadError = nil
     }
 
@@ -106,16 +126,21 @@ final class ChallengeStore {
     var totalVerified: Int { ChallengeEngine.totalVerified(for: challenge) }
     var totalWorkoutsToEarnBack: Int { ChallengeEngine.totalWorkoutsToEarnBack(for: challenge) }
 
-    // MARK: - Enrolment
+    // MARK: - Participation
 
-    /// The user's enrolment for this challenge, creating it on first sign-in from
-    /// the goal saved during onboarding.
-    ///
-    /// A failure here is deliberately non-fatal: the home screen still renders on
-    /// the shared challenge defaults and the next refresh retries.
-    private func resolveEnrollment(for remote: RemoteChallenge) async -> ChallengeEnrollment? {
+    /// The deposit implied by the user's commitment. Derived rather than stored,
+    /// so it can never drift from the goal it was calculated from.
+    private static func deposit(for participation: UserChallenge, challenge: RemoteChallenge) -> Double {
+        Double(participation.goalWorkoutsPerWeek)
+            * Double(challenge.numberOfWeeks)
+            * challenge.rewardPerWorkout
+    }
+
+    /// The user's participation record, creating it on first sign-in from the goal
+    /// chosen during onboarding.
+    private func resolveParticipation(for remote: RemoteChallenge) async -> UserChallenge? {
         do {
-            if let existing = try await WorkoutService.fetchEnrollment(challengeId: remote.id) {
+            if let existing = try await WorkoutService.fetchParticipation(challengeId: remote.id) {
                 // The server row wins from now on, so drop the local hand-off value.
                 Self.clearPendingGoal()
                 return existing
@@ -124,16 +149,29 @@ final class ChallengeStore {
             guard let userId = supabase.auth.currentUser?.id.uuidString,
                   let goal = Self.pendingGoal() else { return nil }
 
-            let created = try await WorkoutService.createEnrollment(
+            let created = try await WorkoutService.createParticipation(
                 userId: userId,
-                challengeId: remote.id,
+                challenge: remote,
                 goal: goal
             )
             Self.clearPendingGoal()
             return created
         } catch {
-            print("GymTaxx: failed to resolve enrolment: \(error.localizedDescription)")
+            print("GymTaxx: failed to resolve participation: \(error.localizedDescription)")
             return nil
+        }
+    }
+
+    /// Write the onboarding habit answer to the profile once, then forget it locally.
+    private func syncProfileIfNeeded() async {
+        guard let raw = UserDefaults.standard.string(forKey: OnboardingStorage.habitKey),
+              let habit = GymHabit(dbValue: raw),
+              let userId = supabase.auth.currentUser?.id.uuidString else { return }
+        do {
+            try await ProfileService.saveOnboardingAnswers(habit: habit, userId: userId)
+            UserDefaults.standard.removeObject(forKey: OnboardingStorage.habitKey)
+        } catch {
+            print("GymTaxx: failed to sync profile: \(error.localizedDescription)")
         }
     }
 

@@ -25,8 +25,13 @@ struct RootView: View {
                 AuthView(auth: auth, startInSignUp: startAuthInSignUp)
             } else {
                 OnboardingFlowView(
-                    onComplete: { goal in
-                        UserDefaults.standard.set(goal.rawValue, forKey: OnboardingStorage.weeklyGoalKey)
+                    onComplete: { habit, goal in
+                        // Held on device only until there's an account to attach
+                        // them to: the first authenticated refresh writes the
+                        // habit to the profile and the goal to the participation.
+                        let defaults = UserDefaults.standard
+                        defaults.set(habit.dbValue, forKey: OnboardingStorage.habitKey)
+                        defaults.set(goal.rawValue, forKey: OnboardingStorage.weeklyGoalKey)
                         startAuthInSignUp = true
                         hasOnboarded = true
                     },

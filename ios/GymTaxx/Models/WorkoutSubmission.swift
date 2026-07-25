@@ -9,7 +9,8 @@ import Foundation
 nonisolated struct WorkoutSubmission: Codable, Identifiable, Sendable, Hashable {
     let id: UUID
     let userId: String
-    let challengeId: UUID
+    /// The participation record this submission belongs to.
+    let userChallengeId: UUID
     let capturedAt: Date
     let storagePath: String
     let status: String
@@ -20,7 +21,7 @@ nonisolated struct WorkoutSubmission: Codable, Identifiable, Sendable, Hashable 
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"
-        case challengeId = "challenge_id"
+        case userChallengeId = "user_challenge_id"
         case capturedAt = "captured_at"
         case storagePath = "storage_path"
         case status
@@ -40,35 +41,38 @@ nonisolated struct WorkoutSubmission: Codable, Identifiable, Sendable, Hashable 
 /// fields are omitted — RLS rejects anything else.
 nonisolated struct WorkoutSubmissionInsert: Encodable, Sendable {
     let userId: String
+    /// Still sent because `workout_submissions.challenge_id` is NOT NULL until
+    /// that now-redundant column is dropped. `user_challenge_id` is the real link.
     let challengeId: UUID
+    let userChallengeId: UUID
     let capturedAt: Date
     let storagePath: String
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case challengeId = "challenge_id"
+        case userChallengeId = "user_challenge_id"
         case capturedAt = "captured_at"
         case storagePath = "storage_path"
     }
 }
 
-/// The shared challenge record fetched from Supabase. All participants share
-/// one row and one id.
+/// The challenge itself (e.g. "August Challenge"), shared by all participants
+/// and independent of any individual user.
+///
+/// Per-user values (goal, deposit) are deliberately absent — they live on
+/// `user_challenges`.
 nonisolated struct RemoteChallenge: Codable, Identifiable, Sendable {
     let id: UUID
     let name: String
-    let depositAmount: Double
     let rewardPerWorkout: Double
-    let workoutsPerWeek: Int
     let numberOfWeeks: Int
     let startDate: Date
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
-        case depositAmount = "deposit_amount"
         case rewardPerWorkout = "reward_per_workout"
-        case workoutsPerWeek = "workouts_per_week"
         case numberOfWeeks = "number_of_weeks"
         case startDate = "start_date"
     }

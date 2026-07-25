@@ -166,7 +166,9 @@ struct VerificationView: View {
 
     private func submit() {
         guard let image = capturedImage else { return }
-        guard let userId = supabaseUserId, let challengeId = store.challengeId else {
+        guard let userId = supabaseUserId,
+              let challengeId = store.challengeId,
+              let participationId = store.participationId else {
             submitError = "We couldn't confirm your challenge. Please go back and try again."
             capturedImage = nil
             return
@@ -182,6 +184,7 @@ struct VerificationView: View {
                     image: image,
                     userId: userId,
                     challengeId: challengeId,
+                    userChallengeId: participationId,
                     capturedAt: capturedAt
                 )
                 isSubmitting = false

@@ -17,8 +17,9 @@ enum OnboardingStep: Int, CaseIterable {
 /// Container driving the pre-signup onboarding flow:
 /// habit question → goal question → affirmation → how it works → deposit.
 struct OnboardingFlowView: View {
-    /// Called with the chosen weekly goal when the user finishes the flow.
-    let onComplete: (WeeklyGoal) -> Void
+    /// Called with both onboarding answers when the user finishes the flow: the
+    /// habit belongs on their profile, the goal on their challenge participation.
+    let onComplete: (GymHabit, WeeklyGoal) -> Void
     /// Called when an existing user taps "Log in" to skip onboarding.
     let onLogIn: () -> Void
 
@@ -78,7 +79,7 @@ struct OnboardingFlowView: View {
             HowItWorksView { advance() }
         case .deposit:
             DepositView(goal: goal ?? .three) {
-                onComplete(goal ?? .three)
+                onComplete(habit ?? .inconsistent, goal ?? .three)
             }
         }
     }

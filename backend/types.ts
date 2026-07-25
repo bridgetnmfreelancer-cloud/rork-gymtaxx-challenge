@@ -86,6 +86,80 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          current_workouts_per_week: string | null
+          email: string | null
+          id: string
+          name: string | null
+          onboarding_completed: boolean
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          current_workouts_per_week?: string | null
+          email?: string | null
+          id: string
+          name?: string | null
+          onboarding_completed?: boolean
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          current_workouts_per_week?: string | null
+          email?: string | null
+          id?: string
+          name?: string | null
+          onboarding_completed?: boolean
+        }
+        Relationships: []
+      }
+      user_challenges: {
+        Row: {
+          challenge_id: string
+          challenge_status: string
+          created_at: string
+          ends_at: string
+          goal_workouts_per_week: number
+          id: string
+          payment_status: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          challenge_status?: string
+          created_at?: string
+          ends_at: string
+          goal_workouts_per_week: number
+          id?: string
+          payment_status?: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          challenge_status?: string
+          created_at?: string
+          ends_at?: string
+          goal_workouts_per_week?: number
+          id?: string
+          payment_status?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_challenges_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workout_submissions: {
         Row: {
           captured_at: string
@@ -97,6 +171,7 @@ export type Database = {
           reviewed_by: string | null
           status: string
           storage_path: string
+          user_challenge_id: string
           user_id: string
         }
         Insert: {
@@ -109,6 +184,7 @@ export type Database = {
           reviewed_by?: string | null
           status?: string
           storage_path: string
+          user_challenge_id: string
           user_id: string
         }
         Update: {
@@ -121,6 +197,7 @@ export type Database = {
           reviewed_by?: string | null
           status?: string
           storage_path?: string
+          user_challenge_id?: string
           user_id?: string
         }
         Relationships: [
@@ -129,6 +206,13 @@ export type Database = {
             columns: ["challenge_id"]
             isOneToOne: false
             referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_submissions_user_challenge_id_fkey"
+            columns: ["user_challenge_id"]
+            isOneToOne: false
+            referencedRelation: "user_challenges"
             referencedColumns: ["id"]
           },
         ]

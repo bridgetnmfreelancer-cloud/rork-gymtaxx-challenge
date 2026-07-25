@@ -29,12 +29,13 @@ nonisolated enum WorkoutServiceError: LocalizedError {
 }
 
 /// Handles the remote workout flow: upload proof to private Storage, then create
-/// the pending submission row. Fetches a user's submissions for the home screen.
+/// the pending submission row. Also reads the challenge and the user's
+/// participation record.
 nonisolated enum WorkoutService {
 
     private static let bucket = "workout-proofs"
 
-    /// Fetch the shared challenge all participants use (the earliest one).
+    /// Fetch the challenge participants are currently joining (the earliest one).
     static func fetchChallenge() async throws -> RemoteChallenge {
         try await supabase
             .from("challenges")
@@ -46,11 +47,11 @@ nonisolated enum WorkoutService {
             .value
     }
 
-    /// Fetch the signed-in user's enrolment for a challenge, or nil if they
-    /// haven't enrolled yet. RLS limits the result to the caller's own row.
-    static func fetchEnrollment(challengeId: UUID) async throws -> ChallengeEnrollment? {
-        let rows: [ChallengeEnrollment] = try await supabase
-            .from("challenge_enrollments")
+    /// Fetch the signed-in user's participation record for a challenge, or nil if
+    /// they haven't joined it. RLS limits the result to the caller's own row.
+    static func fetchParticipation(challengeId: UUID) async throws -> UserChallenge? {
+        let rows: [UserChallenge] = try await supabase
+            .from("user_challenges")
             .select()
             .eq("challenge_id", value: challengeId.uuidString)
             .limit(1)
@@ -59,28 +60,35 @@ nonisolated enum WorkoutService {
         return rows.first
     }
 
-    /// Enrol the signed-in user on the terms implied by their chosen weekly goal.
-    /// Returns the created row so the caller can use the server's values.
-    static func createEnrollment(
+    /// Join a challenge with the goal chosen during onboarding. Payment and
+    /// lifecycle status use server defaults (`unpaid` / `active`).
+    static func createParticipation(
         userId: String,
-        challengeId: UUID,
-        goal: WeeklyGoal
-    ) async throws -> ChallengeEnrollment {
+        challenge: RemoteChallenge,
+        goal: WeeklyGoal,
+        startedAt: Date = Date()
+    ) async throws -> UserChallenge {
         try await supabase
-            .from("challenge_enrollments")
-            .insert(ChallengeEnrollmentInsert(userId: userId, challengeId: challengeId, goal: goal))
+            .from("user_challenges")
+            .insert(UserChallengeInsert(
+                userId: userId,
+                challengeId: challenge.id,
+                goal: goal,
+                startedAt: startedAt,
+                weeks: challenge.numberOfWeeks
+            ))
             .select()
             .single()
             .execute()
             .value
     }
 
-    /// Fetch the signed-in user's submissions for a challenge.
-    static func fetchSubmissions(challengeId: UUID) async throws -> [WorkoutSubmission] {
+    /// Fetch the submissions belonging to one participation record.
+    static func fetchSubmissions(userChallengeId: UUID) async throws -> [WorkoutSubmission] {
         try await supabase
             .from("workout_submissions")
             .select()
-            .eq("challenge_id", value: challengeId.uuidString)
+            .eq("user_challenge_id", value: userChallengeId.uuidString)
             .order("captured_at", ascending: false)
             .execute()
             .value
@@ -96,6 +104,7 @@ nonisolated enum WorkoutService {
         image: UIImage,
         userId: String,
         challengeId: UUID,
+        userChallengeId: UUID,
         capturedAt: Date
     ) async throws {
         guard let data = image.jpegData(compressionQuality: 0.7) else {
@@ -126,6 +135,7 @@ nonisolated enum WorkoutService {
                 .insert(WorkoutSubmissionInsert(
                     userId: userId,
                     challengeId: challengeId,
+                    userChallengeId: userChallengeId,
                     capturedAt: capturedAt,
                     storagePath: path
                 ))
