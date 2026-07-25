@@ -18,6 +18,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      challenge_enrollments: {
+        Row: {
+          challenge_id: string
+          created_at: string
+          deposit_amount: number
+          id: string
+          user_id: string
+          workouts_per_week: number
+        }
+        Insert: {
+          challenge_id: string
+          created_at?: string
+          deposit_amount: number
+          id?: string
+          user_id: string
+          workouts_per_week: number
+        }
+        Update: {
+          challenge_id?: string
+          created_at?: string
+          deposit_amount?: number
+          id?: string
+          user_id?: string
+          workouts_per_week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_enrollments_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       challenges: {
         Row: {
           created_at: string

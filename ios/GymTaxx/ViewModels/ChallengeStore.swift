@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftUI
+import Supabase
 
 /// Observable store for the user's challenge.
 ///
@@ -12,6 +13,10 @@ import SwiftUI
 /// totals and money earned. The challenge *configuration* (deposit, reward,
 /// dates, shared id) is cached locally so the home screen can render instantly,
 /// but workout rows are never seeded locally — they come only from Supabase.
+///
+/// The deposit and weekly target come from the user's own `challenge_enrollments`
+/// row, which is created from the goal they picked during onboarding. The shared
+/// `challenges` row only supplies its defaults as a fallback.
 @Observable
 @MainActor
 final class ChallengeStore {
@@ -52,11 +57,13 @@ final class ChallengeStore {
             let remote = try await WorkoutService.fetchChallenge()
             challengeId = remote.id
 
+            let enrollment = await resolveEnrollment(for: remote)
+
             var updated = Challenge(
-                depositAmount: remote.depositAmount,
+                depositAmount: enrollment?.depositAmount ?? remote.depositAmount,
                 rewardPerWorkout: remote.rewardPerWorkout,
                 startDate: remote.startDate,
-                workoutsPerWeek: remote.workoutsPerWeek,
+                workoutsPerWeek: enrollment?.workoutsPerWeek ?? remote.workoutsPerWeek,
                 numberOfWeeks: remote.numberOfWeeks
             )
 
@@ -98,6 +105,49 @@ final class ChallengeStore {
     var earnedProgress: Double { ChallengeEngine.earnedProgress(for: challenge) }
     var totalVerified: Int { ChallengeEngine.totalVerified(for: challenge) }
     var totalWorkoutsToEarnBack: Int { ChallengeEngine.totalWorkoutsToEarnBack(for: challenge) }
+
+    // MARK: - Enrolment
+
+    /// The user's enrolment for this challenge, creating it on first sign-in from
+    /// the goal saved during onboarding.
+    ///
+    /// A failure here is deliberately non-fatal: the home screen still renders on
+    /// the shared challenge defaults and the next refresh retries.
+    private func resolveEnrollment(for remote: RemoteChallenge) async -> ChallengeEnrollment? {
+        do {
+            if let existing = try await WorkoutService.fetchEnrollment(challengeId: remote.id) {
+                // The server row wins from now on, so drop the local hand-off value.
+                Self.clearPendingGoal()
+                return existing
+            }
+
+            guard let userId = supabase.auth.currentUser?.id.uuidString,
+                  let goal = Self.pendingGoal() else { return nil }
+
+            let created = try await WorkoutService.createEnrollment(
+                userId: userId,
+                challengeId: remote.id,
+                goal: goal
+            )
+            Self.clearPendingGoal()
+            return created
+        } catch {
+            print("GymTaxx: failed to resolve enrolment: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// The goal chosen during onboarding, held in UserDefaults until there's an
+    /// account to attach it to. Cleared once it reaches the server so a different
+    /// user signing in on this device can't inherit it.
+    private static func pendingGoal() -> WeeklyGoal? {
+        let raw = UserDefaults.standard.integer(forKey: OnboardingStorage.weeklyGoalKey)
+        return WeeklyGoal(rawValue: raw)
+    }
+
+    private static func clearPendingGoal() {
+        UserDefaults.standard.removeObject(forKey: OnboardingStorage.weeklyGoalKey)
+    }
 
     // MARK: - Helpers
 

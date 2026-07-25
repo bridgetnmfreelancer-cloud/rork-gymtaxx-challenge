@@ -8,6 +8,7 @@ import SwiftUI
 /// Full-screen success page shown after a workout is verified.
 /// Pushed onto the app's NavigationStack.
 struct SuccessView: View {
+    let store: ChallengeStore
     @Binding var path: [AppRoute]
     @State private var appeared = false
 
@@ -24,7 +25,7 @@ struct SuccessView: View {
                 Text("Workout verified")
                     .font(.system(size: 32, weight: .bold))
                     .foregroundStyle(Color.navy)
-                Text("Nice work. One step closer to your £50 back.")
+                Text(reclaimedText)
                     .font(.subheadline)
                     .foregroundStyle(Color.navy.opacity(0.6))
                     .multilineTextAlignment(.center)
@@ -55,6 +56,17 @@ struct SuccessView: View {
         .background(Color.white)
         .navigationBarBackButtonHidden(true)
         .onAppear { appeared = true }
+    }
+
+    /// Progress against the user's own deposit, not a hardcoded figure.
+    private var reclaimedText: String {
+        let earned = money(store.earnedSoFar)
+        let deposit = money(store.challenge.depositAmount)
+        return "Nice work. That's £\(earned) of your £\(deposit) reclaimed."
+    }
+
+    private func money(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.2f", value)
     }
 
     private var successCheck: some View {

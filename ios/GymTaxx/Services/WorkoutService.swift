@@ -46,6 +46,35 @@ nonisolated enum WorkoutService {
             .value
     }
 
+    /// Fetch the signed-in user's enrolment for a challenge, or nil if they
+    /// haven't enrolled yet. RLS limits the result to the caller's own row.
+    static func fetchEnrollment(challengeId: UUID) async throws -> ChallengeEnrollment? {
+        let rows: [ChallengeEnrollment] = try await supabase
+            .from("challenge_enrollments")
+            .select()
+            .eq("challenge_id", value: challengeId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
+    /// Enrol the signed-in user on the terms implied by their chosen weekly goal.
+    /// Returns the created row so the caller can use the server's values.
+    static func createEnrollment(
+        userId: String,
+        challengeId: UUID,
+        goal: WeeklyGoal
+    ) async throws -> ChallengeEnrollment {
+        try await supabase
+            .from("challenge_enrollments")
+            .insert(ChallengeEnrollmentInsert(userId: userId, challengeId: challengeId, goal: goal))
+            .select()
+            .single()
+            .execute()
+            .value
+    }
+
     /// Fetch the signed-in user's submissions for a challenge.
     static func fetchSubmissions(challengeId: UUID) async throws -> [WorkoutSubmission] {
         try await supabase

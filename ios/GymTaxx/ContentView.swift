@@ -60,7 +60,7 @@ struct ContentView: View {
                     case .verify:
                         VerificationView(store: store, path: $path)
                     case .success:
-                        SuccessView(path: $path)
+                        SuccessView(store: store, path: $path)
                     }
                 }
         }
