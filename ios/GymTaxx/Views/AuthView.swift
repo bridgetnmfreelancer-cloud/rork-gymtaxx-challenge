@@ -10,11 +10,16 @@ import SwiftUI
 struct AuthView: View {
     @Bindable var auth: AuthManager
 
-    @State private var mode: AuthMode = .signIn
+    @State private var mode: AuthMode
     @State private var email = ""
     @State private var password = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+
+    init(auth: AuthManager, startInSignUp: Bool = false) {
+        _auth = Bindable(wrappedValue: auth)
+        _mode = State(initialValue: startInSignUp ? .signUp : .signIn)
+    }
 
     var body: some View {
         VStack(spacing: 0) {

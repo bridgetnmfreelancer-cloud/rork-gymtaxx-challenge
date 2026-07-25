@@ -5,10 +5,15 @@
 
 import SwiftUI
 
-/// Auth gate: shows the sign-in flow when logged out and the main app when
-/// logged in. supabase-swift restores any persisted session on launch.
+/// Auth gate: first-time visitors see the onboarding flow, returning
+/// logged-out users see the sign-in flow, and signed-in users see the app.
+/// supabase-swift restores any persisted session on launch.
 struct RootView: View {
     @Bindable var auth: AuthManager
+
+    @AppStorage(OnboardingStorage.completedKey) private var hasOnboarded = false
+    @State private var wantsLogIn = false
+    @State private var startAuthInSignUp = false
 
     var body: some View {
         Group {
@@ -16,8 +21,17 @@ struct RootView: View {
                 splash
             } else if auth.isSignedIn {
                 ContentView(auth: auth)
+            } else if hasOnboarded || wantsLogIn {
+                AuthView(auth: auth, startInSignUp: startAuthInSignUp)
             } else {
-                AuthView(auth: auth)
+                OnboardingFlowView(
+                    onComplete: { goal in
+                        UserDefaults.standard.set(goal.rawValue, forKey: OnboardingStorage.weeklyGoalKey)
+                        startAuthInSignUp = true
+                        hasOnboarded = true
+                    },
+                    onLogIn: { wantsLogIn = true }
+                )
             }
         }
     }
