@@ -15,6 +15,7 @@ struct AuthView: View {
     @State private var password = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var isResettingPassword = false
 
     init(auth: AuthManager, startInSignUp: Bool = false) {
         _auth = Bindable(wrappedValue: auth)
@@ -61,6 +62,18 @@ struct AuthView: View {
                         .transition(.opacity)
                 }
 
+                if mode == .signIn {
+                    Button {
+                        isResettingPassword = true
+                    } label: {
+                        Text("Forgot password?")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.mintDeep)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+
                 Button(action: submit) {
                     ZStack {
                         if isSubmitting {
@@ -105,6 +118,11 @@ struct AuthView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white)
+        .sheet(isPresented: $isResettingPassword) {
+            PasswordResetView(auth: auth, initialEmail: email) {
+                isResettingPassword = false
+            }
+        }
     }
 
     private var isFormValid: Bool {
