@@ -101,7 +101,7 @@ struct PasswordResetView: View {
         case .request:
             return "We'll email you a reset link. Your deposit and progress stay exactly as they are."
         case .confirm:
-            return "Open the email from Supabase, copy the reset link, and paste it below with your new password."
+            return "Don't tap the link in the email — press and hold it, choose Copy, then paste it below."
         case .done:
             return "You're all set. Log in with your new password to get back to your challenge."
         }
@@ -137,6 +137,7 @@ struct PasswordResetView: View {
 
             field {
                 TextField("Paste the reset link", text: $pastedLink, axis: .vertical)
+                    .textContentType(.oneTimeCode)
                     .lineLimit(1...4)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -195,7 +196,7 @@ struct PasswordResetView: View {
             Image(systemName: "info.circle.fill")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.mintDeep)
-            Text("Press and hold the link in the email, then choose Copy. Tapping it opens a blank web page instead.")
+            Text("Reset links work only once. Tapping the link uses it up, so this screen can no longer accept it — press and hold instead, choose Copy, and paste it here.")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.navy.opacity(0.7))
                 .fixedSize(horizontal: false, vertical: true)
@@ -280,7 +281,7 @@ struct PasswordResetView: View {
     private func saveNewPassword() async {
         errorMessage = nil
         guard let token = AuthManager.recoveryToken(from: pastedLink) else {
-            errorMessage = "That doesn't look like the reset link. Copy the whole link from the email."
+            errorMessage = "That doesn't look like the reset link. Copy the whole thing from the email, starting with https://"
             return
         }
         do {

@@ -80,7 +80,7 @@ final class AuthManager {
         defer { isCompletingRecovery = false }
 
         do {
-            if Self.isSixDigitCode(token) {
+            if Self.isNumericCode(token) {
                 try await supabase.auth.verifyOTP(email: email, token: token, type: .recovery)
             } else {
                 try await supabase.auth.verifyOTP(tokenHash: token, type: .recovery)
@@ -129,8 +129,10 @@ final class AuthManager {
         return trimmed.contains(" ") ? nil : trimmed
     }
 
-    private static func isSixDigitCode(_ token: String) -> Bool {
-        token.count == 6 && token.allSatisfy(\.isNumber)
+    /// Supabase's emailed OTP is 6 digits here, but the project-level length is
+    /// configurable, so accept the plausible range rather than pinning to one.
+    private static func isNumericCode(_ token: String) -> Bool {
+        (6...8).contains(token.count) && token.allSatisfy(\.isNumber)
     }
 }
 
@@ -142,7 +144,7 @@ nonisolated enum PasswordResetError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidToken:
-            return "That reset link has expired or was already used. Request a new email and try again."
+            return "That link has already been opened, so it no longer works — reset links only work once. Tap \"Send another email\" below, then press and hold the new link to copy it instead of tapping it."
         case .updateFailed:
             return "We couldn't save your new password. Please request a new email and try again."
         }
