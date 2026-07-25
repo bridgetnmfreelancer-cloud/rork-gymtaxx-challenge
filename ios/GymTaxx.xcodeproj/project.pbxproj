@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		XX0FC704AAAEC2D9B9A289XX /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = XXFBB6B1A2E3D1809D0505XX /* StripePaymentSheet */; };
 		XXCB0C833A4E7DDE353CE0XX /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = XX17F496E7391AF4178246XX /* Supabase */; };
 /* End PBXBuildFile section */
 
@@ -57,6 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				XXCB0C833A4E7DDE353CE0XX /* Supabase in Frameworks */,
+				XX0FC704AAAEC2D9B9A289XX /* StripePaymentSheet in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +120,7 @@
 			name = GymTaxx;
 			packageProductDependencies = (
 				XX17F496E7391AF4178246XX /* Supabase */,
+				XXFBB6B1A2E3D1809D0505XX /* StripePaymentSheet */,
 			);
 			productName = GymTaxx;
 			productReference = 105FC57A2E9EAD3100EA8BCF /* GymTaxx.app */;
@@ -212,6 +215,7 @@
 			);
 			packageReferences = (
 				XXA26CCC1C14E04A80BED3XX /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				XXC27651EE501FE1EE4B31XX /* XCRemoteSwiftPackageReference "stripe-ios" */,
 			);
 		};
 /* End PBXProject section */
@@ -601,6 +605,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		XXC27651EE501FE1EE4B31XX /* XCRemoteSwiftPackageReference "stripe-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stripe/stripe-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 26.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -608,6 +620,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = XXA26CCC1C14E04A80BED3XX /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		XXFBB6B1A2E3D1809D0505XX /* StripePaymentSheet */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = XXC27651EE501FE1EE4B31XX /* XCRemoteSwiftPackageReference "stripe-ios" */;
+			productName = StripePaymentSheet;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

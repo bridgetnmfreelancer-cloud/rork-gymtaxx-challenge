@@ -58,6 +58,26 @@ struct ContentView: View {
     @State private var path: [AppRoute] = []
 
     var body: some View {
+        Group {
+            if store.needsDeposit {
+                // An unpaid user cannot enter the challenge. The database enforces
+                // this too, so this screen is the way in — not the only lock.
+                DepositPaymentView(store: store) {
+                    Task { await auth.signOut() }
+                }
+            } else {
+                challengeStack
+            }
+        }
+        .task(id: auth.userId) {
+            await store.refresh()
+        }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            if !signedIn { store.clear() }
+        }
+    }
+
+    private var challengeStack: some View {
         NavigationStack(path: $path) {
             HomeView(store: store, path: $path, auth: auth)
                 .navigationDestination(for: AppRoute.self) { route in
@@ -70,11 +90,5 @@ struct ContentView: View {
                 }
         }
         .tint(Color.navy)
-        .task(id: auth.userId) {
-            await store.refresh()
-        }
-        .onChange(of: auth.isSignedIn) { _, signedIn in
-            if !signedIn { store.clear() }
-        }
     }
 }

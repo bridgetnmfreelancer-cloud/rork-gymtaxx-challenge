@@ -24,8 +24,9 @@ final class ChallengeStore {
 
     private(set) var challenge: Challenge
     private(set) var challengeId: UUID?
-    /// The user's participation record id — the parent of every submission.
-    private(set) var participationId: UUID?
+    /// The user's commitment to the current challenge, including whether their
+    /// deposit has been paid.
+    private(set) var participation: UserChallenge?
     private(set) var isLoading = false
     private(set) var loadError: String?
 
@@ -65,13 +66,13 @@ final class ChallengeStore {
             guard let participation = await resolveParticipation(for: remote) else {
                 // Not enrolled yet (or enrolment failed) — keep showing cached
                 // config rather than inventing numbers, and let the next refresh retry.
-                participationId = nil
+                self.participation = nil
                 loadError = "We couldn't load your challenge place. Pull to refresh to try again."
                 isLoading = false
                 return
             }
 
-            participationId = participation.id
+            self.participation = participation
 
             var updated = Challenge(
                 depositAmount: Self.deposit(for: participation, challenge: remote),
@@ -81,9 +82,11 @@ final class ChallengeStore {
                 numberOfWeeks: remote.numberOfWeeks
             )
 
-            let submissions = try await WorkoutService.fetchSubmissions(
-                userChallengeId: participation.id
-            )
+            // Nothing to show until the deposit is paid — an unpaid user isn't in
+            // the challenge yet, and the database refuses their submissions anyway.
+            let submissions = participation.payment == .paid
+                ? try await WorkoutService.fetchSubmissions(userChallengeId: participation.id)
+                : []
             updated.workouts = submissions.map { submission in
                 Workout(
                     id: submission.id,
@@ -110,8 +113,31 @@ final class ChallengeStore {
     func clear() {
         challenge.workouts = []
         challengeId = nil
-        participationId = nil
+        participation = nil
         loadError = nil
+    }
+
+    /// The participation record id — the parent of every submission.
+    var participationId: UUID? { participation?.id }
+
+    /// True while the user has committed to a goal but not yet paid the deposit.
+    /// The challenge stays locked until this is false.
+    var needsDeposit: Bool { participation?.payment == .unpaid }
+
+    /// Poll for the deposit being marked paid after a successful Stripe payment.
+    ///
+    /// Stripe confirms payment to its webhook, not to the app, so there is a short
+    /// gap between the sheet closing and the record flipping to `paid`. Returns
+    /// false if it hasn't landed yet so the caller can offer a retry.
+    func awaitDepositConfirmation(attempts: Int = 6) async -> Bool {
+        for attempt in 0..<attempts {
+            if attempt > 0 {
+                try? await Task.sleep(for: .milliseconds(1500))
+            }
+            await refresh()
+            if participation?.payment == .paid { return true }
+        }
+        return false
     }
 
     // MARK: - Derived accessors (unchanged engine math)

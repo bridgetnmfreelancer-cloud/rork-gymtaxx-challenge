@@ -18,71 +18,30 @@ export type Database = {
   }
   public: {
     Tables: {
-      challenge_enrollments: {
-        Row: {
-          challenge_id: string
-          created_at: string
-          deposit_amount: number
-          id: string
-          user_id: string
-          workouts_per_week: number
-        }
-        Insert: {
-          challenge_id: string
-          created_at?: string
-          deposit_amount: number
-          id?: string
-          user_id: string
-          workouts_per_week: number
-        }
-        Update: {
-          challenge_id?: string
-          created_at?: string
-          deposit_amount?: number
-          id?: string
-          user_id?: string
-          workouts_per_week?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "challenge_enrollments_challenge_id_fkey"
-            columns: ["challenge_id"]
-            isOneToOne: false
-            referencedRelation: "challenges"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       challenges: {
         Row: {
           created_at: string
-          deposit_amount: number
           id: string
           name: string
           number_of_weeks: number
           reward_per_workout: number
           start_date: string
-          workouts_per_week: number
         }
         Insert: {
           created_at?: string
-          deposit_amount?: number
           id?: string
           name: string
           number_of_weeks?: number
           reward_per_workout?: number
           start_date?: string
-          workouts_per_week?: number
         }
         Update: {
           created_at?: string
-          deposit_amount?: number
           id?: string
           name?: string
           number_of_weeks?: number
           reward_per_workout?: number
           start_date?: string
-          workouts_per_week?: number
         }
         Relationships: []
       }
@@ -126,6 +85,7 @@ export type Database = {
           id: string
           payment_status: string
           started_at: string
+          stripe_payment_intent_id: string | null
           user_id: string
         }
         Insert: {
@@ -137,6 +97,7 @@ export type Database = {
           id?: string
           payment_status?: string
           started_at?: string
+          stripe_payment_intent_id?: string | null
           user_id: string
         }
         Update: {
@@ -148,6 +109,7 @@ export type Database = {
           id?: string
           payment_status?: string
           started_at?: string
+          stripe_payment_intent_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -163,7 +125,6 @@ export type Database = {
       workout_submissions: {
         Row: {
           captured_at: string
-          challenge_id: string
           created_at: string
           id: string
           rejection_reason: string | null
@@ -176,7 +137,6 @@ export type Database = {
         }
         Insert: {
           captured_at: string
-          challenge_id: string
           created_at?: string
           id?: string
           rejection_reason?: string | null
@@ -189,7 +149,6 @@ export type Database = {
         }
         Update: {
           captured_at?: string
-          challenge_id?: string
           created_at?: string
           id?: string
           rejection_reason?: string | null
@@ -201,13 +160,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "workout_submissions_challenge_id_fkey"
-            columns: ["challenge_id"]
-            isOneToOne: false
-            referencedRelation: "challenges"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "workout_submissions_user_challenge_id_fkey"
             columns: ["user_challenge_id"]

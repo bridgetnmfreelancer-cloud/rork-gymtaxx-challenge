@@ -6,8 +6,8 @@
 import SwiftUI
 
 /// Final onboarding screen: shows the deposit amount computed from the user's
-/// weekly goal (goal x 4 weeks x GBP 5). Payments are not live yet, so the
-/// button continues to account creation without charging.
+/// weekly goal (goal x 4 weeks x GBP 5). The card is taken after sign-up, once
+/// there is an account to attach the payment to.
 struct DepositView: View {
     let goal: WeeklyGoal
     let onContinue: () -> Void
@@ -69,7 +69,7 @@ struct DepositView: View {
                 }
                 .buttonStyle(.plain)
 
-                Text("Payments launch soon — you won't be charged today.")
+                Text("Create your account next, then pay securely with Stripe.")
                     .font(.footnote)
                     .foregroundStyle(Color.navy.opacity(0.45))
             }
