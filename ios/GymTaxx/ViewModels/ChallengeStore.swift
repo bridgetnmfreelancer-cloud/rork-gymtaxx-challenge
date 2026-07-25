@@ -134,6 +134,9 @@ final class ChallengeStore {
     /// The challenge stays locked until this is false.
     var needsDeposit: Bool { participation?.payment == .unpaid }
 
+    /// True once the deposit has actually been taken.
+    var hasPaidDeposit: Bool { participation?.payment == .paid }
+
     /// Poll for the deposit being marked paid after a successful Stripe payment.
     ///
     /// Stripe confirms payment to its webhook, not to the app, so there is a short

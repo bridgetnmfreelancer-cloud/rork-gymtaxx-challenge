@@ -10,6 +10,8 @@ struct HomeView: View {
     @Binding var path: [AppRoute]
     @Bindable var auth: AuthManager
 
+    @State private var isShowingProfile = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -33,6 +35,11 @@ struct HomeView: View {
             verifyButton
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $isShowingProfile) {
+            ProfileView(auth: auth, store: store) {
+                isShowingProfile = false
+            }
+        }
     }
 
     private func errorBanner(_ message: String) -> some View {
@@ -53,17 +60,15 @@ struct HomeView: View {
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(Color.navy)
             Spacer()
-            Menu {
-                Button(role: .destructive) {
-                    Task { await auth.signOut() }
-                } label: {
-                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
+            Button {
+                isShowingProfile = true
             } label: {
                 Image(systemName: "person.crop.circle")
                     .font(.system(size: 26, weight: .regular))
                     .foregroundStyle(Color.navy.opacity(0.7))
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Account")
         }
         .padding(.top, 12)
     }

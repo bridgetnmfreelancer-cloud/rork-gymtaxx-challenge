@@ -15,6 +15,8 @@ final class AuthManager {
 
     /// The signed-in user's id, or nil when logged out.
     private(set) var userId: String?
+    /// The signed-in user's email, for display on the account screen.
+    private(set) var userEmail: String?
     /// True until the initial session restore completes, so the UI can show a splash.
     private(set) var isLoading = true
 
@@ -50,6 +52,7 @@ final class AuthManager {
         for await state in supabase.auth.authStateChanges {
             if isLoading { isLoading = false }
             userId = state.session?.user.id.uuidString
+            userEmail = state.session?.user.email
 
             // Supabase flags recovery sessions explicitly, which also covers the
             // SDK restoring one before our deep-link handler gets to run.
@@ -75,6 +78,28 @@ final class AuthManager {
         } catch {
             print("GymTaxx: sign out failed: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Account deletion
+
+    /// Permanently delete the account, then drop back to the logged-out state.
+    ///
+    /// The on-device onboarding answers are cleared too, so a deleted user starts
+    /// from a genuinely clean slate rather than inheriting the old goal.
+    func deleteAccount() async throws {
+        try await AccountService.deleteAccount()
+
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: OnboardingStorage.completedKey)
+        defaults.removeObject(forKey: OnboardingStorage.weeklyGoalKey)
+        defaults.removeObject(forKey: OnboardingStorage.habitKey)
+
+        // The server already destroyed the user, so this only clears the local
+        // session. It can fail harmlessly — the session is already dead — so we
+        // force the logged-out state regardless.
+        await signOut()
+        userId = nil
+        userEmail = nil
     }
 
     // MARK: - Password reset
