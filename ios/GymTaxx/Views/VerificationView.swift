@@ -23,6 +23,10 @@ struct VerificationView: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
+    /// Held for the life of the screen so the permission prompt and the fix
+    /// share one manager.
+    @State private var locationCapture = LocationCapture()
+
     var body: some View {
         VStack(spacing: 0) {
             switch phase {
@@ -277,13 +281,16 @@ struct VerificationView: View {
         let capturedAt = Date()
 
         Task {
+            // Best-effort: a declined or slow fix submits without coordinates.
+            let location = await locationCapture.currentLocation()
             do {
                 try await WorkoutService.submitWorkout(
                     image: image,
                     userId: userId,
                     challengeId: challengeId,
                     userChallengeId: participationId,
-                    capturedAt: capturedAt
+                    capturedAt: capturedAt,
+                    location: location
                 )
                 isSubmitting = false
                 withAnimation(.easeInOut(duration: 0.3)) {

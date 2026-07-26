@@ -127,6 +127,9 @@ export type Database = {
           captured_at: string
           created_at: string
           id: string
+          latitude: number | null
+          location_accuracy_m: number | null
+          longitude: number | null
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -139,6 +142,9 @@ export type Database = {
           captured_at: string
           created_at?: string
           id?: string
+          latitude?: number | null
+          location_accuracy_m?: number | null
+          longitude?: number | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -151,6 +157,9 @@ export type Database = {
           captured_at?: string
           created_at?: string
           id?: string
+          latitude?: number | null
+          location_accuracy_m?: number | null
+          longitude?: number | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null

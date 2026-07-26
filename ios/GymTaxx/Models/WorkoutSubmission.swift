@@ -17,6 +17,10 @@ nonisolated struct WorkoutSubmission: Codable, Identifiable, Sendable, Hashable 
     let createdAt: Date
     let reviewedAt: Date?
     let rejectionReason: String?
+    /// Nil when location was unavailable or declined at capture time.
+    let latitude: Double?
+    let longitude: Double?
+    let locationAccuracyM: Double?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -28,6 +32,14 @@ nonisolated struct WorkoutSubmission: Codable, Identifiable, Sendable, Hashable 
         case createdAt = "created_at"
         case reviewedAt = "reviewed_at"
         case rejectionReason = "rejection_reason"
+        case latitude
+        case longitude
+        case locationAccuracyM = "location_accuracy_m"
+    }
+
+    /// Whether this submission carries a coordinate for review to check.
+    var hasLocation: Bool {
+        latitude != nil && longitude != nil
     }
 
     /// Maps the string status to the app's `WorkoutStatus` enum, defaulting to
@@ -47,6 +59,10 @@ nonisolated struct WorkoutSubmissionInsert: Encodable, Sendable {
     let userChallengeId: UUID
     let capturedAt: Date
     let storagePath: String
+    /// Omitted entirely when no fix was obtained, leaving the columns null.
+    let latitude: Double?
+    let longitude: Double?
+    let locationAccuracyM: Double?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -54,6 +70,9 @@ nonisolated struct WorkoutSubmissionInsert: Encodable, Sendable {
         case userChallengeId = "user_challenge_id"
         case capturedAt = "captured_at"
         case storagePath = "storage_path"
+        case latitude
+        case longitude
+        case locationAccuracyM = "location_accuracy_m"
     }
 }
 
