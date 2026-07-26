@@ -30,6 +30,8 @@ struct VerificationView: View {
                 capturePhase
             case .accessDenied:
                 accessDeniedPhase
+            case .noCamera:
+                CameraPlaceholderView()
             case .pending:
                 pendingPhase
             }
@@ -170,10 +172,10 @@ struct VerificationView: View {
     /// Ask for the camera at the moment the user opts in, so the system prompt
     /// lands while the on-screen explanation is still visible.
     private func requestCamera() {
-        // No camera (cloud simulator): the picker falls back to the photo
-        // library, which needs no prompt of its own.
+        // No camera device: say so plainly. There is deliberately no photo
+        // library fallback — a picked image would be worthless as proof.
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            showCamera = true
+            withAnimation(.easeInOut(duration: 0.25)) { phase = .noCamera }
             return
         }
 
@@ -304,5 +306,6 @@ struct VerificationView: View {
 private enum VerificationPhase {
     case capture
     case accessDenied
+    case noCamera
     case pending
 }
