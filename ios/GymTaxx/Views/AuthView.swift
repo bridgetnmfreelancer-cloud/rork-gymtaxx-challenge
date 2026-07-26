@@ -80,6 +80,9 @@ struct AuthView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!isFormValid || isSubmitting)
+
+                legalNotice
+                    .padding(.top, 4)
             }
             .padding(.horizontal, 24)
 
@@ -106,6 +109,29 @@ struct AuthView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white)
     }
+
+    /// Terms and privacy links. Required reading before money is taken, and
+    /// App Store review expects them reachable from the account screens.
+    private var legalNotice: some View {
+        VStack(spacing: 2) {
+            Text(mode == .signIn ? "By continuing you agree to our" : "By creating an account you agree to our")
+            HStack(spacing: 4) {
+                Link("Terms of Service", destination: Self.termsURL)
+                    .foregroundStyle(Color.mintDeep)
+                Text("and")
+                Link("Privacy Policy", destination: Self.privacyURL)
+                    .foregroundStyle(Color.mintDeep)
+            }
+        }
+        .font(.caption)
+        .fontWeight(.regular)
+        .foregroundStyle(Color.navy.opacity(0.45))
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+    }
+
+    static let termsURL = URL(string: "https://www.gymtaxx.com/terms")!
+    static let privacyURL = URL(string: "https://www.gymtaxx.com/privacy")!
 
     private var isFormValid: Bool {
         email.contains("@") && password.count >= 6
