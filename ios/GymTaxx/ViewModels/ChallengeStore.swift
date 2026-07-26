@@ -167,6 +167,25 @@ final class ChallengeStore {
     var totalVerified: Int { ChallengeEngine.totalVerified(for: challenge) }
     var totalWorkoutsToEarnBack: Int { ChallengeEngine.totalWorkoutsToEarnBack(for: challenge) }
 
+    /// The Monday this user's cohort begins.
+    var startDate: Date { challenge.startDate }
+
+    /// False while a paid-up user is waiting for their cohort to open. Check-ins
+    /// must be blocked until then, otherwise a photo taken before day one would
+    /// count towards week one.
+    var hasStarted: Bool { Date() >= challenge.startDate }
+
+    /// Whole days until the cohort opens (0 once it has).
+    var daysUntilStart: Int {
+        guard !hasStarted else { return 0 }
+        let days = GymWeek.calendar.dateComponents(
+            [.day],
+            from: GymWeek.calendar.startOfDay(for: Date()),
+            to: challenge.startDate
+        ).day ?? 0
+        return max(0, days)
+    }
+
     // MARK: - Participation
 
     /// The deposit implied by the user's commitment. Derived rather than stored,

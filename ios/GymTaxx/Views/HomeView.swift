@@ -20,6 +20,9 @@ struct HomeView: View {
                 if let loadError = store.loadError {
                     errorBanner(loadError)
                 }
+                if !store.hasStarted {
+                    waitingCard
+                }
                 if !store.rejectedThisWeek.isEmpty {
                     rejectedBanner
                 }
@@ -75,6 +78,49 @@ struct HomeView: View {
             .accessibilityLabel("Account")
         }
         .padding(.top, 12)
+    }
+
+    // MARK: - Waiting for the cohort to open
+
+    /// Shown to a paid-up user whose cohort hasn't started. Everyone begins on the
+    /// first Monday of the month, so a mid-month joiner waits — this makes the wait
+    /// explicit instead of looking like a broken challenge.
+    private var waitingCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.mintDeep)
+                Text(startCountdown)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.navy)
+            }
+
+            Text("Everyone starts together on \(startDateText). Check-ins open that morning — anything before then wouldn't count.")
+                .font(.subheadline)
+                .foregroundStyle(Color.navy.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.mintGreen.opacity(0.18))
+        .clipShape(.rect(cornerRadius: 20))
+    }
+
+    private var startCountdown: String {
+        switch store.daysUntilStart {
+        case 0: return "Your challenge starts tomorrow"
+        case 1: return "Your challenge starts in 1 day"
+        case let days: return "Your challenge starts in \(days) days"
+        }
+    }
+
+    private var startDateText: String {
+        store.startDate.formatted(.dateTime.weekday(.wide).day().month(.wide))
+    }
+
+    private var shortStartDateText: String {
+        store.startDate.formatted(.dateTime.day().month(.abbreviated))
     }
 
     // MARK: - Rejected check-ins
@@ -283,20 +329,21 @@ struct HomeView: View {
             path.append(.verify)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "camera.fill")
+                Image(systemName: store.hasStarted ? "camera.fill" : "lock.fill")
                     .font(.system(size: 18, weight: .semibold))
-                Text("Verify Workout")
+                Text(store.hasStarted ? "Verify Workout" : "Opens \(shortStartDateText)")
                     .font(.system(size: 18, weight: .bold))
             }
-            .foregroundStyle(Color.navy)
+            .foregroundStyle(store.hasStarted ? Color.navy : Color.navy.opacity(0.4))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .background(Color.mintGreen)
+            .background(store.hasStarted ? Color.mintGreen : Color.appCard)
             .clipShape(.rect(cornerRadius: 20))
             .padding(.horizontal, 20)
             .padding(.bottom, 12)
         }
         .buttonStyle(.plain)
+        .disabled(!store.hasStarted)
         .background(Color.white)
     }
 }

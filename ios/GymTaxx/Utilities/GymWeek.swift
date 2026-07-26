@@ -49,4 +49,34 @@ nonisolated enum GymWeek {
         let opening = monday(of: start)
         return calendar.date(byAdding: .day, value: index * 7, to: opening) ?? opening
     }
+
+    // MARK: - Monthly cohorts
+
+    /// The first Monday of the month containing `date`, at 00:00.
+    static func firstMonday(ofMonthContaining date: Date) -> Date {
+        let components = calendar.dateComponents([.year, .month], from: date)
+        guard let monthStart = calendar.date(from: components) else {
+            return monday(of: date)
+        }
+        // The week containing the 1st may open in the previous month, in which
+        // case the first Monday is seven days later.
+        let opening = monday(of: monthStart)
+        return opening < monthStart
+            ? calendar.date(byAdding: .day, value: 7, to: opening) ?? opening
+            : opening
+    }
+
+    /// The cohort a user joining at `date` belongs to: the first Monday of the
+    /// month if it hasn't passed, otherwise the first Monday of next month.
+    ///
+    /// Everyone in a cohort starts on the same day, so a late joiner waits for the
+    /// next one rather than running a challenge on their own schedule.
+    static func cohortStart(onOrAfter date: Date) -> Date {
+        let thisMonth = firstMonday(ofMonthContaining: date)
+        if date <= thisMonth { return thisMonth }
+        guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: thisMonth) else {
+            return thisMonth
+        }
+        return firstMonday(ofMonthContaining: nextMonth)
+    }
 }
