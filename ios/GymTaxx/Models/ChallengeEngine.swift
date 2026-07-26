@@ -34,6 +34,26 @@ enum ChallengeEngine {
             .sorted { $0.capturedAt > $1.capturedAt }
     }
 
+    /// Check-ins rejected during the current week, newest first.
+    ///
+    /// Surfaced to the user because a rejection silently earns them nothing —
+    /// without a prompt, the first they'd know of it is a smaller refund.
+    static func rejectedWorkoutsThisWeek(for challenge: Challenge) -> [Workout] {
+        let week = currentWeekIndex(for: challenge)
+        return challenge.workouts
+            .filter { $0.weekIndex == week && $0.status == .rejected }
+            .sorted { $0.capturedAt > $1.capturedAt }
+    }
+
+    /// The moment the current challenge week closes. Weeks run from the user's own
+    /// start date, not the calendar week, so this is start + 7 days per elapsed week.
+    static func currentWeekEnd(for challenge: Challenge) -> Date {
+        let week = currentWeekIndex(for: challenge)
+        let days = (week + 1) * 7
+        return calendar.date(byAdding: .day, value: days, to: challenge.startDate)
+            ?? challenge.startDate
+    }
+
     /// Number of remaining workouts needed this week to hit the target.
     static func remainingWorkoutsThisWeek(for challenge: Challenge) -> Int {
         let done = verifiedWorkoutsThisWeek(for: challenge).count

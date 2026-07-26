@@ -11,6 +11,7 @@ struct HomeView: View {
     @Bindable var auth: AuthManager
 
     @State private var isShowingProfile = false
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ScrollView {
@@ -18,6 +19,9 @@ struct HomeView: View {
                 headerCard
                 if let loadError = store.loadError {
                     errorBanner(loadError)
+                }
+                if !store.rejectedThisWeek.isEmpty {
+                    rejectedBanner
                 }
                 progressRingCard
                 statsGrid
@@ -71,6 +75,61 @@ struct HomeView: View {
             .accessibilityLabel("Account")
         }
         .padding(.top, 12)
+    }
+
+    // MARK: - Rejected check-ins
+
+    /// One message covering every rejection this week. Shown on the home screen
+    /// rather than as an alert so it stays visible until the user acts on it.
+    private var rejectedBanner: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.appRed)
+                Text(rejectedTitle)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.navy)
+            }
+
+            Text("It didn't count towards this week and hasn't earned you anything back. If you think that's a mistake, contact support before this week ends on \(weekEndText) and we'll take another look.")
+                .font(.subheadline)
+                .foregroundStyle(Color.navy.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                guard let url = Support.mailURL(subject: "Rejected check-in") else { return }
+                openURL(url)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "envelope.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("Contact support")
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .foregroundStyle(Color.navy)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color.white)
+                .clipShape(.rect(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.appRed.opacity(0.1))
+        .clipShape(.rect(cornerRadius: 20))
+    }
+
+    private var rejectedTitle: String {
+        let count = store.rejectedThisWeek.count
+        return count == 1
+            ? "A check-in wasn't approved"
+            : "\(count) check-ins weren't approved"
+    }
+
+    private var weekEndText: String {
+        store.currentWeekEnd.formatted(.dateTime.weekday(.wide).day().month(.wide))
     }
 
     // MARK: - Reward hero
@@ -205,7 +264,7 @@ struct HomeView: View {
         switch status {
         case .verified: "Verified"
         case .pending: "Pending review"
-        case .rejected: "Rejected"
+        case .rejected: "Not approved — didn't count"
         }
     }
 

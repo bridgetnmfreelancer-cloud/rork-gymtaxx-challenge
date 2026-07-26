@@ -160,6 +160,8 @@ final class ChallengeStore {
     var remainingThisWeek: Int { ChallengeEngine.remainingWorkoutsThisWeek(for: challenge) }
     var streak: Int { ChallengeEngine.currentStreak(for: challenge) }
     var workoutsThisWeek: [Workout] { ChallengeEngine.workoutsThisWeek(for: challenge) }
+    var rejectedThisWeek: [Workout] { ChallengeEngine.rejectedWorkoutsThisWeek(for: challenge) }
+    var currentWeekEnd: Date { ChallengeEngine.currentWeekEnd(for: challenge) }
     var earnedSoFar: Double { ChallengeEngine.earnedSoFar(for: challenge) }
     var earnedProgress: Double { ChallengeEngine.earnedProgress(for: challenge) }
     var totalVerified: Int { ChallengeEngine.totalVerified(for: challenge) }
