@@ -5,6 +5,7 @@
 
 import SwiftUI
 import UIKit
+import AVFoundation
 import Supabase
 
 /// The gym verification flow: capture a photo, then show "pending".
@@ -20,11 +21,15 @@ struct VerificationView: View {
     @State private var isSubmitting = false
     @State private var submitError: String?
 
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         VStack(spacing: 0) {
             switch phase {
             case .capture:
                 capturePhase
+            case .accessDenied:
+                accessDeniedPhase
             case .pending:
                 pendingPhase
             }
@@ -42,6 +47,14 @@ struct VerificationView: View {
             if newValue != nil {
                 submit()
             }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Coming back from Settings: if access was granted, return to the
+            // capture screen rather than leaving a stale "blocked" message up.
+            guard newPhase == .active,
+                  phase == .accessDenied,
+                  CameraPermission.status == .authorized else { return }
+            withAnimation(.easeInOut(duration: 0.25)) { phase = .capture }
         }
     }
 
@@ -77,7 +90,7 @@ struct VerificationView: View {
             Spacer()
 
             Button {
-                showCamera = true
+                requestCamera()
             } label: {
                 HStack(spacing: 10) {
                     if isSubmitting {
@@ -100,6 +113,89 @@ struct VerificationView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 28)
         }
+    }
+
+    // MARK: - Access denied
+
+    /// Shown when the camera is blocked. Without this the picker opens onto a
+    /// black screen, dead-ending the only flow that earns the deposit back.
+    private var accessDeniedPhase: some View {
+        VStack(spacing: 28) {
+            Spacer()
+
+            VStack(spacing: 14) {
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 56, weight: .semibold))
+                    .foregroundStyle(Color.navy.opacity(0.25))
+                Text("Camera access needed")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(Color.navy)
+                Text("GymTaxx verifies workouts from a photo you take at the gym, so we need the camera to pay your deposit back. You can turn it on in Settings.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.navy.opacity(0.55))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+
+            Spacer()
+
+            VStack(spacing: 8) {
+                Button(action: openSettings) {
+                    Text("Open Settings")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color.navy)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(Color.mintGreen)
+                        .clipShape(.rect(cornerRadius: 20))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    path = []
+                } label: {
+                    Text("Not now")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.navy.opacity(0.55))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 28)
+        }
+    }
+
+    /// Ask for the camera at the moment the user opts in, so the system prompt
+    /// lands while the on-screen explanation is still visible.
+    private func requestCamera() {
+        // No camera (cloud simulator): the picker falls back to the photo
+        // library, which needs no prompt of its own.
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showCamera = true
+            return
+        }
+
+        switch CameraPermission.status {
+        case .authorized:
+            showCamera = true
+        case .notDetermined:
+            Task {
+                if await CameraPermission.request() {
+                    showCamera = true
+                } else {
+                    withAnimation(.easeInOut(duration: 0.25)) { phase = .accessDenied }
+                }
+            }
+        default:
+            withAnimation(.easeInOut(duration: 0.25)) { phase = .accessDenied }
+        }
+    }
+
+    private func openSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - Pending
@@ -207,5 +303,6 @@ struct VerificationView: View {
 
 private enum VerificationPhase {
     case capture
+    case accessDenied
     case pending
 }
