@@ -266,8 +266,7 @@ final class ChallengeStore {
     // MARK: - Helpers
 
     private static func weekIndex(for date: Date, start: Date) -> Int {
-        let days = Calendar.current.dateComponents([.day], from: start, to: date).day ?? 0
-        return max(0, days) / 7
+        GymWeek.index(for: date, start: start)
     }
 
     private func persistConfig() {

@@ -62,11 +62,15 @@ nonisolated enum WorkoutService {
 
     /// Join a challenge with the goal chosen during onboarding. Payment and
     /// lifecycle status use server defaults (`unpaid` / `active`).
+    ///
+    /// Someone paying a week early must not start burning challenge weeks before
+    /// the cohort opens, so the start is never earlier than the challenge's own
+    /// start date. Joining late starts them from the current week instead.
     static func createParticipation(
         userId: String,
         challenge: RemoteChallenge,
         goal: WeeklyGoal,
-        startedAt: Date = Date()
+        joinedAt: Date = Date()
     ) async throws -> UserChallenge {
         try await supabase
             .from("user_challenges")
@@ -74,7 +78,7 @@ nonisolated enum WorkoutService {
                 userId: userId,
                 challengeId: challenge.id,
                 goal: goal,
-                startedAt: startedAt,
+                startedAt: max(challenge.startDate, joinedAt),
                 weeks: challenge.numberOfWeeks
             ))
             .select()

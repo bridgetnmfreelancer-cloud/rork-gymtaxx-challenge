@@ -8,15 +8,11 @@ import Foundation
 /// Pure logic for deriving challenge progress from a `Challenge`.
 enum ChallengeEngine {
 
-    /// Calendar to use for week-boundary math. Overrideable for tests/previews.
-    static var calendar: Calendar = .current
-
     /// The 0-based index of the current week of the challenge (0...numberOfWeeks-1).
-    /// Clamps to the last week if the challenge has ended.
+    /// Weeks are calendar weeks running Monday to Sunday. Clamps to the last week
+    /// if the challenge has ended.
     static func currentWeekIndex(for challenge: Challenge) -> Int {
-        let calendar = Self.calendar
-        let daysSinceStart = calendar.dateComponents([.day], from: challenge.startDate, to: Date()).day ?? 0
-        let week = max(0, daysSinceStart) / 7
+        let week = GymWeek.index(for: Date(), start: challenge.startDate)
         return min(week, max(0, challenge.numberOfWeeks - 1))
     }
 
@@ -45,13 +41,9 @@ enum ChallengeEngine {
             .sorted { $0.capturedAt > $1.capturedAt }
     }
 
-    /// The moment the current challenge week closes. Weeks run from the user's own
-    /// start date, not the calendar week, so this is start + 7 days per elapsed week.
+    /// The Sunday that closes the current challenge week.
     static func currentWeekEnd(for challenge: Challenge) -> Date {
-        let week = currentWeekIndex(for: challenge)
-        let days = (week + 1) * 7
-        return calendar.date(byAdding: .day, value: days, to: challenge.startDate)
-            ?? challenge.startDate
+        GymWeek.lastDay(ofWeek: currentWeekIndex(for: challenge), start: challenge.startDate)
     }
 
     /// Number of remaining workouts needed this week to hit the target.

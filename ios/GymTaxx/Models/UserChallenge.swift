@@ -66,16 +66,20 @@ nonisolated struct UserChallengeInsert: Encodable, Sendable {
     let startedAt: Date
     let endsAt: Date
 
+    /// Snaps the start to the Monday that opens the joining week, so every
+    /// participation lines up with the Monday-to-Sunday weeks the app counts in
+    /// and with the review schedule.
     init(userId: String, challengeId: UUID, goal: WeeklyGoal, startedAt: Date, weeks: Int) {
+        let monday = GymWeek.monday(of: startedAt)
         self.userId = userId
         self.challengeId = challengeId
         self.goalWorkoutsPerWeek = goal.rawValue
-        self.startedAt = startedAt
-        self.endsAt = Calendar.current.date(
+        self.startedAt = monday
+        self.endsAt = GymWeek.calendar.date(
             byAdding: .day,
             value: weeks * 7,
-            to: startedAt
-        ) ?? startedAt.addingTimeInterval(Double(weeks) * 7 * 86_400)
+            to: monday
+        ) ?? monday.addingTimeInterval(Double(weeks) * 7 * 86_400)
     }
 
     enum CodingKeys: String, CodingKey {
