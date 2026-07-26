@@ -83,6 +83,20 @@ struct VerificationView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
 
+                if !isSubmitting {
+                    // Sets up the system location prompt that follows capture so
+                    // it doesn't arrive unexplained mid-upload.
+                    Label(
+                        "Your location is saved with the photo to confirm you're at the gym.",
+                        systemImage: "location.fill"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(Color.navy.opacity(0.45))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 36)
+                    .padding(.top, 2)
+                }
+
                 if let submitError {
                     Text(submitError)
                         .font(.footnote)
