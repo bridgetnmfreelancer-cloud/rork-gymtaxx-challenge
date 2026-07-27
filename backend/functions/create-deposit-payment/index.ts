@@ -67,19 +67,31 @@ Deno.serve(async (req) => {
 
     // Reuse the intent already attached to this participation when we can, so a
     // user reopening the payment screen doesn't leave a trail of abandoned intents.
+    //
+    // A stored intent can legitimately be unreachable with the current key — most
+    // often because it was created in the other Stripe mode (test vs live). That
+    // must not dead-end the user, so we fall through and create a fresh intent.
     if (participation.stripe_payment_intent_id) {
-      const existing = await retrievePaymentIntent(participation.stripe_payment_intent_id);
-      if (existing.status === "succeeded") {
-        return json({ status: "paid" });
-      }
-      if (isReusable(existing.status) && existing.amount === amountMinor) {
-        return json({
-          status: "requires_payment",
-          clientSecret: existing.client_secret,
-          publishableKey,
-          amountMinor,
-          currency: CURRENCY,
-        });
+      try {
+        const existing = await retrievePaymentIntent(participation.stripe_payment_intent_id);
+        if (existing.status === "succeeded") {
+          return json({ status: "paid" });
+        }
+        if (isReusable(existing.status) && existing.amount === amountMinor) {
+          return json({
+            status: "requires_payment",
+            clientSecret: existing.client_secret,
+            publishableKey,
+            amountMinor,
+            currency: CURRENCY,
+          });
+        }
+      } catch (retrieveError) {
+        console.error(
+          "stored payment intent unreachable, creating a new one",
+          participation.stripe_payment_intent_id,
+          retrieveError instanceof Error ? retrieveError.message : retrieveError,
+        );
       }
     }
 
