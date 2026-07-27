@@ -22,7 +22,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>app.rork.qy1ifqwse06xc88h27qw8</string>
+			<string>com.gymtaxx.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>gymtaxx</string>
