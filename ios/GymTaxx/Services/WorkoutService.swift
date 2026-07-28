@@ -110,7 +110,6 @@ nonisolated enum WorkoutService {
     static func submitWorkout(
         image: UIImage,
         userId: String,
-        challengeId: UUID,
         userChallengeId: UUID,
         capturedAt: Date,
         location: CapturedLocation?
@@ -142,7 +141,6 @@ nonisolated enum WorkoutService {
                 .from("workout_submissions")
                 .insert(WorkoutSubmissionInsert(
                     userId: userId,
-                    challengeId: challengeId,
                     userChallengeId: userChallengeId,
                     capturedAt: capturedAt,
                     storagePath: path,

@@ -53,9 +53,8 @@ nonisolated struct WorkoutSubmission: Codable, Identifiable, Sendable, Hashable 
 /// fields are omitted — RLS rejects anything else.
 nonisolated struct WorkoutSubmissionInsert: Encodable, Sendable {
     let userId: String
-    /// Still sent because `workout_submissions.challenge_id` is NOT NULL until
-    /// that now-redundant column is dropped. `user_challenge_id` is the real link.
-    let challengeId: UUID
+    /// The only link to the challenge. The old `challenge_id` column was dropped,
+    /// so sending it made PostgREST reject every insert — never send it again.
     let userChallengeId: UUID
     let capturedAt: Date
     let storagePath: String
@@ -66,7 +65,6 @@ nonisolated struct WorkoutSubmissionInsert: Encodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
-        case challengeId = "challenge_id"
         case userChallengeId = "user_challenge_id"
         case capturedAt = "captured_at"
         case storagePath = "storage_path"

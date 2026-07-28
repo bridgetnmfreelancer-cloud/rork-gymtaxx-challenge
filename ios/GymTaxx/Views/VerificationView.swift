@@ -283,7 +283,6 @@ struct VerificationView: View {
     private func submit() {
         guard let image = capturedImage else { return }
         guard let userId = supabaseUserId,
-              let challengeId = store.challengeId,
               let participationId = store.participationId else {
             submitError = "We couldn't confirm your challenge. Please go back and try again."
             capturedImage = nil
@@ -301,7 +300,6 @@ struct VerificationView: View {
                 try await WorkoutService.submitWorkout(
                     image: image,
                     userId: userId,
-                    challengeId: challengeId,
                     userChallengeId: participationId,
                     capturedAt: capturedAt,
                     location: location
