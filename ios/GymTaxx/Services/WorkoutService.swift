@@ -63,10 +63,13 @@ nonisolated enum WorkoutService {
     /// Join a challenge with the goal chosen during onboarding. Payment and
     /// lifecycle status use server defaults (`unpaid` / `active`).
     ///
-    /// A fresh challenge opens every Monday. The start is never earlier than the
-    /// challenge's own start date, and `UserChallengeInsert` snaps it to the next
-    /// Monday, so a joiner waits at most six days and week boundaries stay on
-    /// calendar weeks rather than becoming a personal rolling window.
+    /// A fresh challenge opens every Monday, so the start comes from when this
+    /// person joined - `UserChallengeInsert` snaps it to the next Monday, giving a
+    /// wait of at most six days while week boundaries stay on calendar weeks.
+    ///
+    /// The shared `challenges.start_date` is deliberately ignored: it dates from
+    /// monthly cohorts, and clamping to it would pin every new joiner to a single
+    /// far-off date again.
     static func createParticipation(
         userId: String,
         challenge: RemoteChallenge,
@@ -79,7 +82,7 @@ nonisolated enum WorkoutService {
                 userId: userId,
                 challengeId: challenge.id,
                 goal: goal,
-                startedAt: max(challenge.startDate, joinedAt),
+                startedAt: joinedAt,
                 weeks: challenge.numberOfWeeks
             ))
             .select()

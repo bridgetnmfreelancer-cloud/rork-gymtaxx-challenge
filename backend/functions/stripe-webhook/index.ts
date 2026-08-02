@@ -76,9 +76,13 @@ Deno.serve(async (req) => {
       challenge_status: "active",
     };
 
+    // Payment is what enrols someone, so the start is recomputed from this moment
+    // rather than trusted from commit time. It can move in either direction: later
+    // when the deposit landed in a following week, earlier when the record was
+    // written against a stale far-off date.
     const committedStart = new Date(participation.started_at);
     const anchoredStart = weeklyStart(new Date());
-    if (anchoredStart > committedStart) {
+    if (anchoredStart.getTime() !== committedStart.getTime()) {
       // Preserve the challenge's length rather than assuming four weeks, so a
       // future change to the challenge config can't silently shorten someone's run.
       const weeks = weeksBetween(committedStart, new Date(participation.ends_at));
