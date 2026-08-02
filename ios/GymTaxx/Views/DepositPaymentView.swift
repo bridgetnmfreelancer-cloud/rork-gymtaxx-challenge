@@ -75,6 +75,8 @@ struct DepositPaymentView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Color.navy.opacity(0.55))
                 .multilineTextAlignment(.center)
+
+            startLine
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 32)
@@ -170,6 +172,36 @@ struct DepositPaymentView: View {
     }
 
     // MARK: - Copy
+
+    /// States the start date before the user pays.
+    ///
+    /// Sign-ups peak late at night, when people are at their most impulsive, so
+    /// this is the last moment to make the commitment concrete. Someone paying
+    /// before a holiday would otherwise burn weeks of their challenge away from a
+    /// gym and lose most of their deposit - a fair refund request, avoided with
+    /// one line.
+    private var startLine: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "calendar")
+                .font(.system(size: 13, weight: .semibold))
+            Text(startText)
+                .font(.system(size: 14, weight: .bold))
+        }
+        .foregroundStyle(Color.mintDeep)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.mintGreen.opacity(0.22))
+        .clipShape(.capsule)
+        .padding(.top, 4)
+    }
+
+    /// Computed from now rather than from the stored date: the server re-anchors
+    /// the start when the payment lands, so this is what the user actually gets.
+    private var startText: String {
+        let start = GymWeek.weeklyStart(onOrAfter: Date())
+        let date = start.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        return GymWeek.calendar.isDateInToday(start) ? "Starts today" : "Starts \(date)"
+    }
 
     private var breakdown: String {
         let goal = store.challenge.workoutsPerWeek
