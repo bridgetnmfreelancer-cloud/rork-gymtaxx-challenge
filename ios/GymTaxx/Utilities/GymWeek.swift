@@ -50,33 +50,22 @@ nonisolated enum GymWeek {
         return calendar.date(byAdding: .day, value: index * 7, to: opening) ?? opening
     }
 
-    // MARK: - Monthly cohorts
+    // MARK: - Weekly starts
 
-    /// The first Monday of the month containing `date`, at 00:00.
-    static func firstMonday(ofMonthContaining date: Date) -> Date {
-        let components = calendar.dateComponents([.year, .month], from: date)
-        guard let monthStart = calendar.date(from: components) else {
-            return monday(of: date)
-        }
-        // The week containing the 1st may open in the previous month, in which
-        // case the first Monday is seven days later.
-        let opening = monday(of: monthStart)
-        return opening < monthStart
-            ? calendar.date(byAdding: .day, value: 7, to: opening) ?? opening
-            : opening
-    }
-
-    /// The cohort a user joining at `date` belongs to: the first Monday of the
-    /// month if it hasn't passed, otherwise the first Monday of next month.
+    /// The Monday a user joining at `date` begins on.
     ///
-    /// Everyone in a cohort starts on the same day, so a late joiner waits for the
-    /// next one rather than running a challenge on their own schedule.
-    static func cohortStart(onOrAfter date: Date) -> Date {
-        let thisMonth = firstMonday(ofMonthContaining: date)
-        if date <= thisMonth { return thisMonth }
-        guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: thisMonth) else {
-            return thisMonth
-        }
-        return firstMonday(ofMonthContaining: nextMonth)
+    /// A fresh challenge opens every Monday, so joining on a Monday starts that
+    /// same day and joining any other day waits at most six. Starts stay pinned to
+    /// Mondays rather than running from the moment of payment, because every week
+    /// boundary in the app is a calendar week -- a personal Thursday-to-Thursday
+    /// window would make "workouts this week" mean two different things.
+    ///
+    /// Replaces the old monthly cohorts: without pot-splitting, synchronised
+    /// starts bought nothing and cost a late joiner up to five weeks of waiting.
+    static func weeklyStart(onOrAfter date: Date) -> Date {
+        let opening = monday(of: date)
+        // Already Monday: start today rather than pushing a full week out.
+        if calendar.isDate(date, inSameDayAs: opening) { return opening }
+        return calendar.date(byAdding: .day, value: 7, to: opening) ?? opening
     }
 }

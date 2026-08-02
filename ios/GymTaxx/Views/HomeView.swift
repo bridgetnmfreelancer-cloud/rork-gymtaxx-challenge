@@ -80,10 +80,10 @@ struct HomeView: View {
         .padding(.top, 12)
     }
 
-    // MARK: - Waiting for the cohort to open
+    // MARK: - Waiting for Monday
 
-    /// Shown to a paid-up user whose cohort hasn't started. Everyone begins on the
-    /// first Monday of the month, so a mid-month joiner waits — this makes the wait
+    /// Shown to a paid-up user whose Monday hasn't arrived. A new challenge opens
+    /// every Monday, so the wait is never more than six days — this makes it
     /// explicit instead of looking like a broken challenge.
     private var waitingCard: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -96,9 +96,14 @@ struct HomeView: View {
                     .foregroundStyle(Color.navy)
             }
 
-            Text("Everyone starts together on \(startDateText). Check-ins open that morning — anything before then wouldn't count.")
+            Text("Your four weeks begin on \(startDateText). Check-ins open that morning — anything before then wouldn't count towards week one.")
                 .font(.subheadline)
                 .foregroundStyle(Color.navy.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(startReassurance)
+                .font(.footnote)
+                .foregroundStyle(Color.navy.opacity(0.5))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(18)
@@ -113,6 +118,14 @@ struct HomeView: View {
         case 1: return "Your challenge starts in 1 day"
         case let days: return "Your challenge starts in \(days) days"
         }
+    }
+
+    /// Reassures a waiting user that the wait is short and deliberate, rather than
+    /// leaving a bare date to look like a delay.
+    private var startReassurance: String {
+        store.daysUntilStart <= 1
+            ? "Almost there. Rest up."
+            : "A new challenge opens every Monday, so you're on the next one."
     }
 
     private var startDateText: String {

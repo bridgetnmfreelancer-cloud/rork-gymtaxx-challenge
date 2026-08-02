@@ -63,10 +63,10 @@ nonisolated enum WorkoutService {
     /// Join a challenge with the goal chosen during onboarding. Payment and
     /// lifecycle status use server defaults (`unpaid` / `active`).
     ///
-    /// Challenges run as monthly cohorts starting the first Monday of the month.
-    /// The start is never earlier than the challenge's own start date, and
-    /// `UserChallengeInsert` moves a late joiner to the next cohort, so paying
-    /// early or late never produces a personal schedule.
+    /// A fresh challenge opens every Monday. The start is never earlier than the
+    /// challenge's own start date, and `UserChallengeInsert` snaps it to the next
+    /// Monday, so a joiner waits at most six days and week boundaries stay on
+    /// calendar weeks rather than becoming a personal rolling window.
     static func createParticipation(
         userId: String,
         challenge: RemoteChallenge,

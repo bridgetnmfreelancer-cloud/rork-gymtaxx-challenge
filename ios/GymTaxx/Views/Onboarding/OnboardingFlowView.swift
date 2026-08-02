@@ -66,7 +66,7 @@ struct OnboardingFlowView: View {
             }
         case .goal:
             OnboardingQuestionView(
-                title: "How many times do you want to go to the gym next month?",
+                title: "How many times a week do you want to go to the gym?",
                 options: WeeklyGoal.allCases.map { OnboardingOption(id: String($0.rawValue), label: $0.label) },
                 selectedId: goal.map { String($0.rawValue) }
             ) { id in

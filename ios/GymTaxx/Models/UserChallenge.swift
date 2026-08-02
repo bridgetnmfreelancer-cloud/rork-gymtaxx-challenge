@@ -66,11 +66,15 @@ nonisolated struct UserChallengeInsert: Encodable, Sendable {
     let startedAt: Date
     let endsAt: Date
 
-    /// Snaps the start forward to the next monthly cohort — the first Monday of
-    /// the month — so everyone taking part runs the same four weeks and reviews
-    /// have one set of week boundaries rather than one per user.
+    /// Snaps the start forward to the next Monday, so a joiner waits at most six
+    /// days and week boundaries stay on calendar weeks.
+    ///
+    /// This is the start at *commit* time, which happens before the deposit is
+    /// taken. If the deposit lands in a later week the server re-anchors both
+    /// dates when it marks the payment paid, so nobody begins a challenge whose
+    /// first week is already over.
     init(userId: String, challengeId: UUID, goal: WeeklyGoal, startedAt: Date, weeks: Int) {
-        let start = GymWeek.cohortStart(onOrAfter: startedAt)
+        let start = GymWeek.weeklyStart(onOrAfter: startedAt)
         self.userId = userId
         self.challengeId = challengeId
         self.goalWorkoutsPerWeek = goal.rawValue
