@@ -96,7 +96,8 @@ enum ChallengeEngine {
         challenge.workouts.filter { $0.status == .verified }.count
     }
 
-    /// Money earned back so far: £5 per verified workout, capped at the deposit.
+    /// Money earned back so far: the reward per verified workout, capped at the
+    /// deposit. Currency-agnostic — the numbers are identical in either currency.
     static func earnedSoFar(for challenge: Challenge) -> Double {
         let earned = Double(totalVerified(for: challenge)) * challenge.rewardPerWorkout
         return min(earned, challenge.depositAmount)

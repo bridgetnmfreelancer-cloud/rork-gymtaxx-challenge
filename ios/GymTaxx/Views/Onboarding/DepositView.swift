@@ -6,11 +6,20 @@
 import SwiftUI
 
 /// Final onboarding screen: shows the deposit amount computed from the user's
-/// weekly goal (goal x 4 weeks x GBP 5). The card is taken after sign-up, once
-/// there is an account to attach the payment to.
+/// weekly goal (goal x 4 weeks x 5). The card is taken after sign-up, once there
+/// is an account to attach the payment to.
+///
+/// This runs before any participation record exists, so the currency comes from
+/// the phone's region. It is the same value that gets written and locked when the
+/// record is created moments later.
 struct DepositView: View {
     let goal: WeeklyGoal
     let onContinue: () -> Void
+
+    private let currency: Currency = .forCurrentRegion
+
+    private var depositText: String { currency.amount(Double(goal.depositAmount)) }
+    private var rewardText: String { currency.amount(5) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -26,12 +35,12 @@ struct DepositView: View {
                 .padding(.bottom, 28)
 
             VStack(spacing: 16) {
-                Text("£\(goal.depositAmount)")
+                Text(depositText)
                     .font(.system(size: 64, weight: .heavy))
                     .foregroundStyle(Color.navy)
                     .contentTransition(.numericText())
 
-                Text("\(goal.rawValue) workouts a week × 4 weeks × £5")
+                Text("\(goal.rawValue) workouts a week × 4 weeks × \(rewardText)")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.navy.opacity(0.55))
             }
@@ -45,7 +54,7 @@ struct DepositView: View {
                 Image(systemName: "arrow.uturn.backward.circle.fill")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(Color.mintDeep)
-                Text("Get back £5 for every workout you complete — that's \(goal.totalWorkouts) workouts to reclaim the full £\(goal.depositAmount).")
+                Text("Get back \(rewardText) for every workout you complete — that's \(goal.totalWorkouts) workouts to reclaim the full \(depositText).")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Color.navy.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
@@ -59,7 +68,7 @@ struct DepositView: View {
 
             VStack(spacing: 10) {
                 Button(action: onContinue) {
-                    Text("Lock in £\(goal.depositAmount)")
+                    Text("Lock in \(depositText)")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(Color.navy)
                         .frame(maxWidth: .infinity)

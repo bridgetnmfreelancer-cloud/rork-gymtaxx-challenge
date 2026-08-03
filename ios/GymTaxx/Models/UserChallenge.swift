@@ -24,6 +24,10 @@ nonisolated struct UserChallenge: Codable, Identifiable, Sendable, Hashable {
     let challengeStatus: String
     let startedAt: Date
     let endsAt: Date
+    /// The money this challenge was priced and charged in, fixed when the person
+    /// joined. Every amount shown for this participation must use it, so a refund
+    /// goes back in the currency that came in.
+    let currency: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -34,10 +38,15 @@ nonisolated struct UserChallenge: Codable, Identifiable, Sendable, Hashable {
         case challengeStatus = "challenge_status"
         case startedAt = "started_at"
         case endsAt = "ends_at"
+        case currency
     }
 
     var payment: PaymentStatus { PaymentStatus(rawValue: paymentStatus) ?? .unpaid }
     var status: ParticipationStatus { ParticipationStatus(rawValue: challengeStatus) ?? .active }
+
+    /// Never throws on an unfamiliar value — a money label must not be the reason
+    /// the home screen fails to render.
+    var money: Currency { Currency(storedValue: currency) }
 }
 
 /// Deposit lifecycle for a participation record.
@@ -65,6 +74,7 @@ nonisolated struct UserChallengeInsert: Encodable, Sendable {
     let goalWorkoutsPerWeek: Int
     let startedAt: Date
     let endsAt: Date
+    let currency: String
 
     /// Snaps the start forward to the next Monday, so a joiner waits at most six
     /// days and week boundaries stay on calendar weeks.
@@ -73,11 +83,19 @@ nonisolated struct UserChallengeInsert: Encodable, Sendable {
     /// taken. If the deposit lands in a later week the server re-anchors both
     /// dates when it marks the payment paid, so nobody begins a challenge whose
     /// first week is already over.
-    init(userId: String, challengeId: UUID, goal: WeeklyGoal, startedAt: Date, weeks: Int) {
+    init(
+        userId: String,
+        challengeId: UUID,
+        goal: WeeklyGoal,
+        startedAt: Date,
+        weeks: Int,
+        currency: Currency = .forCurrentRegion
+    ) {
         let start = GymWeek.weeklyStart(onOrAfter: startedAt)
         self.userId = userId
         self.challengeId = challengeId
         self.goalWorkoutsPerWeek = goal.rawValue
+        self.currency = currency.rawValue
         self.startedAt = start
         self.endsAt = GymWeek.calendar.date(
             byAdding: .day,
@@ -92,5 +110,6 @@ nonisolated struct UserChallengeInsert: Encodable, Sendable {
         case goalWorkoutsPerWeek = "goal_workouts_per_week"
         case startedAt = "started_at"
         case endsAt = "ends_at"
+        case currency
     }
 }

@@ -210,8 +210,10 @@ struct DepositPaymentView: View {
         return "\(goal) workouts a week × \(weeks) weeks × \(formatted(reward))"
     }
 
+    /// Follows the participation record, so the figure on the pay button always
+    /// matches the currency the charge is actually created in server-side.
     private func formatted(_ value: Double) -> String {
-        value.formatted(.currency(code: "GBP").precision(.fractionLength(0)))
+        store.currency.format(value)
     }
 
     // MARK: - Payment

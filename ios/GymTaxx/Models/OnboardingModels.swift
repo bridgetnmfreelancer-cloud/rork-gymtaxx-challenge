@@ -46,7 +46,8 @@ nonisolated enum GymHabit: String, CaseIterable, Identifiable {
 }
 
 /// The weekly workout goal the user commits to (onboarding question 2).
-/// Drives the deposit amount: workouts per week x 4 weeks x GBP 5.
+/// Drives the deposit amount: workouts per week x 4 weeks x 5. The 5 is the same
+/// number in either currency, so this stays currency-agnostic.
 nonisolated enum WeeklyGoal: Int, CaseIterable, Identifiable {
     case three = 3
     case four = 4

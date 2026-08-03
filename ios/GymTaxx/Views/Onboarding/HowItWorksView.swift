@@ -10,6 +10,10 @@ import SwiftUI
 struct HowItWorksView: View {
     let onSignUp: () -> Void
 
+    /// No participation exists this early, so the phone's region decides. The same
+    /// value is locked onto the record when they join.
+    private let currency: Currency = .forCurrentRegion
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView(showsIndicators: false) {
@@ -31,8 +35,8 @@ struct HowItWorksView: View {
                         howItWorksRow(icon: "lock.fill", tint: Color.mintDeep, text: "You lock in a fully refundable deposit.")
                         howItWorksRow(icon: "building.columns.fill", tint: Color.mintDeep, text: "We keep it for you.")
                         howItWorksRow(icon: "flame.fill", tint: Color.mintDeep, text: "You smash your goal.")
-                        howItWorksRow(icon: "sterlingsign.circle.fill", tint: Color.mintDeep, text: "You get back £5 every time you go to the gym.")
-                        howItWorksRow(icon: "xmark.circle.fill", tint: Color.appRed, text: "If you skip a workout, we keep the £5.")
+                        howItWorksRow(icon: currency.signSymbolName, tint: Color.mintDeep, text: "You get back \(currency.amount(5)) every time you go to the gym.")
+                        howItWorksRow(icon: "xmark.circle.fill", tint: Color.appRed, text: "If you skip a workout, we keep the \(currency.amount(5)).")
                     }
                 }
             }

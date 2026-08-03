@@ -80,6 +80,7 @@ export type Database = {
           challenge_id: string
           challenge_status: string
           created_at: string
+          currency: string
           ends_at: string
           goal_workouts_per_week: number
           id: string
@@ -92,6 +93,7 @@ export type Database = {
           challenge_id: string
           challenge_status?: string
           created_at?: string
+          currency?: string
           ends_at: string
           goal_workouts_per_week: number
           id?: string
@@ -104,6 +106,7 @@ export type Database = {
           challenge_id?: string
           challenge_status?: string
           created_at?: string
+          currency?: string
           ends_at?: string
           goal_workouts_per_week?: number
           id?: string

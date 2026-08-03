@@ -99,13 +99,13 @@ struct ProfileView: View {
             divider
             row(
                 label: "Deposit",
-                value: "£" + money(store.challenge.depositAmount),
+                value: store.currency.amount(store.challenge.depositAmount),
                 icon: "lock.fill"
             )
             divider
             row(
                 label: "Earned back",
-                value: "£" + money(store.earnedSoFar),
+                value: store.currency.amount(store.earnedSoFar),
                 icon: "arrow.uturn.backward"
             )
         }
@@ -137,10 +137,6 @@ struct ProfileView: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-    }
-
-    private func money(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(format: "%.2f", value)
     }
 
     // MARK: - Actions
@@ -211,7 +207,7 @@ struct ProfileView: View {
     private var deleteWarning: String {
         let unearned = store.challenge.depositAmount - store.earnedSoFar
         if store.hasPaidDeposit, unearned > 0 {
-            return "Your profile, challenge, and workout photos will be permanently deleted. You still have £\(money(unearned)) of your deposit unearned — email support@gymtaxx.com before deleting if you want to arrange a refund."
+            return "Your profile, challenge, and workout photos will be permanently deleted. You still have \(store.currency.amount(unearned)) of your deposit unearned — email support@gymtaxx.com before deleting if you want to arrange a refund."
         }
         return "Your profile, challenge, and workout photos will be permanently deleted. This can't be undone."
     }

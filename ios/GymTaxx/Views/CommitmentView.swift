@@ -90,8 +90,10 @@ struct CommitmentView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.9), value: selected)
     }
 
+    /// This screen runs before a participation record exists, so the phone's
+    /// region decides — the same value that gets locked onto the record when the
+    /// goal is saved a moment later.
     private func deposit(for goal: WeeklyGoal) -> String {
-        Double(goal.depositAmount)
-            .formatted(.currency(code: "GBP").precision(.fractionLength(0)))
+        Currency.forCurrentRegion.format(goal.depositAmount)
     }
 }

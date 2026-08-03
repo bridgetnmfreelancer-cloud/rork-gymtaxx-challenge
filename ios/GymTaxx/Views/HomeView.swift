@@ -206,7 +206,7 @@ struct HomeView: View {
                 .contentTransition(.numericText())
                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: store.earnedSoFar)
 
-            Text("of £\(depositText) deposit")
+            Text("of \(depositText) deposit")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(Color.navy.opacity(0.55))
         }
@@ -218,15 +218,11 @@ struct HomeView: View {
     }
 
     private var earnedText: String {
-        "£" + formattedMoney(store.earnedSoFar)
+        store.currency.amount(store.earnedSoFar)
     }
 
     private var depositText: String {
-        formattedMoney(store.challenge.depositAmount)
-    }
-
-    private func formattedMoney(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(format: "%.2f", value)
+        store.currency.amount(store.challenge.depositAmount)
     }
 
     // MARK: - Stats grid

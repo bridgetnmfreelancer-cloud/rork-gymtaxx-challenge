@@ -88,7 +88,8 @@ final class ChallengeStore {
                 rewardPerWorkout: remote.rewardPerWorkout,
                 startDate: participation.startedAt,
                 workoutsPerWeek: participation.goalWorkoutsPerWeek,
-                numberOfWeeks: remote.numberOfWeeks
+                numberOfWeeks: remote.numberOfWeeks,
+                currency: participation.money
             )
 
             // Nothing to show until the deposit is paid — an unpaid user isn't in
@@ -169,6 +170,10 @@ final class ChallengeStore {
 
     /// The Monday this user's challenge begins.
     var startDate: Date { challenge.startDate }
+
+    /// The money every amount on screen should be shown in: whatever this
+    /// participation was priced in, not whatever region the phone is in now.
+    var currency: Currency { participation?.money ?? challenge.currency }
 
     /// False while a paid-up user is waiting for their Monday. Check-ins must be
     /// blocked until then, otherwise a photo taken before day one would count

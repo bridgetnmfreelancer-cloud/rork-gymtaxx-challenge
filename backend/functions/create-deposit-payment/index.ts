@@ -11,7 +11,9 @@ import {
   retrievePaymentIntent,
 } from "../_shared/stripe.ts";
 
-const CURRENCY = "gbp";
+/** Used only when a row somehow predates the currency column. */
+const FALLBACK_CURRENCY = "gbp";
+const ALLOWED_CURRENCIES = new Set(["gbp", "usd"]);
 
 /**
  * Start the deposit payment for the signed-in user's challenge participation.
@@ -30,7 +32,7 @@ Deno.serve(async (req) => {
     const { data: participation, error } = await supabase
       .from("user_challenges")
       .select(
-        "id, goal_workouts_per_week, payment_status, stripe_payment_intent_id, challenges(number_of_weeks, reward_per_workout)",
+        "id, goal_workouts_per_week, payment_status, currency, stripe_payment_intent_id, challenges(number_of_weeks, reward_per_workout)",
       )
       .eq("challenge_status", "active")
       .order("created_at", { ascending: false })
@@ -62,6 +64,16 @@ Deno.serve(async (req) => {
       return json({ error: "invalid_amount" }, 422);
     }
 
+    // The currency was fixed when the person joined, so the charge follows the
+    // record rather than anything the client sends or the phone's region now.
+    // Both currencies use the same numbers (5 per workout), so the amount above
+    // needs no conversion - only the label on it changes.
+    const currency = String(participation.currency ?? FALLBACK_CURRENCY).toLowerCase();
+    if (!ALLOWED_CURRENCIES.has(currency)) {
+      console.error("unexpected currency on participation", participation.id, currency);
+      return json({ error: "invalid_currency" }, 422);
+    }
+
     const publishableKey = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
     if (!publishableKey) throw new Error("STRIPE_PUBLISHABLE_KEY is not configured");
 
@@ -77,13 +89,19 @@ Deno.serve(async (req) => {
         if (existing.status === "succeeded") {
           return json({ status: "paid" });
         }
-        if (isReusable(existing.status) && existing.amount === amountMinor) {
+        // Currency must match too: an intent created in the other currency can't
+        // be reused, and Stripe won't let it be changed after creation.
+        if (
+          isReusable(existing.status) &&
+          existing.amount === amountMinor &&
+          existing.currency === currency
+        ) {
           return json({
             status: "requires_payment",
             clientSecret: existing.client_secret,
             publishableKey,
             amountMinor,
-            currency: CURRENCY,
+            currency,
           });
         }
       } catch (retrieveError) {
@@ -97,10 +115,12 @@ Deno.serve(async (req) => {
 
     const intent = await createPaymentIntent({
       amountMinor,
-      currency: CURRENCY,
+      currency,
       userChallengeId: participation.id,
       userId: user.id,
-      idempotencyKey: `deposit_${participation.id}_${amountMinor}`,
+      // Currency is part of the key: the same amount in a different currency is a
+      // genuinely different charge and must not collide with a cached intent.
+      idempotencyKey: `deposit_${participation.id}_${amountMinor}_${currency}`,
     });
 
     // Service role: the user must not be able to write payment fields themselves.
@@ -116,7 +136,7 @@ Deno.serve(async (req) => {
       clientSecret: intent.client_secret,
       publishableKey,
       amountMinor,
-      currency: CURRENCY,
+      currency,
     });
   } catch (err) {
     if (err instanceof AuthError) return json({ error: "unauthorized" }, 401);

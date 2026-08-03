@@ -58,15 +58,12 @@ struct SuccessView: View {
         .onAppear { appeared = true }
     }
 
-    /// Progress against the user's own deposit, not a hardcoded figure.
+    /// Progress against the user's own deposit, in the currency they paid in.
     private var reclaimedText: String {
-        let earned = money(store.earnedSoFar)
-        let deposit = money(store.challenge.depositAmount)
-        return "Nice work. That's £\(earned) of your £\(deposit) reclaimed."
-    }
-
-    private func money(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(format: "%.2f", value)
+        let currency = store.currency
+        let earned = currency.amount(store.earnedSoFar)
+        let deposit = currency.amount(store.challenge.depositAmount)
+        return "Nice work. That's \(earned) of your \(deposit) reclaimed."
     }
 
     private var successCheck: some View {
