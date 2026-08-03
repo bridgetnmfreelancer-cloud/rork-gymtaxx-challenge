@@ -197,10 +197,13 @@ struct DepositPaymentView: View {
 
     /// Computed from now rather than from the stored date: the server re-anchors
     /// the start when the payment lands, so this is what the user actually gets.
+    /// Measured on the clock stored against their challenge, so a Sunday-night
+    /// joiner in Los Angeles sees the Monday that's still ahead of them.
     private var startText: String {
-        let start = GymWeek.weeklyStart(onOrAfter: Date())
+        let week = store.week
+        let start = week.weeklyStart(onOrAfter: Date())
         let date = start.formatted(.dateTime.weekday(.wide).day().month(.wide))
-        return GymWeek.calendar.isDateInToday(start) ? "Starts today" : "Starts \(date)"
+        return week.calendar.isDateInToday(start) ? "Starts today" : "Starts \(date)"
     }
 
     private var breakdown: String {

@@ -1,6 +1,6 @@
 import { corsHeaders, createAdminClient, json } from "../_shared/auth.ts";
 import { verifyWebhookSignature } from "../_shared/stripe.ts";
-import { addWeeks, weeklyStart, weeksBetween } from "../_shared/gymweek.ts";
+import { addWeeks, safeZone, weeklyStart, weeksBetween } from "../_shared/gymweek.ts";
 
 /**
  * Stripe webhook: the only thing allowed to mark a deposit as paid.
@@ -13,6 +13,10 @@ import { addWeeks, weeklyStart, weeksBetween } from "../_shared/gymweek.ts";
  * the start written then can already be in the past by the time the money lands
  * (committed Saturday, paid Wednesday). Recomputing it here means the challenge
  * always begins on a Monday that is still ahead of them.
+ *
+ * That Monday is worked out in the zone stored on the participation, not the
+ * server's. Using London for an American user would hand them a start date that
+ * had already begun, or push them a day further out than the app promised.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -51,7 +55,7 @@ Deno.serve(async (req) => {
     // payment for one participation from ever unlocking another.
     const { data: participation, error: readError } = await admin
       .from("user_challenges")
-      .select("payment_status, started_at, ends_at")
+      .select("payment_status, started_at, ends_at, time_zone")
       .eq("id", userChallengeId)
       .eq("stripe_payment_intent_id", intent.id)
       .maybeSingle();
@@ -80,14 +84,15 @@ Deno.serve(async (req) => {
     // rather than trusted from commit time. It can move in either direction: later
     // when the deposit landed in a following week, earlier when the record was
     // written against a stale far-off date.
+    const zone = safeZone(participation.time_zone);
     const committedStart = new Date(participation.started_at);
-    const anchoredStart = weeklyStart(new Date());
+    const anchoredStart = weeklyStart(new Date(), zone);
     if (anchoredStart.getTime() !== committedStart.getTime()) {
       // Preserve the challenge's length rather than assuming four weeks, so a
       // future change to the challenge config can't silently shorten someone's run.
       const weeks = weeksBetween(committedStart, new Date(participation.ends_at));
       update.started_at = anchoredStart.toISOString();
-      update.ends_at = addWeeks(anchoredStart, weeks).toISOString();
+      update.ends_at = addWeeks(anchoredStart, weeks, zone).toISOString();
     }
 
     const { error } = await admin

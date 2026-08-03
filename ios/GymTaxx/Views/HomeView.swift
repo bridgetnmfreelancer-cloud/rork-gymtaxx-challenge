@@ -27,6 +27,9 @@ struct HomeView: View {
                     rejectedBanner
                 }
                 progressRingCard
+                if store.hasStarted {
+                    weekCloseNote
+                }
                 statsGrid
                 recentWorkoutsCard
             }
@@ -223,6 +226,50 @@ struct HomeView: View {
 
     private var depositText: String {
         store.currency.amount(store.challenge.depositAmount)
+    }
+
+    // MARK: - Week deadline
+
+    /// Spells out the exact moment this week's count resets, in the time zone the
+    /// challenge is locked to.
+    ///
+    /// Worth the line: a week that closes at midnight somewhere else is the kind of
+    /// surprise that costs someone a workout's worth of money, and the zone name
+    /// removes any doubt for a person who has since travelled.
+    private var weekCloseNote: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.navy.opacity(0.4))
+            Text(weekCloseText)
+                .font(.footnote)
+                .foregroundStyle(Color.navy.opacity(0.5))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var weekCloseText: String {
+        let week = store.week
+        var format = Date.FormatStyle.dateTime
+            .weekday(.wide)
+            .day()
+            .month(.wide)
+        format.timeZone = week.timeZone
+        let day = store.currentWeekEnd.formatted(format)
+        return "This week closes \(day) at midnight, \(zoneLabel)."
+    }
+
+    /// A place name rather than an abbreviation: "London time" reads plainly, where
+    /// "BST" means nothing to most people.
+    private var zoneLabel: String {
+        let zone = store.week.timeZone
+        let city = zone.identifier
+            .split(separator: "/")
+            .last
+            .map { $0.replacingOccurrences(of: "_", with: " ") }
+        return city.map { "\($0) time" } ?? "local time"
     }
 
     // MARK: - Stats grid

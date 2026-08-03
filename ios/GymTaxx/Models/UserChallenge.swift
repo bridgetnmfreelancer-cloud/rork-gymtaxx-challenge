@@ -28,6 +28,9 @@ nonisolated struct UserChallenge: Codable, Identifiable, Sendable, Hashable {
     /// joined. Every amount shown for this participation must use it, so a refund
     /// goes back in the currency that came in.
     let currency: String?
+    /// The time zone this person signed up in, fixed for the run of the challenge.
+    /// Their Monday-to-Sunday week closes at midnight here, not in London.
+    let timeZone: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -39,6 +42,7 @@ nonisolated struct UserChallenge: Codable, Identifiable, Sendable, Hashable {
         case startedAt = "started_at"
         case endsAt = "ends_at"
         case currency
+        case timeZone = "time_zone"
     }
 
     var payment: PaymentStatus { PaymentStatus(rawValue: paymentStatus) ?? .unpaid }
@@ -47,6 +51,10 @@ nonisolated struct UserChallenge: Codable, Identifiable, Sendable, Hashable {
     /// Never throws on an unfamiliar value — a money label must not be the reason
     /// the home screen fails to render.
     var money: Currency { Currency(storedValue: currency) }
+
+    /// Week boundaries on this person's own clock. Falls back to London for rows
+    /// created before personal time zones, preserving their existing schedule.
+    var week: GymWeek { GymWeek(storedIdentifier: timeZone) }
 }
 
 /// Deposit lifecycle for a participation record.
@@ -75,9 +83,14 @@ nonisolated struct UserChallengeInsert: Encodable, Sendable {
     let startedAt: Date
     let endsAt: Date
     let currency: String
+    let timeZone: String
 
     /// Snaps the start forward to the next Monday, so a joiner waits at most six
     /// days and week boundaries stay on calendar weeks.
+    ///
+    /// The Monday is worked out on the joiner's own clock, so someone signing up
+    /// late on a Sunday night in Los Angeles starts the Monday that is still
+    /// ahead of them rather than the one London has already begun.
     ///
     /// This is the start at *commit* time, which happens before the deposit is
     /// taken. If the deposit lands in a later week the server re-anchors both
@@ -89,19 +102,17 @@ nonisolated struct UserChallengeInsert: Encodable, Sendable {
         goal: WeeklyGoal,
         startedAt: Date,
         weeks: Int,
-        currency: Currency = .forCurrentRegion
+        currency: Currency = .forCurrentRegion,
+        week: GymWeek = .forCurrentDevice
     ) {
-        let start = GymWeek.weeklyStart(onOrAfter: startedAt)
+        let start = week.weeklyStart(onOrAfter: startedAt)
         self.userId = userId
         self.challengeId = challengeId
         self.goalWorkoutsPerWeek = goal.rawValue
         self.currency = currency.rawValue
+        self.timeZone = week.timeZone.identifier
         self.startedAt = start
-        self.endsAt = GymWeek.calendar.date(
-            byAdding: .day,
-            value: weeks * 7,
-            to: start
-        ) ?? start.addingTimeInterval(Double(weeks) * 7 * 86_400)
+        self.endsAt = week.adding(weeks: weeks, to: start)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -111,5 +122,6 @@ nonisolated struct UserChallengeInsert: Encodable, Sendable {
         case startedAt = "started_at"
         case endsAt = "ends_at"
         case currency
+        case timeZone = "time_zone"
     }
 }

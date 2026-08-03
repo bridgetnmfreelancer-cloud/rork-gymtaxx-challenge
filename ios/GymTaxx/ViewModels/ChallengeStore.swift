@@ -89,7 +89,8 @@ final class ChallengeStore {
                 startDate: participation.startedAt,
                 workoutsPerWeek: participation.goalWorkoutsPerWeek,
                 numberOfWeeks: remote.numberOfWeeks,
-                currency: participation.money
+                currency: participation.money,
+                timeZoneIdentifier: participation.week.timeZone.identifier
             )
 
             // Nothing to show until the deposit is paid — an unpaid user isn't in
@@ -102,7 +103,7 @@ final class ChallengeStore {
                     id: submission.id,
                     capturedAt: submission.capturedAt,
                     status: submission.workoutStatus,
-                    weekIndex: Self.weekIndex(
+                    weekIndex: participation.week.index(
                         for: submission.capturedAt,
                         start: participation.startedAt
                     )
@@ -163,6 +164,7 @@ final class ChallengeStore {
     var workoutsThisWeek: [Workout] { ChallengeEngine.workoutsThisWeek(for: challenge) }
     var rejectedThisWeek: [Workout] { ChallengeEngine.rejectedWorkoutsThisWeek(for: challenge) }
     var currentWeekEnd: Date { ChallengeEngine.currentWeekEnd(for: challenge) }
+    var currentWeekDeadline: Date { ChallengeEngine.currentWeekDeadline(for: challenge) }
     var earnedSoFar: Double { ChallengeEngine.earnedSoFar(for: challenge) }
     var earnedProgress: Double { ChallengeEngine.earnedProgress(for: challenge) }
     var totalVerified: Int { ChallengeEngine.totalVerified(for: challenge) }
@@ -175,6 +177,10 @@ final class ChallengeStore {
     /// participation was priced in, not whatever region the phone is in now.
     var currency: Currency { participation?.money ?? challenge.currency }
 
+    /// Week boundaries on the clock this person signed up on, not the phone's
+    /// current one — so travelling never moves a deadline mid-challenge.
+    var week: GymWeek { participation?.week ?? challenge.week }
+
     /// False while a paid-up user is waiting for their Monday. Check-ins must be
     /// blocked until then, otherwise a photo taken before day one would count
     /// towards week one.
@@ -183,12 +189,7 @@ final class ChallengeStore {
     /// Whole days until the challenge opens (0 once it has).
     var daysUntilStart: Int {
         guard !hasStarted else { return 0 }
-        let days = GymWeek.calendar.dateComponents(
-            [.day],
-            from: GymWeek.calendar.startOfDay(for: Date()),
-            to: challenge.startDate
-        ).day ?? 0
-        return max(0, days)
+        return week.daysUntil(challenge.startDate)
     }
 
     // MARK: - Participation
@@ -288,10 +289,6 @@ final class ChallengeStore {
     }
 
     // MARK: - Helpers
-
-    private static func weekIndex(for date: Date, start: Date) -> Int {
-        GymWeek.index(for: date, start: start)
-    }
 
     private func persistConfig() {
         do {

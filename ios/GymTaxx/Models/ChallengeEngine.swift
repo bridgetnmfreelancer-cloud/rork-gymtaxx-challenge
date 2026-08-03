@@ -9,10 +9,10 @@ import Foundation
 enum ChallengeEngine {
 
     /// The 0-based index of the current week of the challenge (0...numberOfWeeks-1).
-    /// Weeks are calendar weeks running Monday to Sunday. Clamps to the last week
-    /// if the challenge has ended.
+    /// Weeks are calendar weeks running Monday to Sunday *on the owner's clock*.
+    /// Clamps to the last week if the challenge has ended.
     static func currentWeekIndex(for challenge: Challenge) -> Int {
-        let week = GymWeek.index(for: Date(), start: challenge.startDate)
+        let week = challenge.week.index(for: Date(), start: challenge.startDate)
         return min(week, max(0, challenge.numberOfWeeks - 1))
     }
 
@@ -43,7 +43,19 @@ enum ChallengeEngine {
 
     /// The Sunday that closes the current challenge week.
     static func currentWeekEnd(for challenge: Challenge) -> Date {
-        GymWeek.lastDay(ofWeek: currentWeekIndex(for: challenge), start: challenge.startDate)
+        challenge.week.lastDay(
+            ofWeek: currentWeekIndex(for: challenge),
+            start: challenge.startDate
+        )
+    }
+
+    /// The exact instant the current week runs out, on the owner's clock. Used for
+    /// the home-screen note so people know when their deadline actually lands.
+    static func currentWeekDeadline(for challenge: Challenge) -> Date {
+        challenge.week.deadline(
+            ofWeek: currentWeekIndex(for: challenge),
+            start: challenge.startDate
+        )
     }
 
     /// Number of remaining workouts needed this week to hit the target.

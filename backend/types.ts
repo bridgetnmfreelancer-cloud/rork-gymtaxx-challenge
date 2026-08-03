@@ -87,6 +87,7 @@ export type Database = {
           payment_status: string
           started_at: string
           stripe_payment_intent_id: string | null
+          time_zone: string
           user_id: string
         }
         Insert: {
@@ -100,6 +101,7 @@ export type Database = {
           payment_status?: string
           started_at?: string
           stripe_payment_intent_id?: string | null
+          time_zone?: string
           user_id: string
         }
         Update: {
@@ -113,6 +115,7 @@ export type Database = {
           payment_status?: string
           started_at?: string
           stripe_payment_intent_id?: string | null
+          time_zone?: string
           user_id?: string
         }
         Relationships: [
