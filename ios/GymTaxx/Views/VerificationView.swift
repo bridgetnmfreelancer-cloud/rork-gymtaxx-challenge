@@ -34,6 +34,8 @@ struct VerificationView: View {
                 capturePhase
             case .accessDenied:
                 accessDeniedPhase
+            case .locationDenied:
+                locationDeniedPhase
             case .noCamera:
                 CameraPlaceholderView()
             case .pending:
@@ -49,6 +51,12 @@ struct VerificationView: View {
             CameraView(capturedImage: $capturedImage)
                 .ignoresSafeArea()
         }
+        .onChange(of: showCamera) { _, isOpen in
+            // Start looking for a position while the user frames their shot. That
+            // overlap is what keeps location off the critical path at submit time.
+            if isOpen { locationCapture.prewarm() }
+        }
+        .onAppear(perform: checkLocationAccess)
         .onChange(of: capturedImage) { _, newValue in
             if newValue != nil {
                 submit()
@@ -57,10 +65,14 @@ struct VerificationView: View {
         .onChange(of: scenePhase) { _, newPhase in
             // Coming back from Settings: if access was granted, return to the
             // capture screen rather than leaving a stale "blocked" message up.
-            guard newPhase == .active,
-                  phase == .accessDenied,
-                  CameraPermission.status == .authorized else { return }
-            withAnimation(.easeInOut(duration: 0.25)) { phase = .capture }
+            guard newPhase == .active else { return }
+            switch phase {
+            case .accessDenied where CameraPermission.status == .authorized,
+                 .locationDenied where !locationCapture.isBlocked:
+                withAnimation(.easeInOut(duration: 0.25)) { phase = .capture }
+            default:
+                break
+            }
         }
     }
 
@@ -84,12 +96,11 @@ struct VerificationView: View {
                     .padding(.horizontal, 32)
 
                 if !isSubmitting {
-                    // Sets up the system location prompt that follows capture so
-                    // it doesn't arrive unexplained mid-upload.
                     Label(
-                        "Your location is saved with the photo to confirm you're at the gym.",
+                        "Your location is saved with the photo to confirm you're at the gym. A weak signal indoors won't cost you the check-in.",
                         systemImage: "location.fill"
                     )
+                    .fixedSize(horizontal: false, vertical: true)
                     .font(.footnote)
                     .foregroundStyle(Color.navy.opacity(0.45))
                     .multilineTextAlignment(.center)
@@ -187,9 +198,76 @@ struct VerificationView: View {
         }
     }
 
+    // MARK: - Location blocked
+
+    /// Shown when location has been refused. Previously this state was invisible:
+    /// `LocationCapture` knew about it and nothing ever asked, so one accidental
+    /// "Don't Allow" at the gym silently stripped the position off every later
+    /// check-in without the user or us ever finding out.
+    private var locationDeniedPhase: some View {
+        VStack(spacing: 28) {
+            Spacer()
+
+            VStack(spacing: 14) {
+                Image(systemName: "location.slash.fill")
+                    .font(.system(size: 56, weight: .semibold))
+                    .foregroundStyle(Color.navy.opacity(0.25))
+                Text("Location access needed")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(Color.navy)
+                Text("We save where you were with each photo to confirm a real gym visit. Without it we can't verify a check-in, so it can't earn your deposit back. Turn location on in Settings and come straight back.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.navy.opacity(0.55))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 32)
+            }
+
+            Spacer()
+
+            VStack(spacing: 8) {
+                Button(action: openSettings) {
+                    Text("Open Settings")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color.navy)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(Color.mintGreen)
+                        .clipShape(.rect(cornerRadius: 20))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    path = []
+                } label: {
+                    Text("Back to home")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.navy.opacity(0.55))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 28)
+        }
+    }
+
+    /// Catches a refusal before the photo, not after — nobody should take a shot
+    /// only to be told it couldn't be counted.
+    private func checkLocationAccess() {
+        guard phase == .capture, locationCapture.isBlocked else { return }
+        withAnimation(.easeInOut(duration: 0.25)) { phase = .locationDenied }
+    }
+
     /// Ask for the camera at the moment the user opts in, so the system prompt
     /// lands while the on-screen explanation is still visible.
     private func requestCamera() {
+        guard !locationCapture.isBlocked else {
+            withAnimation(.easeInOut(duration: 0.25)) { phase = .locationDenied }
+            return
+        }
+
         // No camera device: say so plainly. There is deliberately no photo
         // library fallback — a picked image would be worthless as proof.
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
@@ -294,15 +372,16 @@ struct VerificationView: View {
         let capturedAt = Date()
 
         Task {
-            // Best-effort: a declined or slow fix submits without coordinates.
-            let location = await locationCapture.currentLocation()
+            // Usually instant: the lookup started when the camera opened. A dead
+            // spot still returns, tagged, so a check-in is never lost to it.
+            let fix = await locationCapture.fix()
             do {
                 try await WorkoutService.submitWorkout(
                     image: image,
                     userId: userId,
                     userChallengeId: participationId,
                     capturedAt: capturedAt,
-                    location: location
+                    fix: fix
                 )
                 isSubmitting = false
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -325,6 +404,9 @@ struct VerificationView: View {
 private enum VerificationPhase {
     case capture
     case accessDenied
+    /// Location was refused outright. Blocking here is deliberate: a check-in with
+    /// no position and no reason can't be reviewed honestly.
+    case locationDenied
     case noCamera
     case pending
 }

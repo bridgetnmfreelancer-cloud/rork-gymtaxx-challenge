@@ -352,8 +352,43 @@ struct HomeView: View {
                     .foregroundStyle(statusColor(workout.status))
             }
             Spacer()
+            locationMarker(workout.locationState)
         }
         .padding(.vertical, 6)
+    }
+
+    /// A quiet marker showing whether a position was captured with this check-in.
+    ///
+    /// Only shown when there's something worth saying: a normally located check-in
+    /// needs no badge, and pre-1.1 check-ins have no tag to show. What matters is
+    /// that someone who trained in a basement can see we already know the signal
+    /// failed, instead of worrying their check-in looks dishonest.
+    @ViewBuilder
+    private func locationMarker(_ state: LocationStatus) -> some View {
+        switch state {
+        case .located, .unknown:
+            EmptyView()
+        case .approximate:
+            markerLabel("Rough location", icon: "location.circle", tint: Color.navy.opacity(0.45))
+        case .noSignal:
+            markerLabel("No signal", icon: "location.slash", tint: Color.appAmber)
+        case .denied:
+            markerLabel("Location off", icon: "location.slash.fill", tint: Color.appRed)
+        }
+    }
+
+    private func markerLabel(_ text: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(tint.opacity(0.1))
+        .clipShape(Capsule())
     }
 
     private func statusDot(_ status: WorkoutStatus) -> some View {

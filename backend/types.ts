@@ -135,6 +135,7 @@ export type Database = {
           id: string
           latitude: number | null
           location_accuracy_m: number | null
+          location_status: string
           longitude: number | null
           rejection_reason: string | null
           reviewed_at: string | null
@@ -150,6 +151,7 @@ export type Database = {
           id?: string
           latitude?: number | null
           location_accuracy_m?: number | null
+          location_status?: string
           longitude?: number | null
           rejection_reason?: string | null
           reviewed_at?: string | null
@@ -165,6 +167,7 @@ export type Database = {
           id?: string
           latitude?: number | null
           location_accuracy_m?: number | null
+          location_status?: string
           longitude?: number | null
           rejection_reason?: string | null
           reviewed_at?: string | null

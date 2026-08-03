@@ -5,17 +5,20 @@
 
 import SwiftUI
 
-/// The five onboarding steps shown before account creation.
+/// The onboarding steps shown before account creation.
 enum OnboardingStep: Int, CaseIterable {
     case habit
     case goal
     case rightPlace
     case howItWorks
+    /// Deliberately after `howItWorks`: asking for location only makes sense once
+    /// someone knows a check-in is a photo taken at the gym.
+    case locationAccess
     case deposit
 }
 
 /// Container driving the pre-signup onboarding flow:
-/// habit question → goal question → affirmation → how it works → deposit.
+/// habit question → goal question → affirmation → how it works → location → deposit.
 struct OnboardingFlowView: View {
     /// Called with both onboarding answers when the user finishes the flow: the
     /// habit belongs on their profile, the goal on their challenge participation.
@@ -77,6 +80,8 @@ struct OnboardingFlowView: View {
             RightPlaceView { advance() }
         case .howItWorks:
             HowItWorksView { advance() }
+        case .locationAccess:
+            LocationAccessView { advance() }
         case .deposit:
             DepositView(goal: goal ?? .three) {
                 onComplete(habit ?? .inconsistent, goal ?? .three)

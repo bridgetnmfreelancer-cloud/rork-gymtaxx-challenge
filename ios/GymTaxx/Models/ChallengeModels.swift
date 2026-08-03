@@ -18,17 +18,34 @@ struct Workout: Identifiable, Codable, Hashable {
     let capturedAt: Date
     var status: WorkoutStatus
     let weekIndex: Int
+    /// Whether a position was captured with this check-in, and if not, why.
+    let locationState: LocationStatus
 
     init(
         id: UUID = UUID(),
         capturedAt: Date = Date(),
         status: WorkoutStatus = .pending,
-        weekIndex: Int
+        weekIndex: Int,
+        locationState: LocationStatus = .unknown
     ) {
         self.id = id
         self.capturedAt = capturedAt
         self.status = status
         self.weekIndex = weekIndex
+        self.locationState = locationState
+    }
+
+    /// Decodes caches written before check-ins carried a location tag. Without the
+    /// fallback the whole cached challenge would fail to decode and the home screen
+    /// would launch empty.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        capturedAt = try container.decode(Date.self, forKey: .capturedAt)
+        status = try container.decode(WorkoutStatus.self, forKey: .status)
+        weekIndex = try container.decode(Int.self, forKey: .weekIndex)
+        locationState = try container.decodeIfPresent(LocationStatus.self, forKey: .locationState)
+            ?? .unknown
     }
 }
 

@@ -21,6 +21,9 @@ nonisolated struct WorkoutSubmission: Codable, Identifiable, Sendable, Hashable 
     let latitude: Double?
     let longitude: Double?
     let locationAccuracyM: Double?
+    /// Why this check-in does or doesn't carry a position. Optional only so rows
+    /// written before 1.1 still decode.
+    let locationStatus: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -35,11 +38,17 @@ nonisolated struct WorkoutSubmission: Codable, Identifiable, Sendable, Hashable 
         case latitude
         case longitude
         case locationAccuracyM = "location_accuracy_m"
+        case locationStatus = "location_status"
     }
 
     /// Whether this submission carries a coordinate for review to check.
     var hasLocation: Bool {
         latitude != nil && longitude != nil
+    }
+
+    /// The recorded reason, falling back to `unknown` for anything unrecognised.
+    var locationState: LocationStatus {
+        locationStatus.flatMap(LocationStatus.init(rawValue:)) ?? .unknown
     }
 
     /// Maps the string status to the app's `WorkoutStatus` enum, defaulting to
@@ -58,10 +67,12 @@ nonisolated struct WorkoutSubmissionInsert: Encodable, Sendable {
     let userChallengeId: UUID
     let capturedAt: Date
     let storagePath: String
-    /// Omitted entirely when no fix was obtained, leaving the columns null.
+    /// Null when no fix was obtained — `locationStatus` carries the reason so an
+    /// indoor dead spot is never confused with a refusal.
     let latitude: Double?
     let longitude: Double?
     let locationAccuracyM: Double?
+    let locationStatus: String
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -71,6 +82,7 @@ nonisolated struct WorkoutSubmissionInsert: Encodable, Sendable {
         case latitude
         case longitude
         case locationAccuracyM = "location_accuracy_m"
+        case locationStatus = "location_status"
     }
 }
 

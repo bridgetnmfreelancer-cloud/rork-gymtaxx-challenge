@@ -106,7 +106,8 @@ final class ChallengeStore {
                     weekIndex: participation.week.index(
                         for: submission.capturedAt,
                         start: participation.startedAt
-                    )
+                    ),
+                    locationState: submission.locationState
                 )
             }
 

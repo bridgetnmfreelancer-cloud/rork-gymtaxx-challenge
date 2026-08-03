@@ -108,14 +108,15 @@ nonisolated enum WorkoutService {
     /// to delete the just-uploaded object so it doesn't become an orphan. If that
     /// delete also fails we log it and surface a retry error to the user. No
     /// automated cleanup job — this is intentionally simple for the MVP.
-    /// `location` is optional on purpose: a missing fix is recorded as null and
-    /// reviewed manually rather than blocking the check-in.
+    /// The `fix` always arrives, even when it holds no coordinate: a dead spot is
+    /// recorded with its reason and reviewed manually rather than blocking a
+    /// check-in someone has already earned.
     static func submitWorkout(
         image: UIImage,
         userId: String,
         userChallengeId: UUID,
         capturedAt: Date,
-        location: CapturedLocation?
+        fix: LocationFix
     ) async throws {
         guard let data = image.jpegData(compressionQuality: 0.7) else {
             throw WorkoutServiceError.imageEncodingFailed
@@ -147,9 +148,10 @@ nonisolated enum WorkoutService {
                     userChallengeId: userChallengeId,
                     capturedAt: capturedAt,
                     storagePath: path,
-                    latitude: location?.latitude,
-                    longitude: location?.longitude,
-                    locationAccuracyM: location?.accuracy
+                    latitude: fix.coordinate?.latitude,
+                    longitude: fix.coordinate?.longitude,
+                    locationAccuracyM: fix.coordinate?.accuracy,
+                    locationStatus: fix.status.rawValue
                 ))
                 .execute()
         } catch {
