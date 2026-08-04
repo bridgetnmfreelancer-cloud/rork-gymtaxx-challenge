@@ -54,7 +54,9 @@
 		</dict>
 
 		<!-- Coordinates captured with a check-in so a workout can be confirmed as
-		     happening at a gym. Best effort: a check-in still submits without it. -->
+		     happening at a gym. Permission is required to check in, but a fix is not:
+		     if the signal fails the check-in still submits, tagged for review. Read
+		     only at check-in, never in the background. -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypePreciseLocation</string>
