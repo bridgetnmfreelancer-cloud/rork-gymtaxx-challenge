@@ -9,6 +9,32 @@ import { supabase } from "@/lib/supabase";
  * allowed to block the screen the user was actually trying to use.
  */
 
+/**
+ * Resolve a promise, or give up after `ms`.
+ *
+ * `navigator.serviceWorker.ready` and `pushManager.subscribe()` can both hang
+ * indefinitely on iOS rather than rejecting — the worker may never take control,
+ * and Safari occasionally leaves a subscribe call pending forever. Without a
+ * ceiling that leaves the reminders button spinning with no way forward, which
+ * is exactly what it did. Reminders are optional; blocking the funnel is not.
+ */
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race<T | null>([
+      promise,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`push: ${label} timed out after ${ms}ms`);
+          resolve(null);
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /** The browser wants the VAPID public key as raw bytes, not base64url text. */
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -47,15 +73,22 @@ export async function registerForReminders(): Promise<boolean> {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
     if (Notification.permission !== "granted") return false;
 
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await withTimeout(navigator.serviceWorker.ready, 8000, "service worker ready");
+    if (!registration) return false;
 
     const existing = await registration.pushManager.getSubscription();
     const subscription =
       existing ??
-      (await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-      }));
+      (await withTimeout(
+        registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+        }),
+        8000,
+        "push subscribe",
+      ));
+
+    if (!subscription) return false;
 
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
@@ -89,7 +122,8 @@ export async function registerForReminders(): Promise<boolean> {
 export async function unregisterReminders(): Promise<void> {
   try {
     if (!("serviceWorker" in navigator)) return;
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await withTimeout(navigator.serviceWorker.ready, 5000, "service worker ready");
+    if (!registration) return;
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) return;
 
@@ -105,7 +139,8 @@ export async function hasActiveReminders(): Promise<boolean> {
   try {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
     if (Notification.permission !== "granted") return false;
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await withTimeout(navigator.serviceWorker.ready, 5000, "service worker ready");
+    if (!registration) return false;
     return (await registration.pushManager.getSubscription()) !== null;
   } catch {
     return false;

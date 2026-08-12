@@ -15,8 +15,18 @@ function required(name: keyof ImportMetaEnv): string {
   return value;
 }
 
+const supabaseUrl = required("EXPO_PUBLIC_SUPABASE_URL");
+
 export const env = {
-  supabaseUrl: required("EXPO_PUBLIC_SUPABASE_URL"),
+  supabaseUrl,
   supabaseAnonKey: required("EXPO_PUBLIC_SUPABASE_ANON_KEY"),
-  functionsUrl: required("EXPO_PUBLIC_RORK_FUNCTIONS_URL"),
+  /**
+   * Derived from the Supabase URL rather than configured separately.
+   *
+   * This used to read `EXPO_PUBLIC_RORK_FUNCTIONS_URL`, which still pointed at
+   * the old iOS backend host. That host is gone, so every deposit call failed
+   * with "we couldn't open the payment page" while the functions themselves
+   * were healthy. Deriving it means the two can never drift apart again.
+   */
+  functionsUrl: `${supabaseUrl}/functions/v1`,
 } as const;

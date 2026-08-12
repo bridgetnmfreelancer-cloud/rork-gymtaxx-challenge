@@ -35,6 +35,9 @@ export async function callFunction<T>(name: string, body?: unknown): Promise<T> 
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      // Supabase's gateway rejects the request before it reaches the function
+      // without this, even when the user's token is perfectly valid.
+      apikey: env.supabaseAnonKey,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
