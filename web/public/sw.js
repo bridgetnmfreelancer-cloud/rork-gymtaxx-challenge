@@ -1,25 +1,29 @@
 /**
  * GymTaxx service worker.
  *
- * Deliberately minimal. The job here is that an installed app opens instantly
- * and shows something useful with a bad signal — not full offline support.
- * Workouts still need a connection to submit, and pretending otherwise would
- * lose someone's proof.
+ * Deliberately narrow. It exists for two things only: reminders, and letting an
+ * installed app open when the signal is bad. It does NOT try to be an offline
+ * cache for the app's own code.
+ *
+ * That restraint is the point. An earlier version intercepted every static
+ * asset, which meant one flaky request turned into a hard "module failed to
+ * load" and a blank screen. Left alone, the browser retries those itself and
+ * recovers. So: never touch JS, CSS or fonts — the network handles them.
  */
 
-const CACHE = "gymtaxx-shell-v1";
-const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.png", "/favicon.png"];
+const CACHE = "gymtaxx-shell-v2";
+/** Only assets that never change name between builds. */
+const SHELL = ["/index.html", "/manifest.webmanifest", "/icon.png", "/favicon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
       .then((cache) => cache.addAll(SHELL))
-      .then(() => self.skipWaiting())
       .catch(() => {
-        // A failed precache must not block activation — the app works online
-        // regardless, and this only costs the offline fallback.
-      }),
+        // Precaching is a nicety. Failing it must not stop activation.
+      })
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -75,44 +79,32 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
+/**
+ * Page loads only. Everything else — scripts, styles, Supabase, Stripe — goes
+ * straight to the network untouched.
+ */
 self.addEventListener("fetch", (event) => {
   const request = event.request;
 
-  if (request.method !== "GET") return;
+  if (request.method !== "GET" || request.mode !== "navigate") return;
 
-  const url = new URL(request.url);
-  // Never cache Supabase or Stripe: stale auth, payment or workout data would
-  // be worse than an honest error.
-  if (url.origin !== self.location.origin) return;
-
-  // Navigations: network first, falling back to the cached shell so a cold
-  // launch on the Underground still opens.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        // Keep the last good shell for a cold launch with no signal.
+        if (response.ok) {
           const copy = response.clone();
           void caches.open(CACHE).then((cache) => cache.put("/index.html", copy));
-          return response;
-        })
-        .catch(() => caches.match("/index.html").then((cached) => cached ?? Response.error())),
-    );
-    return;
-  }
-
-  // Static assets: cache first, they're content-hashed by the build.
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request)
-        .then((response) => {
-          if (response.ok && response.type === "basic") {
-            const copy = response.clone();
-            void caches.open(CACHE).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached ?? Response.error());
-    }),
+        }
+        return response;
+      })
+      .catch(async () => {
+        const cached = await caches.match("/index.html");
+        if (cached) return cached;
+        return new Response("You're offline. Reopen GymTaxx once you have signal.", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }),
   );
 });
