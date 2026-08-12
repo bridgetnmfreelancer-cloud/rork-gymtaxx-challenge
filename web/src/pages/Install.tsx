@@ -1,10 +1,9 @@
-import { Compass, Share, SquarePlus } from "lucide-react";
+import { Compass, MoreHorizontal, Share, SquarePlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
-import { Button } from "@/components/ui/button";
 import { isInAppBrowser } from "@/lib/pwa";
 
 /**
@@ -35,13 +34,13 @@ function RoundChip({ icon: Icon, label }: { icon: typeof Share; label: string })
 
 const STEPS: ReactNode[] = [
   <>
-    Press <RoundChip icon={Share} label="Share" /> in the Safari toolbar
+    Press <RoundChip icon={MoreHorizontal} label="Browser menu" /> in the bottom left corner
   </>,
   <>
-    Scroll down and select <Chip icon={SquarePlus} label="Add to Home Screen" />
+    Tap <Chip icon={Share} label="Share" /> and then <Chip label="View more" />
   </>,
   <>
-    Tap <Chip label="Add" /> in the top corner
+    Select <Chip icon={SquarePlus} label="Add to Home Screen" />
   </>,
 ];
 
@@ -52,9 +51,13 @@ const STEPS: ReactNode[] = [
  * on iPhone, push is only granted to an installed web app. The cost is real
  * drop-off here, so the page stays short and gives a way past.
  *
- * iPhone only in v1 — Android arrives later via the Play Store. The steps name
- * the exact buttons in Safari; describing a control someone cannot see is worse
- * than no instructions, because it reads as being in the wrong place.
+ * iPhone only in v1 — Android arrives later via the Play Store, so there is no
+ * second set of steps. The steps name the exact controls in Safari; describing
+ * a button someone cannot see reads as being in the wrong place.
+ *
+ * There is deliberately no "I've installed it" button: adding to the Home
+ * Screen drops the person onto their Home Screen, so a confirm button would sit
+ * on a page nobody is looking at any more.
  */
 export default function Install() {
   const navigate = useNavigate();
@@ -65,7 +68,7 @@ export default function Install() {
     <Screen>
       <div className="mt-6 animate-rise-in">
         <ScreenTitle>Install the app</ScreenTitle>
-        <ScreenSubtitle>Add GymTaxx to your Home Screen to get started.</ScreenSubtitle>
+        <ScreenSubtitle>You'll need to be in the Safari browser to install GymTaxx.</ScreenSubtitle>
       </div>
 
       <div className="mt-6 flex items-center gap-4 rounded-xl border border-border bg-card p-4 animate-rise-in [animation-delay:60ms]">
@@ -100,12 +103,9 @@ export default function Install() {
       </ol>
 
       <ScreenActions>
-        <Button size="xl" className="w-full" onClick={() => navigate("/welcome")}>
-          I've added GymTaxx
-        </Button>
         <button
           type="button"
-          className="mt-3 w-full py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
+          className="w-full py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
           onClick={() => navigate("/welcome?browser=1")}
         >
           Continue in browser
