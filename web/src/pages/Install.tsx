@@ -1,11 +1,11 @@
-import { Compass, Share, Smartphone, SquarePlus } from "lucide-react";
+import { Compass, Share, SquarePlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
-import { isInAppBrowser, isIOS } from "@/lib/pwa";
+import { isInAppBrowser } from "@/lib/pwa";
 
 /**
  * An inline reproduction of a real browser button, so the instruction points at
@@ -58,7 +58,6 @@ const STEPS: ReactNode[] = [
  */
 export default function Install() {
   const navigate = useNavigate();
-  const ios = isIOS();
   const embedded = isInAppBrowser();
   const host = typeof window === "undefined" ? "gymtaxx.com" : window.location.host;
 
@@ -76,16 +75,6 @@ export default function Install() {
           <p className="mt-0.5 truncate text-sm text-muted-foreground">{host}</p>
         </div>
       </div>
-
-      {!ios ? (
-        <div className="mt-4 flex gap-3 rounded-lg border border-border p-4 animate-rise-in [animation-delay:100ms]">
-          <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">GymTaxx is for iPhone right now.</span> Open this page on an
-            iPhone to install it. Android is on the way.
-          </p>
-        </div>
-      ) : null}
 
       {embedded ? (
         <div className="mt-4 flex gap-3 rounded-lg border border-border p-4 animate-rise-in [animation-delay:100ms]">
