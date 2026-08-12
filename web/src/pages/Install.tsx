@@ -1,4 +1,4 @@
-import { Compass, MoreHorizontal, Share, SquarePlus } from "lucide-react";
+import { Compass, Share, Smartphone, SquarePlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -33,7 +33,7 @@ function RoundChip({ icon: Icon, label }: { icon: typeof Share; label: string })
   );
 }
 
-const IOS_STEPS: ReactNode[] = [
+const STEPS: ReactNode[] = [
   <>
     Press <RoundChip icon={Share} label="Share" /> in the Safari toolbar
   </>,
@@ -45,18 +45,6 @@ const IOS_STEPS: ReactNode[] = [
   </>,
 ];
 
-const ANDROID_STEPS: ReactNode[] = [
-  <>
-    Press <RoundChip icon={MoreHorizontal} label="Browser menu" /> to open the browser menu
-  </>,
-  <>
-    Select <Chip icon={SquarePlus} label="Add to Home screen" />
-  </>,
-  <>
-    Tap <Chip label="Add" /> to confirm
-  </>,
-];
-
 /**
  * Step 2 of the funnel, and deliberately before the pitch.
  *
@@ -64,22 +52,21 @@ const ANDROID_STEPS: ReactNode[] = [
  * on iPhone, push is only granted to an installed web app. The cost is real
  * drop-off here, so the page stays short and gives a way past.
  *
- * The steps name the exact buttons a person can see on screen. Earlier wording
- * invented an "Install app" button that does not exist in Safari, which is
- * worse than no instructions: it makes people think they are in the wrong place.
+ * iPhone only in v1 — Android arrives later via the Play Store. The steps name
+ * the exact buttons in Safari; describing a control someone cannot see is worse
+ * than no instructions, because it reads as being in the wrong place.
  */
 export default function Install() {
   const navigate = useNavigate();
   const ios = isIOS();
   const embedded = isInAppBrowser();
-  const steps = ios ? IOS_STEPS : ANDROID_STEPS;
   const host = typeof window === "undefined" ? "gymtaxx.com" : window.location.host;
 
   return (
     <Screen>
       <div className="mt-6 animate-rise-in">
         <ScreenTitle>Install the app</ScreenTitle>
-        <ScreenSubtitle>Add GymTaxx to your {ios ? "Home Screen" : "home screen"} to get started.</ScreenSubtitle>
+        <ScreenSubtitle>Add GymTaxx to your Home Screen to get started.</ScreenSubtitle>
       </div>
 
       <div className="mt-6 flex items-center gap-4 rounded-xl border border-border bg-card p-4 animate-rise-in [animation-delay:60ms]">
@@ -89,6 +76,16 @@ export default function Install() {
           <p className="mt-0.5 truncate text-sm text-muted-foreground">{host}</p>
         </div>
       </div>
+
+      {!ios ? (
+        <div className="mt-4 flex gap-3 rounded-lg border border-border p-4 animate-rise-in [animation-delay:100ms]">
+          <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            <span className="font-semibold text-foreground">GymTaxx is for iPhone right now.</span> Open this page on an
+            iPhone to install it. Android is on the way.
+          </p>
+        </div>
+      ) : null}
 
       {embedded ? (
         <div className="mt-4 flex gap-3 rounded-lg border border-border p-4 animate-rise-in [animation-delay:100ms]">
@@ -101,7 +98,7 @@ export default function Install() {
       ) : null}
 
       <ol className="mt-7 space-y-5">
-        {steps.map((step, index) => (
+        {STEPS.map((step, index) => (
           <li
             key={index}
             className="flex items-baseline gap-3 animate-rise-in"
