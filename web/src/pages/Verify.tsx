@@ -33,6 +33,7 @@ export default function Verify() {
   const streamRef = useRef<MediaStream | null>(null);
 
   const [stage, setStage] = useState<Stage>("location");
+  const [isViewfinderLive, setIsViewfinderLive] = useState<boolean>(false);
   const [fix, setFix] = useState<LocationFix | null>(null);
   const [shot, setShot] = useState<{ blob: Blob; url: string; at: Date } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,10 +42,40 @@ export default function Verify() {
   const currency = currencyFrom(participation?.currency);
   const reward = Number(challenge?.reward_per_workout ?? REWARD_PER_WORKOUT);
 
-  /** Cameras keep running until explicitly stopped, including in the background. */
+  /**
+   * Cameras keep running until explicitly stopped, including in the background.
+   *
+   * iOS shows a camera-in-use indicator the entire time a stream is open, so
+   * stopping promptly is what makes that indicator disappear the moment the
+   * photo is taken.
+   */
   const stopCamera = useCallback((): void => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    setIsViewfinderLive(false);
+  }, []);
+
+  /**
+   * Attach the camera the instant the <video> element exists.
+   *
+   * This has to be a ref callback rather than a effect or a timeout. Setting the
+   * stage schedules a render, and React does not guarantee the element is in the
+   * DOM by the time a `setTimeout(0)` fires — when it lost that race the stream
+   * was never attached and the viewfinder stayed black.
+   */
+  const attachVideo = useCallback((node: HTMLVideoElement | null): void => {
+    videoRef.current = node;
+    if (!node) return;
+
+    const stream = streamRef.current;
+    if (!stream) return;
+
+    if (node.srcObject !== stream) node.srcObject = stream;
+    node.play().catch((caught: unknown) => {
+      // Autoplay can be refused on the first attempt; the metadata handler
+      // retries once the frames are actually ready.
+      console.error("verify: viewfinder did not start", caught);
+    });
   }, []);
 
   useEffect(() => stopCamera, [stopCamera]);
@@ -90,6 +121,7 @@ export default function Verify() {
   }
 
   async function startCamera(): Promise<void> {
+    setIsViewfinderLive(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
@@ -98,13 +130,9 @@ export default function Verify() {
       streamRef.current = stream;
       setStage("camera");
 
-      // The element only exists after the stage switch renders it.
-      window.setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play();
-        }
-      }, 0);
+      // If the element is already mounted (a retake), the ref callback won't
+      // fire again, so attach here too. Both paths are idempotent.
+      attachVideo(videoRef.current);
     } catch (caught) {
       console.error("verify: camera unavailable", caught);
       setError("We couldn't open your camera. Check the permission in your browser settings and try again.");
@@ -115,6 +143,13 @@ export default function Verify() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
+
+    // Capturing before the first frame arrives yields a 0×0 canvas and a blank
+    // photo, which would then fail review for no reason the person can see.
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setError("The camera is still starting up. Give it a second and tap again.");
+      return;
+    }
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -138,6 +173,7 @@ export default function Verify() {
     if (shot) URL.revokeObjectURL(shot.url);
     setShot(null);
     setError(null);
+    setStage("camera");
     await startCamera();
   }
 
@@ -188,16 +224,29 @@ export default function Verify() {
 
   if (stage === "camera") {
     return (
-      <div className="relative min-h-full bg-black">
+      <div className="fixed inset-0 z-50 bg-black">
         <video
-          ref={videoRef}
+          ref={attachVideo}
           playsInline
           muted
           autoPlay
+          disablePictureInPicture
+          onLoadedMetadata={(event) => {
+            setIsViewfinderLive(true);
+            void event.currentTarget.play().catch(() => {});
+          }}
+          onPlaying={() => setIsViewfinderLive(true)}
           className="absolute inset-0 h-full w-full object-cover"
           aria-label="Camera viewfinder"
         />
         <canvas ref={canvasRef} className="hidden" />
+
+        {!isViewfinderLive ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
+            <Loader2 className="h-7 w-7 animate-spin" aria-hidden="true" />
+            <p className="text-sm font-medium">Starting the camera…</p>
+          </div>
+        ) : null}
 
         <div className="absolute inset-x-0 top-0 flex items-center justify-between px-5 pt-safe">
           <button
@@ -217,12 +266,18 @@ export default function Verify() {
           <div className="h-11 w-11" />
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 flex justify-center pb-12">
+        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-4 pb-12">
+          {error ? (
+            <p role="alert" className="mx-5 rounded-md bg-black/70 px-4 py-2 text-center text-sm font-medium text-white">
+              {error}
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={() => void takeShot()}
+            disabled={!isViewfinderLive}
             aria-label="Take photo"
-            className="h-20 w-20 rounded-full border-[6px] border-white bg-white/30 transition-transform active:scale-95 backdrop-blur"
+            className="h-20 w-20 rounded-full border-[6px] border-white bg-white/30 transition-transform active:scale-95 disabled:opacity-40 backdrop-blur"
           />
         </div>
       </div>
@@ -231,7 +286,7 @@ export default function Verify() {
 
   if (stage === "preview" || stage === "submitting") {
     return (
-      <div className="relative min-h-full bg-black">
+      <div className="fixed inset-0 z-50 bg-black">
         {shot ? <img src={shot.url} alt="Your workout proof" className="absolute inset-0 h-full w-full object-cover" /> : null}
 
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-safe pt-16">
