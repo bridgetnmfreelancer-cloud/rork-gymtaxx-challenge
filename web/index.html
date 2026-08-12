@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover lets the app paint behind the notch and home indicator
+         once it's launched from the home screen. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
+    <title>GymTaxx</title>
+    <meta name="description" content="Put money behind your weekly gym goal. Prove each workout, earn it back." />
+
+    <meta property="og:title" content="GymTaxx" />
+    <meta property="og:description" content="Put money behind your weekly gym goal. Prove each workout, earn it back." />
+    <meta property="og:type" content="website" />
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#FFFFFF" />
+
+    <!-- iOS reads these rather than the manifest for full-screen behaviour. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="GymTaxx" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Phone numbers in dates/times must not turn into call links. -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

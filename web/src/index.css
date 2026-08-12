@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* GymTaxx design system.
+   Carried over from the iOS app so the web app never reads as a downgrade:
+   white canvas, soft grey cards, deep navy ink, mint for money earned,
+   red for money at risk. All colors MUST be HSL. */
+
+@layer base {
+  :root {
+    /* #FFFFFF */
+    --background: 0 0% 100%;
+    /* #0F172A */
+    --foreground: 222 47% 11%;
+
+    /* #F8FAFC — the card grey */
+    --card: 210 40% 98%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Navy is the action colour: primary buttons are ink, not brand-blue. */
+    --primary: 222 47% 11%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 98%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    /* #64748B */
+    --muted-foreground: 215 16% 47%;
+
+    /* #86EFAC — earned, verified, banked */
+    --accent: 142 77% 73%;
+    --accent-foreground: 150 84% 16%;
+
+    /* #F87171 — missed, forfeited */
+    --destructive: 0 91% 71%;
+    --destructive-foreground: 0 63% 20%;
+
+    /* #E2E8F0 */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 47% 11%;
+
+    --radius: 1.25rem;
+
+    /* Deeper mint for text on light mint fills, where #86EFAC fails contrast. */
+    --success-ink: 150 84% 22%;
+    --danger-ink: 0 63% 44%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* Installed web apps should feel native: no rubber-band scroll on the page
+       itself, no long-press callout, no double-tap zoom. */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  /* Numbers that change (money, counts) must not reflow as they animate. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Respects the notch and the home indicator once installed full screen. */
+  .pt-safe {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .pb-safe-nav {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+}
