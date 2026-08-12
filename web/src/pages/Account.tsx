@@ -41,6 +41,17 @@ import { useCurrentChallenge, useParticipation } from "@/lib/queries";
 import { callFunction } from "@/lib/supabase";
 
 const SUPPORT_EMAIL = "support@gymtaxx.com";
+
+/**
+ * Operator accounts, for showing the test controls only.
+ *
+ * This is a display hint, never a permission. Every operator action is checked
+ * again on the server against its own allowlist, so putting an address here
+ * grants nothing — it only decides whether the buttons are drawn. Kept local so
+ * the controls appear even when the server check is unreachable, which is
+ * exactly when they are most needed.
+ */
+const OPERATOR_EMAILS: readonly string[] = ["support@gymtaxx.com"];
 const TERMS_URL = "https://www.gymtaxx.com/terms";
 const PRIVACY_URL = "https://www.gymtaxx.com/privacy";
 const SUPPORT_URL = "https://www.gymtaxx.com/support";
@@ -74,7 +85,8 @@ export default function Account() {
     retry: 0,
     staleTime: 5 * 60_000,
   });
-  const isAdmin = adminInfo?.isAdmin === true;
+  const isAdmin =
+    adminInfo?.isAdmin === true || OPERATOR_EMAILS.includes((user?.email ?? "").trim().toLowerCase());
 
   const currency = currencyFrom(participation?.currency);
   const weeks = challenge?.number_of_weeks ?? CHALLENGE_WEEKS;
