@@ -12,12 +12,13 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { BottomNav } from "@/components/BottomNav";
 import { Screen, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,7 @@ import {
 import { useAuth } from "@/context/AuthProvider";
 import { formatStartDate } from "@/lib/gymweek";
 import { CHALLENGE_WEEKS, currencyFrom, depositFor, formatMoney } from "@/lib/money";
+import { hasActiveReminders, registerForReminders, unregisterReminders } from "@/lib/push";
 import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
 import { useCurrentChallenge, useParticipation } from "@/lib/queries";
 import { callFunction } from "@/lib/supabase";
@@ -61,7 +63,45 @@ export default function Account() {
   }, [participation, locale]);
 
   const notInstalled = isIOS() && !isStandalone();
-  const remindersOn = canUsePush() && typeof Notification !== "undefined" && Notification.permission === "granted";
+  const pushAvailable = canUsePush();
+  const [remindersOn, setRemindersOn] = useState<boolean>(false);
+  const [isTogglingReminders, setIsTogglingReminders] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void hasActiveReminders().then((active) => {
+      if (!cancelled) setRemindersOn(active);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleReminders = useCallback(async (next: boolean): Promise<void> => {
+    setIsTogglingReminders(true);
+    try {
+      if (!next) {
+        await unregisterReminders();
+        setRemindersOn(false);
+        return;
+      }
+
+      // The browser only ever asks once; if they said no previously this
+      // returns "denied" without a prompt, so the switch must stay off.
+      const permission =
+        Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+      if (permission !== "granted") {
+        setRemindersOn(false);
+        return;
+      }
+      setRemindersOn(await registerForReminders());
+    } catch (error) {
+      console.error("account: reminder toggle failed", error);
+      setRemindersOn(false);
+    } finally {
+      setIsTogglingReminders(false);
+    }
+  }, []);
 
   async function handleDelete(): Promise<void> {
     if (isDeleting) return;
@@ -124,12 +164,26 @@ export default function Account() {
           </div>
         </section>
       ) : (
-        <section className="mt-4 flex items-center justify-between rounded-lg bg-card px-4 py-4">
-          <div className="flex items-center gap-3">
-            <Bell className="h-5 w-5 text-foreground" aria-hidden="true" />
-            <span className="font-medium text-foreground">Reminders</span>
+        <section className="mt-4 rounded-lg bg-card px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Bell className="h-5 w-5 text-foreground" aria-hidden="true" />
+              <span className="font-medium text-foreground">Reminders</span>
+            </div>
+            <Switch
+              checked={remindersOn}
+              disabled={!pushAvailable || isTogglingReminders}
+              onCheckedChange={(next) => {
+                void toggleReminders(next);
+              }}
+              aria-label="Reminders"
+            />
           </div>
-          <span className="text-sm text-muted-foreground">{remindersOn ? "On" : "Off"}</span>
+          {pushAvailable && !remindersOn && typeof Notification !== "undefined" && Notification.permission === "denied" ? (
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Your browser is blocking notifications. Turn them back on in Settings, then flip this switch.
+            </p>
+          ) : null}
         </section>
       )}
 

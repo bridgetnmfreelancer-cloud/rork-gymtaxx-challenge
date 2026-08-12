@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
+import { registerForReminders } from "@/lib/push";
 import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
 
 /**
@@ -29,8 +30,10 @@ export default function Reminders() {
     setIsAsking(true);
     try {
       const result = await Notification.requestPermission();
-      if (result === "denied") {
-        console.warn("reminders: permission denied");
+      if (result === "granted") {
+        await registerForReminders();
+      } else {
+        console.warn("reminders: permission not granted");
       }
     } catch (error) {
       // A refusal must never dead-end the funnel.

@@ -32,6 +32,49 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+/**
+ * A reminder arrived. iOS requires every push to show something visible, so
+ * there is always a fallback title and body.
+ */
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = {};
+  }
+
+  const title = payload.title || "GymTaxx";
+  const options = {
+    body: payload.body || "Time to check in on your week.",
+    icon: "/icon.png",
+    badge: "/icon.png",
+    tag: payload.tag || "gymtaxx-reminder",
+    renotify: true,
+    data: { url: payload.url || "/home" },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+/** Tapping a reminder lands on the right screen, reusing an open window. */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/home";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) {
+          if ("navigate" in client) client.navigate(target).catch(() => {});
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
 
