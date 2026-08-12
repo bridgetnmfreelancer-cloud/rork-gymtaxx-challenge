@@ -1,12 +1,14 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   ChevronRight,
   CreditCard,
   FileText,
+  FlaskConical,
   LifeBuoy,
   Loader2,
   LogOut,
+  Send,
   Share,
   ShieldCheck,
   Target,
@@ -43,6 +45,12 @@ const TERMS_URL = "https://www.gymtaxx.com/terms";
 const PRIVACY_URL = "https://www.gymtaxx.com/privacy";
 const SUPPORT_URL = "https://www.gymtaxx.com/support";
 
+type TestState =
+  | { kind: "idle" }
+  | { kind: "sending" }
+  | { kind: "sent"; message: string }
+  | { kind: "error"; message: string };
+
 export default function Account() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -52,6 +60,21 @@ export default function Account() {
 
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [testState, setTestState] = useState<TestState>({ kind: "idle" });
+  const [isTestActivating, setIsTestActivating] = useState<boolean>(false);
+
+  /**
+   * Operator check. The endpoint 404s for everyone else, so a failed query
+   * simply means "not an operator" and the extra controls stay hidden.
+   */
+  const { data: adminInfo } = useQuery({
+    queryKey: ["whoami"],
+    queryFn: () => callFunction<{ isAdmin: boolean }>("review-workouts", { action: "whoami" }),
+    retry: 0,
+    staleTime: 5 * 60_000,
+  });
+  const isAdmin = adminInfo?.isAdmin === true;
 
   const currency = currencyFrom(participation?.currency);
   const weeks = challenge?.number_of_weeks ?? CHALLENGE_WEEKS;
@@ -102,6 +125,61 @@ export default function Account() {
       setIsTogglingReminders(false);
     }
   }, []);
+
+  /**
+   * Prove reminders reach this phone, without waiting for an evening.
+   *
+   * The scheduled sender only fires between 17:00 and 20:00 local time on
+   * certain days, so "did that work?" was otherwise unanswerable for hours.
+   */
+  async function sendTestNotification(): Promise<void> {
+    setTestState({ kind: "sending" });
+    try {
+      const result = await callFunction<{ devices: number; delivered: number }>("send-test-notification");
+
+      if (result.devices === 0) {
+        setTestState({
+          kind: "error",
+          message: "This phone isn't registered yet. Turn the switch off and back on, then try again.",
+        });
+        return;
+      }
+      if (result.delivered === 0) {
+        setTestState({
+          kind: "error",
+          message: "Your phone was registered but rejected the notification. Turn the switch off and on to re-register.",
+        });
+        return;
+      }
+
+      setTestState({
+        kind: "sent",
+        message:
+          result.devices > 1
+            ? `Sent to ${result.delivered} of your ${result.devices} devices. It should appear in a few seconds.`
+            : "Sent. It should appear in a few seconds — close the app to see it arrive.",
+      });
+    } catch (caught) {
+      console.error("account: test notification failed", caught);
+      setTestState({ kind: "error", message: "We couldn't send it just then. Check your connection and try again." });
+    }
+  }
+
+  /** Operator-only: open or close the challenge without a real charge. */
+  async function toggleTestMode(activate: boolean): Promise<void> {
+    setIsTestActivating(true);
+    try {
+      await callFunction<{ status: string }>("review-workouts", {
+        action: activate ? "test_activate" : "test_reset",
+      });
+      await queryClient.invalidateQueries();
+      navigate(activate ? "/home" : "/account", { replace: true });
+    } catch (caught) {
+      console.error("account: test mode toggle failed", caught);
+    } finally {
+      setIsTestActivating(false);
+    }
+  }
 
   async function handleDelete(): Promise<void> {
     if (isDeleting) return;
@@ -184,8 +262,69 @@ export default function Account() {
               Your browser is blocking notifications. Turn them back on in Settings, then flip this switch.
             </p>
           ) : null}
+
+          {remindersOn ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void sendTestNotification()}
+                disabled={testState.kind === "sending"}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-border py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+              >
+                {testState.kind === "sending" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                )}
+                Send me a test reminder
+              </button>
+              {testState.kind === "sent" || testState.kind === "error" ? (
+                <p
+                  role="status"
+                  className={`mt-2 text-sm leading-relaxed ${
+                    testState.kind === "sent" ? "text-success-ink" : "text-danger-ink"
+                  }`}
+                >
+                  {testState.message}
+                </p>
+              ) : null}
+            </>
+          ) : null}
         </section>
       )}
+
+      {isAdmin ? (
+        <section className="mt-4 rounded-lg border border-dashed border-border p-4">
+          <div className="flex items-center gap-3">
+            <FlaskConical className="h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
+            <p className="font-semibold text-foreground">Test mode</p>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            {participation?.payment_status === "paid"
+              ? "Your challenge is open. Close it to return to the payment screen."
+              : "Open your challenge without paying, so you can test verifying a workout end to end. Only affects your own account."}
+          </p>
+          <Button
+            variant="outline"
+            className="mt-3 w-full"
+            disabled={isTestActivating || !participation}
+            onClick={() => void toggleTestMode(participation?.payment_status !== "paid")}
+          >
+            {isTestActivating ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+            {participation?.payment_status === "paid" ? "Close my challenge" : "Open without paying"}
+          </Button>
+          {!participation ? (
+            <p className="mt-2 text-sm text-muted-foreground">Build a challenge first, then come back here.</p>
+          ) : null}
+          <a
+            href="/review"
+            className="mt-3 flex items-center justify-between rounded-md py-2 text-sm font-medium text-foreground underline underline-offset-4"
+          >
+            Open review queue
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </section>
+      ) : null}
 
       <section className="mt-4 divide-y divide-border overflow-hidden rounded-lg bg-card">
         <LinkRow icon={LifeBuoy} label="Help and support" href={SUPPORT_URL} />

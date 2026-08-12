@@ -25,13 +25,25 @@ export default function Reminders() {
     navigate("/onboarding", { replace: true });
   }
 
+  /**
+   * Ask, then move on immediately.
+   *
+   * Only the permission prompt needs the user present. Registering the device
+   * afterwards is a network round trip they gain nothing from watching, and on
+   * iOS it can take several seconds — long enough that the screen read as
+   * broken. So the moment they answer, they advance; registration finishes
+   * behind them, and Account is where its result gets confirmed.
+   */
   async function requestPermission(): Promise<void> {
     if (isAsking) return;
     setIsAsking(true);
     try {
       const result = await Notification.requestPermission();
       if (result === "granted") {
-        await registerForReminders();
+        // Deliberately not awaited — see above.
+        void registerForReminders().catch((error: unknown) => {
+          console.error("reminders: background registration failed", error);
+        });
       } else {
         console.warn("reminders: permission not granted");
       }

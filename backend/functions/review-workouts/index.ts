@@ -36,7 +36,7 @@ function adminEmails(): string[] {
 }
 
 type ReviewRequest = {
-  action?: "list" | "decide";
+  action?: "list" | "decide" | "whoami" | "test_activate" | "test_reset";
   submissionId?: string;
   decision?: "verified" | "rejected";
   reason?: string;
@@ -58,6 +58,57 @@ Deno.serve(async (req) => {
 
     const body = (await req.json().catch(() => ({}))) as ReviewRequest;
     const admin = createAdminClient();
+
+    // Lets the client show operator-only controls. Reaching this line already
+    // proves the caller is on the allowlist.
+    if (body.action === "whoami") {
+      return json({ isAdmin: true, email });
+    }
+
+    /**
+     * Open the caller's OWN challenge without taking a deposit.
+     *
+     * Everything past the payment screen — the dashboard, camera proof, the
+     * review queue, approvals — is unreachable until a participation is marked
+     * paid, so testing the app used to mean making a real charge on live Stripe
+     * keys and refunding it by hand.
+     *
+     * Scoped to the caller's own row and gated on the admin allowlist, so it is
+     * not a way to give anyone else a free challenge. `stripe_payment_intent_id`
+     * is deliberately left untouched: a test participation carries no intent, so
+     * it can never be confused with a real one during a refund.
+     */
+    if (body.action === "test_activate" || body.action === "test_reset") {
+      const paid = body.action === "test_activate";
+
+      const { data: participation, error: readError } = await admin
+        .from("user_challenges")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("challenge_status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (readError) {
+        console.error("review-workouts: test toggle read failed", readError.message);
+        return json({ error: "read_failed" }, 500);
+      }
+      if (!participation) return json({ error: "no_participation" }, 404);
+
+      const { error: updateError } = await admin
+        .from("user_challenges")
+        .update({ payment_status: paid ? "paid" : "unpaid" })
+        .eq("id", participation.id);
+
+      if (updateError) {
+        console.error("review-workouts: test toggle failed", updateError.message);
+        return json({ error: "update_failed" }, 500);
+      }
+
+      console.log(`review-workouts: test mode ${paid ? "on" : "off"} for ${email}`);
+      return json({ status: "ok", paid });
+    }
 
     if (body.action === "decide") {
       const { submissionId, decision } = body;
