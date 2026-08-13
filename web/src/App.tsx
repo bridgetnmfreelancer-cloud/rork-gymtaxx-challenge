@@ -12,6 +12,7 @@ import Activated from "./pages/Activated";
 import BuildChallenge from "./pages/BuildChallenge";
 import Commit from "./pages/Commit";
 import Entry from "./pages/Entry";
+import ForgotPassword from "./pages/ForgotPassword";
 import History from "./pages/History";
 import Home from "./pages/Home";
 import Install from "./pages/Install";
@@ -61,6 +62,7 @@ const App = () => (
             <Route path="/" element={<Entry />} />
             <Route path="/install" element={<Install />} />
             <Route path="/welcome" element={<Welcome />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {PRIVATE_ROUTES.map((route) => (
               <Route key={route.path} path={route.path} element={<RequireAuth>{route.element}</RequireAuth>} />

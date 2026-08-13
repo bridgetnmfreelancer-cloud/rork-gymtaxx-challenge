@@ -120,6 +120,15 @@ export default function Welcome() {
           >
             {mode === "signUp" ? "I already have an account" : "I need to create an account"}
           </button>
+          {mode === "logIn" ? (
+            <button
+              type="button"
+              className="mt-1 w-full py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
+              onClick={() => navigate("/forgot-password")}
+            >
+              I've forgotten my password
+            </button>
+          ) : null}
         </ScreenActions>
       </form>
     </Screen>
