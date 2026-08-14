@@ -10,10 +10,57 @@ import {
   isReusable,
   retrievePaymentIntent,
 } from "../_shared/stripe.ts";
+import { attributionFromRequest } from "../_shared/meta.ts";
 
 /** Used only when a row somehow predates the currency column. */
 const FALLBACK_CURRENCY = "gbp";
 const ALLOWED_CURRENCIES = new Set(["gbp", "usd"]);
+
+/** Meta cookies the payment screen forwards. Often absent for installed users. */
+interface RequestBody {
+  fbp?: unknown;
+  fbc?: unknown;
+}
+
+function asCookie(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  // Bounded so a malformed or hostile body can't push junk into the column.
+  if (trimmed.length === 0 || trimmed.length > 400) return undefined;
+  return trimmed;
+}
+
+/**
+ * Record who is paying, for the Meta Purchase event the Stripe webhook sends later.
+ *
+ * This has to happen here rather than in the webhook: the webhook's caller is
+ * Stripe, so its IP and user agent describe Stripe's servers, not the person.
+ *
+ * Written with the service role because `user_challenges` grants users no UPDATE
+ * policy at all, so nobody can forge their own attribution. Failures are logged
+ * and swallowed — ad reporting is never a reason to block a deposit.
+ */
+async function recordAttribution(
+  admin: ReturnType<typeof createAdminClient>,
+  participationId: string,
+  values: Record<string, string>,
+): Promise<void> {
+  if (Object.keys(values).length === 0) return;
+  try {
+    const { error } = await admin
+      .from("user_challenges")
+      .update(values)
+      .eq("id", participationId);
+    if (error) {
+      console.error("create-deposit-payment: attribution not stored", error.message);
+    }
+  } catch (err) {
+    console.error(
+      "create-deposit-payment: attribution not stored",
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
 
 /**
  * Start the deposit payment for the signed-in user's challenge participation.
@@ -47,6 +94,22 @@ Deno.serve(async (req) => {
     if (participation.payment_status === "paid") {
       return json({ status: "paid" });
     }
+
+    // Captured while the real person is on the payment screen. Only non-empty
+    // values are written, so a later visit without cookies can't wipe a good
+    // earlier capture. Done before the intent branches below so reusing an
+    // existing intent still refreshes it.
+    const admin = createAdminClient();
+    const body = (await req.json().catch(() => ({}))) as RequestBody;
+    const { clientIp, clientUserAgent } = attributionFromRequest(req);
+    const attribution: Record<string, string> = {};
+    const fbp = asCookie(body.fbp);
+    const fbc = asCookie(body.fbc);
+    if (fbp) attribution.fbp = fbp;
+    if (fbc) attribution.fbc = fbc;
+    if (clientIp) attribution.client_ip = clientIp;
+    if (clientUserAgent) attribution.client_user_agent = clientUserAgent;
+    await recordAttribution(admin, participation.id, attribution);
 
     const challenge = Array.isArray(participation.challenges)
       ? participation.challenges[0]
@@ -124,7 +187,6 @@ Deno.serve(async (req) => {
     });
 
     // Service role: the user must not be able to write payment fields themselves.
-    const admin = createAdminClient();
     const { error: updateError } = await admin
       .from("user_challenges")
       .update({ stripe_payment_intent_id: intent.id })

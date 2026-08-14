@@ -1,6 +1,7 @@
 import { corsHeaders, createAdminClient, json } from "../_shared/auth.ts";
 import { verifyWebhookSignature } from "../_shared/stripe.ts";
 import { addWeeks, safeZone, weeklyStart, weeksBetween } from "../_shared/gymweek.ts";
+import { minorToMajor, sendPurchaseEvent } from "../_shared/meta.ts";
 
 /**
  * Stripe webhook: the only thing allowed to mark a deposit as paid.
@@ -55,7 +56,9 @@ Deno.serve(async (req) => {
     // payment for one participation from ever unlocking another.
     const { data: participation, error: readError } = await admin
       .from("user_challenges")
-      .select("payment_status, started_at, ends_at, time_zone")
+      .select(
+        "user_id, payment_status, started_at, ends_at, time_zone, fbp, fbc, client_ip, client_user_agent, capi_purchase_sent_at",
+      )
       .eq("id", userChallengeId)
       .eq("stripe_payment_intent_id", intent.id)
       .maybeSingle();
@@ -107,9 +110,115 @@ Deno.serve(async (req) => {
       return json({ error: "update_failed" }, 500);
     }
 
+    // Ad reporting is the last thing that happens, and it cannot change anything
+    // above it. The deposit is recorded and the challenge is active by now, so a
+    // failure at Meta costs a reported conversion and nothing else.
+    await reportPurchase(admin, {
+      userChallengeId,
+      userId: participation.user_id,
+      alreadySent: participation.capi_purchase_sent_at !== null,
+      intentId: intent.id,
+      // The money Stripe actually captured, in the currency it was captured in —
+      // not recomputed here, and not assumed to be pounds. Roughly half of
+      // joiners pay in dollars, so hardcoding a currency would misreport them.
+      amountMinor: Number(intent.amount_received ?? intent.amount),
+      currency: String(intent.currency ?? "gbp"),
+      fbp: participation.fbp,
+      fbc: participation.fbc,
+      clientIp: participation.client_ip,
+      clientUserAgent: participation.client_user_agent,
+    });
+
     return json({ received: true });
   } catch (err) {
     console.error("stripe-webhook: unexpected failure", err);
     return json({ error: "internal_error" }, 500);
   }
 });
+
+interface PurchaseReport {
+  userChallengeId: string;
+  userId: string;
+  alreadySent: boolean;
+  intentId: string;
+  amountMinor: number;
+  currency: string;
+  fbp: string | null;
+  fbc: string | null;
+  clientIp: string | null;
+  clientUserAgent: string | null;
+}
+
+/**
+ * Report the deposit to Meta's Conversions API.
+ *
+ * Isolated in its own function with a blanket catch so there is no code path from
+ * an advertising problem back into payment handling. It returns void on purpose:
+ * the caller has nothing to decide based on the outcome.
+ *
+ * `capi_purchase_sent_at` is the duplicate guard. The `payment_status` check
+ * earlier already makes webhook redelivery a no-op, but a manually resent event
+ * from the Stripe dashboard would otherwise be able to inflate reported revenue.
+ */
+async function reportPurchase(
+  admin: ReturnType<typeof createAdminClient>,
+  report: PurchaseReport,
+): Promise<void> {
+  try {
+    if (report.alreadySent) return;
+
+    // Email lives on the profile rather than the participation, so it is read
+    // here and hashed before it leaves the server. It is never stored twice.
+    let email: string | null = null;
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("email")
+      .eq("id", report.userId)
+      .maybeSingle();
+    if (profileError) {
+      // Match quality drops without it, but the event is still worth sending.
+      console.error("stripe-webhook: could not read email for reporting", profileError.message);
+    } else {
+      email = profile?.email ?? null;
+    }
+
+    const result = await sendPurchaseEvent({
+      // Stripe's intent id is stable across redeliveries, so Meta can also
+      // deduplicate on its own side.
+      eventId: report.intentId,
+      eventTime: Math.floor(Date.now() / 1000),
+      value: minorToMajor(report.amountMinor),
+      currency: report.currency,
+      email,
+      userId: report.userId,
+      fbp: report.fbp,
+      fbc: report.fbc,
+      clientIp: report.clientIp,
+      clientUserAgent: report.clientUserAgent,
+    });
+
+    if (!result.sent) {
+      console.error(
+        "stripe-webhook: Meta purchase not reported",
+        result.reason,
+        result.detail ?? "",
+      );
+      return;
+    }
+
+    // Stamped only after Meta accepted it, so a failure can be retried by a
+    // later redelivery rather than being silently marked as done.
+    const { error: stampError } = await admin
+      .from("user_challenges")
+      .update({ capi_purchase_sent_at: new Date().toISOString() })
+      .eq("id", report.userChallengeId);
+    if (stampError) {
+      console.error("stripe-webhook: purchase reported but not stamped", stampError.message);
+    }
+  } catch (err) {
+    console.error(
+      "stripe-webhook: Meta reporting failed",
+      err instanceof Error ? err.message : err,
+    );
+  }
+}

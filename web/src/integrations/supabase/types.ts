@@ -128,11 +128,16 @@ export type Database = {
       }
       user_challenges: {
         Row: {
+          capi_purchase_sent_at: string | null
           challenge_id: string
           challenge_status: string
+          client_ip: string | null
+          client_user_agent: string | null
           created_at: string
           currency: string
           ends_at: string
+          fbc: string | null
+          fbp: string | null
           goal_workouts_per_week: number
           id: string
           payment_status: string
@@ -142,11 +147,16 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          capi_purchase_sent_at?: string | null
           challenge_id: string
           challenge_status?: string
+          client_ip?: string | null
+          client_user_agent?: string | null
           created_at?: string
           currency?: string
           ends_at: string
+          fbc?: string | null
+          fbp?: string | null
           goal_workouts_per_week: number
           id?: string
           payment_status?: string
@@ -156,11 +166,16 @@ export type Database = {
           user_id: string
         }
         Update: {
+          capi_purchase_sent_at?: string | null
           challenge_id?: string
           challenge_status?: string
+          client_ip?: string | null
+          client_user_agent?: string | null
           created_at?: string
           currency?: string
           ends_at?: string
+          fbc?: string | null
+          fbp?: string | null
           goal_workouts_per_week?: number
           id?: string
           payment_status?: string

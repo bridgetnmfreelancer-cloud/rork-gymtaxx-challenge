@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
+import { metaAttribution } from "@/lib/meta";
 import { currencyFrom, formatMoney } from "@/lib/money";
 import { callFunction } from "@/lib/supabase";
 
@@ -47,7 +48,10 @@ export default function Pay() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["deposit-intent"],
-    queryFn: () => callFunction<DepositResponse>("create-deposit-payment"),
+    // The Meta cookies ride along so the server can record who is paying while
+    // the person is actually here. The Purchase event is sent later, server-side,
+    // once Stripe confirms the money — never from this screen.
+    queryFn: () => callFunction<DepositResponse>("create-deposit-payment", metaAttribution()),
     // A payment intent is single-use state, not something to serve from cache.
     staleTime: 0,
     gcTime: 0,
