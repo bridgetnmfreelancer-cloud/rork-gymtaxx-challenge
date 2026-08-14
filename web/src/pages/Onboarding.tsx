@@ -6,7 +6,14 @@ import { ChoiceButton } from "@/components/ChoiceButton";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
-import { currencyForRegion, currencySymbol, REWARD_PER_WORKOUT, WEEKLY_GOALS, type WeeklyGoal } from "@/lib/money";
+import {
+  CHALLENGE_WEEKS,
+  currencyForRegion,
+  currencySymbol,
+  REWARD_PER_WORKOUT,
+  WEEKLY_GOALS,
+  type WeeklyGoal,
+} from "@/lib/money";
 import {
   BLOCKER_OPTIONS,
   HABIT_OPTIONS,
@@ -128,10 +135,7 @@ export default function Onboarding() {
       {stage === "how" ? (
         <div className="flex flex-1 flex-col">
           <div className="pt-8">
-            <ScreenTitle className="animate-rise-in">How GymTaxx works</ScreenTitle>
-            <ScreenSubtitle className="animate-rise-in [animation-delay:60ms]">
-              Four steps. No catch in the small print.
-            </ScreenSubtitle>
+            <ScreenTitle className="animate-rise-in">A quick reminder on how GymTaxx works</ScreenTitle>
           </div>
 
           <ol className="mt-8 space-y-3">
@@ -139,7 +143,7 @@ export default function Onboarding() {
               icon={Target}
               index={1}
               title="Choose your weekly goal"
-              detail="Three, four or five workouts a week for four weeks."
+              detail={`3, 4 or 5 workouts a week for ${CHALLENGE_WEEKS} weeks.`}
               delayMs={120}
             />
             <HowStep
@@ -159,15 +163,15 @@ export default function Onboarding() {
             <HowStep
               icon={Trophy}
               index={4}
-              title="Complete your goal, earn it back"
-              detail={`Every workout you prove earns ${symbol}${REWARD_PER_WORKOUT} of your own money back.`}
+              title="Complete your goal, earn your deposit back"
+              detail={`Every workout you prove earns ${symbol}${REWARD_PER_WORKOUT} of your money back.`}
               delayMs={360}
             />
           </ol>
 
           <ScreenActions>
             <Button size="xl" className="w-full" onClick={() => navigate("/challenge")}>
-              Build my challenge
+              Ready for my challenge
             </Button>
           </ScreenActions>
         </div>

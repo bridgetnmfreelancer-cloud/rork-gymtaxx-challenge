@@ -2,7 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
+import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,19 +69,11 @@ export default function BuildChallenge() {
       <StepProgress step={1} total={2} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
-        <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground animate-rise-in">
-          Your challenge
-        </p>
-        <ScreenTitle className="mt-2 animate-rise-in [animation-delay:60ms]">
-          {challenge?.name ?? "The Four Week Lock-In"}
-        </ScreenTitle>
-        <ScreenSubtitle className="animate-rise-in [animation-delay:100ms]">
-          Pick the goal you'll actually hit. Everything else follows from it.
-        </ScreenSubtitle>
+        <ScreenTitle className="animate-rise-in">Build a challenge</ScreenTitle>
       </div>
 
       <div className="mt-8 animate-rise-in [animation-delay:160ms]">
-        <p className="mb-3 text-sm font-semibold text-foreground">Workouts per week</p>
+        <p className="mb-3 text-center text-sm font-semibold text-foreground">Workouts per week</p>
         <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Workouts per week">
           {WEEKLY_GOALS.map((option) => {
             const isSelected = option === goal;
@@ -111,17 +103,21 @@ export default function BuildChallenge() {
         </div>
       </div>
 
-      <dl className="mt-8 divide-y divide-border overflow-hidden rounded-lg bg-card animate-rise-in [animation-delay:220ms]">
-        <Row label="Starts" value={startLabel} />
-        <Row label="Duration" value={`${weeks} weeks`} />
-        <Row label="Required workouts" value={String(workouts)} />
-        <Row label="Per workout" value={formatMoney(reward, currency)} />
-      </dl>
+      <div className="mt-8 animate-rise-in [animation-delay:220ms]">
+        <p className="mb-3 text-sm font-semibold text-foreground">Your challenge</p>
+        {/* The per-workout figure isn't a row here — it's stated in the
+            commitment line below, and saying it twice invited a double-take. */}
+        <dl className="divide-y divide-border overflow-hidden rounded-lg bg-card">
+          <Row label="Starts" value={startLabel} />
+          <Row label="Duration" value={`${weeks} weeks`} />
+          <Row label="Required workouts" value={String(workouts)} />
+        </dl>
+      </div>
 
       <div className="mt-4 flex items-baseline justify-between rounded-lg bg-primary px-5 py-5 animate-rise-in [animation-delay:280ms]">
         <div>
-          <p className="text-sm font-medium text-primary-foreground/70">Refundable commitment</p>
-          <p className="mt-1 text-xs text-primary-foreground/60">Yours to earn back, {formatMoney(reward, currency)} at a time</p>
+          <p className="text-sm font-medium text-primary-foreground/70">Fully refundable commitment</p>
+          <p className="mt-1 text-xs text-primary-foreground/60">All yours to earn, {formatMoney(reward, currency)} at a time</p>
         </div>
         <p key={deposit} className="tabular text-4xl font-extrabold text-accent animate-pop-in">
           {formatMoney(deposit, currency)}
