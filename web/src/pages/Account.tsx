@@ -74,6 +74,7 @@ export default function Account() {
 
   const [testState, setTestState] = useState<TestState>({ kind: "idle" });
   const [isTestActivating, setIsTestActivating] = useState<boolean>(false);
+  const [capiState, setCapiState] = useState<TestState>({ kind: "idle" });
 
   /**
    * Operator check. The endpoint 404s for everyone else, so a failed query
@@ -174,6 +175,46 @@ export default function Account() {
     } catch (caught) {
       console.error("account: test notification failed", caught);
       setTestState({ kind: "error", message: "We couldn't send it just then. Check your connection and try again." });
+    }
+  }
+
+  /**
+   * Operator-only, temporary: check the Meta purchase reporting is wired up.
+   *
+   * Stripe is on live keys, so proving this through a genuine deposit would mean a
+   * real charge and a manual refund. This sends one event through the same server
+   * code the Stripe webhook uses, without touching any payment or challenge.
+   */
+  async function runCapiTest(): Promise<void> {
+    setCapiState({ kind: "sending" });
+    try {
+      const result = await callFunction<{
+        result: { sent: boolean; reason?: string; detail?: string };
+        mode: string;
+        tokenConfigured: boolean;
+      }>("test-capi-purchase");
+
+      if (!result.tokenConfigured) {
+        setCapiState({ kind: "error", message: "No access token on the server yet." });
+        return;
+      }
+      if (!result.result.sent) {
+        setCapiState({
+          kind: "error",
+          message: `Meta rejected it: ${result.result.reason ?? "unknown"}. ${result.result.detail ?? ""}`.trim(),
+        });
+        return;
+      }
+      setCapiState({
+        kind: "sent",
+        message:
+          result.mode === "test_events"
+            ? "Meta accepted it. Look in Events Manager, Test Events."
+            : "Meta accepted it, but it went to live reporting, not Test Events.",
+      });
+    } catch (caught) {
+      console.error("account: capi test failed", caught);
+      setCapiState({ kind: "error", message: "Couldn't reach the server just then." });
     }
   }
 
@@ -335,6 +376,26 @@ export default function Account() {
             Open review queue
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </a>
+          <Button
+            variant="outline"
+            className="mt-3 w-full"
+            disabled={capiState.kind === "sending"}
+            onClick={() => void runCapiTest()}
+          >
+            {capiState.kind === "sending" ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : null}
+            Test Meta purchase tracking
+          </Button>
+          {capiState.kind === "sent" || capiState.kind === "error" ? (
+            <p
+              className={`mt-2 text-sm leading-relaxed ${
+                capiState.kind === "sent" ? "text-success-ink" : "text-danger-ink"
+              }`}
+            >
+              {capiState.message}
+            </p>
+          ) : null}
         </section>
       ) : null}
 
