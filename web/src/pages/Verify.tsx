@@ -332,20 +332,22 @@ export default function Verify() {
     <Screen>
       <div className="flex flex-1 flex-col justify-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-accent animate-pop-in">
-          <MapPin className="h-8 w-8 text-success-ink" aria-hidden="true" />
+          <Camera className="h-8 w-8 text-success-ink" aria-hidden="true" />
         </div>
 
-        <ScreenTitle className="mt-8 animate-rise-in">We need your location</ScreenTitle>
+        <ScreenTitle className="mt-8 animate-rise-in">Take a photo to verify your workout</ScreenTitle>
         <ScreenSubtitle className="animate-rise-in [animation-delay:60ms]">
-          It's what makes your proof worth something — a photo with a time and a place behind it, rather than just a
-          photo.
+          We ask your location so we can confirm you are at the gym. We never track or use your location if you're not
+          submitting a workout proof.
         </ScreenSubtitle>
 
+        {/* Gyms are indoor and often basements. Without this, someone whose fix
+            fails reads the screen above and assumes they can't submit at all —
+            they can, it just goes to review flagged. */}
         <div className="mt-6 flex items-start gap-3 rounded-lg bg-card p-4 animate-rise-in [animation-delay:120ms]">
-          <Camera className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
+          <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Next you'll take a photo at the gym. If there's no signal indoors, that's fine — we record the time and
-            check it by hand.
+            No signal indoors? That's fine — we record the time and check it by hand.
           </p>
         </div>
 
@@ -359,7 +361,7 @@ export default function Verify() {
       <ScreenActions>
         <Button size="xl" className="w-full" onClick={() => void requestLocation()} disabled={isWorking}>
           {isWorking ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
-          Allow location
+          Verify workout
         </Button>
         <button
           type="button"
