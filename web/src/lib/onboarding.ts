@@ -1,48 +1,50 @@
 /**
- * Onboarding answers, mirroring `OnboardingModels.swift`.
+ * Onboarding answers.
  *
  * These are captured before anyone pays, so they live in local storage until
- * there's a reason to write them to the profile. The habit value must match the
- * strings the iOS app already writes to `profiles.current_workouts_per_week`.
+ * there's a reason to write them to the profile.
+ *
+ * Note the habit answers are no longer a subset of what
+ * `profiles.current_workouts_per_week` accepts — that column has a check
+ * constraint from the iOS app's shorter list, and "Never" and "5 or more" have
+ * no value in it. Nothing writes the habit answer to the database today, so this
+ * is harmless, but that constraint needs widening before anything does.
  */
 
 import { type WeeklyGoal } from "./money";
 
-export type HabitId = "none" | "once" | "twice" | "three" | "fourPlus";
+export type HabitId = "never" | "onOff" | "one" | "two" | "three" | "four" | "fivePlus";
 
 export type HabitOption = {
   id: HabitId;
   label: string;
-  /** Stored in `profiles.current_workouts_per_week`. */
-  dbValue: string;
-  /** Rough weekly count, used to work out the gap on the result screen. */
-  approxPerWeek: number;
 };
 
 export const HABIT_OPTIONS: HabitOption[] = [
-  { id: "none", label: "Not at all right now", dbValue: "inconsistent", approxPerWeek: 0 },
-  { id: "once", label: "About once a week", dbValue: "1_per_week", approxPerWeek: 1 },
-  { id: "twice", label: "About twice a week", dbValue: "2_per_week", approxPerWeek: 2 },
-  { id: "three", label: "About three times a week", dbValue: "3_per_week", approxPerWeek: 3 },
-  { id: "fourPlus", label: "Four or more times a week", dbValue: "4_plus_per_week", approxPerWeek: 4 },
+  { id: "never", label: "Never" },
+  { id: "onOff", label: "On and off" },
+  { id: "one", label: "1 time per week" },
+  { id: "two", label: "2 times per week" },
+  { id: "three", label: "3 times per week" },
+  { id: "four", label: "4 times per week" },
+  { id: "fivePlus", label: "5 or more times per week" },
 ];
 
-export type BlockerId = "motivation" | "procrastinate" | "tired" | "busy" | "tomorrow" | "other";
+export type BlockerId = "discipline" | "procrastination" | "distractions" | "anxiety";
 
 export type BlockerOption = {
   id: BlockerId;
+  /** The obstacle in one word, so the list can be scanned rather than read. */
   label: string;
-  /** Used verbatim on the result screen, so it must read as a full sentence. */
-  mirror: string;
+  /** How it actually plays out, in the person's own terms. */
+  detail: string;
 };
 
 export const BLOCKER_OPTIONS: BlockerOption[] = [
-  { id: "motivation", label: "I lose motivation", mirror: "Motivation hasn't closed that gap." },
-  { id: "procrastinate", label: "I procrastinate", mirror: "Putting it off hasn't closed that gap." },
-  { id: "tired", label: "I'm too tired", mirror: "Waiting to feel rested hasn't closed that gap." },
-  { id: "busy", label: "Life gets busy", mirror: "Waiting for a quiet week hasn't closed that gap." },
-  { id: "tomorrow", label: "I keep saying \u201ctomorrow\u201d", mirror: "\u201cTomorrow\u201d hasn't closed that gap." },
-  { id: "other", label: "Something else", mirror: "Whatever you've tried hasn't closed that gap." },
+  { id: "discipline", label: "Discipline", detail: "I want to go but I don't have the motivation." },
+  { id: "procrastination", label: "Procrastination", detail: "I promise myself but I don't end up going." },
+  { id: "distractions", label: "Distractions", detail: "Phone, TV, friends, or other tasks." },
+  { id: "anxiety", label: "Anxiety", detail: "I find the gym intimidating." },
 ];
 
 export type OnboardingAnswers = {
@@ -55,15 +57,30 @@ const STORAGE_KEY = "gymtaxx.onboarding";
 
 export const EMPTY_ANSWERS: OnboardingAnswers = { habit: null, goal: null, blocker: null };
 
+function isHabitId(value: unknown): value is HabitId {
+  return HABIT_OPTIONS.some((option) => option.id === value);
+}
+
+function isBlockerId(value: unknown): value is BlockerId {
+  return BLOCKER_OPTIONS.some((option) => option.id === value);
+}
+
+/**
+ * Read saved answers, discarding any that no longer exist.
+ *
+ * The options have been reworded since the first release, so a returning phone
+ * can hold an id that isn't on the list any more. Validating here means those
+ * come back as unanswered rather than as an invisible selection.
+ */
 export function loadAnswers(): OnboardingAnswers {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return EMPTY_ANSWERS;
     const parsed = JSON.parse(raw) as Partial<OnboardingAnswers>;
     return {
-      habit: parsed.habit ?? null,
+      habit: isHabitId(parsed.habit) ? parsed.habit : null,
       goal: parsed.goal ?? null,
-      blocker: parsed.blocker ?? null,
+      blocker: isBlockerId(parsed.blocker) ? parsed.blocker : null,
     };
   } catch (error) {
     console.error("onboarding: could not read saved answers", error);
@@ -78,12 +95,4 @@ export function saveAnswers(answers: OnboardingAnswers): void {
     // Private browsing can refuse writes; the flow must still work in memory.
     console.error("onboarding: could not save answers", error);
   }
-}
-
-export function habitById(id: HabitId | null): HabitOption | null {
-  return HABIT_OPTIONS.find((option) => option.id === id) ?? null;
-}
-
-export function blockerById(id: BlockerId | null): BlockerOption | null {
-  return BLOCKER_OPTIONS.find((option) => option.id === id) ?? null;
 }

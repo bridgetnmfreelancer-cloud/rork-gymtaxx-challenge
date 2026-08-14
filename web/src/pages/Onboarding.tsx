@@ -1,5 +1,5 @@
 import { Banknote, Camera, Target, Trophy } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ChoiceButton } from "@/components/ChoiceButton";
@@ -10,8 +10,6 @@ import { currencyForRegion, currencySymbol, REWARD_PER_WORKOUT, WEEKLY_GOALS, ty
 import {
   BLOCKER_OPTIONS,
   HABIT_OPTIONS,
-  blockerById,
-  habitById,
   loadAnswers,
   saveAnswers,
   type BlockerId,
@@ -19,17 +17,16 @@ import {
   type OnboardingAnswers,
 } from "@/lib/onboarding";
 
-type Stage = "habit" | "goal" | "blocker" | "result" | "how";
+type Stage = "habit" | "goal" | "blocker" | "agitate" | "how";
 
-const ORDER: Stage[] = ["habit", "goal", "blocker", "result", "how"];
+const ORDER: Stage[] = ["habit", "goal", "blocker", "agitate", "how"];
 
 /**
- * Steps 5 to 7 of the funnel: three questions, the answers read back, and how
- * GymTaxx works.
+ * Steps 5 to 7 of the funnel: three questions, the choice in front of them, and
+ * how GymTaxx works.
  *
- * Held in one component because the mirror screen needs every answer at once,
- * and because moving between them should feel like one continuous flow rather
- * than five page loads.
+ * Held in one component because moving between them should feel like one
+ * continuous flow rather than five page loads.
  */
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -70,16 +67,6 @@ export default function Onboarding() {
     [update, goNext],
   );
 
-  const mirror = useMemo(() => {
-    const habit = habitById(answers.habit);
-    const blocker = blockerById(answers.blocker);
-    return {
-      goal: answers.goal ?? 4,
-      current: habit?.approxPerWeek ?? 0,
-      line: blocker?.mirror ?? "What you've tried hasn't closed that gap.",
-    };
-  }, [answers]);
-
   return (
     <Screen>
       <StepProgress step={index + 1} total={ORDER.length} onBack={index === 0 ? null : goBack} />
@@ -87,7 +74,7 @@ export default function Onboarding() {
       {stage === "habit" ? (
         <Question
           key="habit"
-          title="How often are you training right now?"
+          title="How many times do you usually go to the gym?"
           subtitle="Be honest — this only works if the starting point is real."
           options={HABIT_OPTIONS.map((option) => ({ id: option.id, label: option.label }))}
           selected={answers.habit}
@@ -98,9 +85,9 @@ export default function Onboarding() {
       {stage === "goal" ? (
         <Question
           key="goal"
-          title="How often do you want to go?"
+          title="How often would you like to go?"
           subtitle="This becomes your weekly goal. You can change it before you commit."
-          options={WEEKLY_GOALS.map((goal) => ({ id: String(goal), label: `${goal} times a week` }))}
+          options={WEEKLY_GOALS.map((goal) => ({ id: String(goal), label: `${goal} times per week` }))}
           selected={answers.goal === null ? null : String(answers.goal)}
           onSelect={(id) => chooseAndAdvance({ goal: Number(id) as WeeklyGoal })}
         />
@@ -109,41 +96,31 @@ export default function Onboarding() {
       {stage === "blocker" ? (
         <Question
           key="blocker"
-          title="What usually gets in the way?"
+          title="What is stopping you from achieving your goals?"
           subtitle="Whatever it is, it's beaten you before now."
-          options={BLOCKER_OPTIONS.map((option) => ({ id: option.id, label: option.label }))}
+          options={BLOCKER_OPTIONS.map((option) => ({ id: option.id, label: option.label, detail: option.detail }))}
           selected={answers.blocker}
           onSelect={(id) => chooseAndAdvance({ blocker: id as BlockerId })}
         />
       ) : null}
 
-      {stage === "result" ? (
+      {stage === "agitate" ? (
         <div className="flex flex-1 flex-col">
           <div className="pt-10">
             <p className="text-display leading-[1.1] text-foreground animate-rise-in">
-              You want to train{" "}
-              <span className="tabular rounded-md bg-accent px-2 text-success-ink">{mirror.goal}&times;</span> a week.
+              Four weeks from now, things could look very different.
             </p>
-            <p className="mt-6 text-2xl font-semibold leading-snug text-foreground animate-rise-in [animation-delay:400ms]">
-              {mirror.current === 0 ? (
-                <>Right now you're not going at all.</>
-              ) : (
-                <>
-                  Right now you're averaging <span className="tabular">{mirror.current}&times;</span>.
-                </>
-              )}
-            </p>
-            <p className="mt-6 text-2xl font-semibold leading-snug text-muted-foreground animate-rise-in [animation-delay:800ms]">
-              {mirror.line}
-            </p>
-            <p className="mt-10 text-xl font-bold leading-snug text-foreground animate-rise-in [animation-delay:1200ms]">
-              That's where GymTaxx comes in.
+            {/* One sentence, two futures. The colour split does the work of
+                pointing at which half is worth having. */}
+            <p className="mt-8 text-2xl font-semibold leading-snug animate-rise-in [animation-delay:600ms]">
+              <span className="text-muted-foreground">You could still be waiting for motivation or </span>
+              <span className="text-foreground">already four weeks closer to your goals.</span>
             </p>
           </div>
 
-          <ScreenActions className="animate-rise-in [animation-delay:1400ms]">
+          <ScreenActions className="animate-rise-in [animation-delay:1100ms]">
             <Button size="xl" className="w-full" onClick={goNext}>
-              Show me how
+              Let's do this
             </Button>
           </ScreenActions>
         </div>
@@ -209,7 +186,7 @@ function Question({
 }: {
   title: string;
   subtitle: string;
-  options: { id: string; label: string }[];
+  options: { id: string; label: string; detail?: string }[];
   selected: string | null;
   onSelect: (id: string) => void;
 }) {
@@ -225,6 +202,7 @@ function Question({
           <ChoiceButton
             key={option.id}
             label={option.label}
+            detail={option.detail}
             isSelected={selected === option.id}
             onSelect={() => onSelect(option.id)}
             delayMs={100 + position * 60}

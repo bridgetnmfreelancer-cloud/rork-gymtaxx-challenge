@@ -13,6 +13,10 @@ import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
  * Asking in plain words first means a reflexive "no" hits our screen rather
  * than the permission prompt — the browser only ever asks once, so spending
  * that single prompt on an unprepared user wastes it permanently.
+ *
+ * There's deliberately no "not right now" here. The iPhone's own prompt already
+ * carries Don't Allow, so a second decline of our own only offered two ways to
+ * say no. Refusing at that prompt still moves them on, so nobody is trapped.
  */
 export default function Reminders() {
   const navigate = useNavigate();
@@ -62,10 +66,10 @@ export default function Reminders() {
         <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-accent">
           <Bell className="h-8 w-8 text-success-ink" aria-hidden="true" />
         </div>
-        <ScreenTitle className="mt-8">Want us to make sure you actually go?</ScreenTitle>
+        <ScreenTitle className="mt-8">Never forget a workout</ScreenTitle>
         <ScreenSubtitle>
-          GymTaxx can remind you when you're falling behind on your weekly goal — before the week runs out and it costs
-          you.
+          We will remind you to go to the gym when you don't hit your target; before you run out of time and lose your
+          money.
         </ScreenSubtitle>
       </div>
 
@@ -83,22 +87,13 @@ export default function Reminders() {
         {pushAvailable ? (
           <Button size="xl" className="w-full" onClick={requestPermission} disabled={isAsking}>
             {isAsking ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
-            Turn on reminders
+            Remind me
           </Button>
         ) : (
           <Button size="xl" className="w-full" onClick={goOn}>
             Continue
           </Button>
         )}
-        {pushAvailable ? (
-          <button
-            type="button"
-            className="mt-3 w-full py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
-            onClick={goOn}
-          >
-            Not right now
-          </button>
-        ) : null}
       </ScreenActions>
     </Screen>
   );
