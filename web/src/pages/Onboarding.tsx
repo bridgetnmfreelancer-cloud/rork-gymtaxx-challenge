@@ -75,7 +75,6 @@ export default function Onboarding() {
         <Question
           key="habit"
           title="How many times do you usually go to the gym?"
-          subtitle="Be honest — this only works if the starting point is real."
           options={HABIT_OPTIONS.map((option) => ({ id: option.id, label: option.label }))}
           selected={answers.habit}
           onSelect={(id) => chooseAndAdvance({ habit: id as HabitId })}
@@ -185,7 +184,8 @@ function Question({
   onSelect,
 }: {
   title: string;
-  subtitle: string;
+  /** Optional — a question that needs no framing shouldn't carry filler. */
+  subtitle?: string;
   options: { id: string; label: string; detail?: string }[];
   selected: string | null;
   onSelect: (id: string) => void;
@@ -194,7 +194,9 @@ function Question({
     <div className="flex flex-1 flex-col">
       <div className="pt-8">
         <ScreenTitle className="animate-rise-in">{title}</ScreenTitle>
-        <ScreenSubtitle className="animate-rise-in [animation-delay:60ms]">{subtitle}</ScreenSubtitle>
+        {subtitle ? (
+          <ScreenSubtitle className="animate-rise-in [animation-delay:60ms]">{subtitle}</ScreenSubtitle>
+        ) : null}
       </div>
 
       <div className="mt-8 space-y-3">

@@ -1,11 +1,22 @@
-import { Bell, BellOff, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { Bell, BellOff, Check, Loader2, Settings } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
 import { registerForReminders } from "@/lib/push";
 import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
+
+/** What the browser will actually do if we ask right now. */
+type PermissionState = "unsupported" | "askable" | "granted" | "denied";
+
+function readPermission(): PermissionState {
+  if (typeof window === "undefined" || typeof Notification === "undefined") return "unsupported";
+  const current = Notification.permission;
+  if (current === "granted") return "granted";
+  if (current === "denied") return "denied";
+  return "askable";
+}
 
 /**
  * Step 4 of the funnel: our own ask, before the browser's.
@@ -17,17 +28,45 @@ import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
  * There's deliberately no "not right now" here. The iPhone's own prompt already
  * carries Don't Allow, so a second decline of our own only offered two ways to
  * say no. Refusing at that prompt still moves them on, so nobody is trapped.
+ *
+ * The screen reads the current permission rather than assuming it can be asked.
+ * That single-prompt rule cuts both ways: once someone has answered — including
+ * anyone who answered during an earlier visit — `requestPermission()` returns
+ * instantly and silently, so a button promising a prompt would appear to do
+ * nothing at all. Each of the three states now says something true instead.
  */
 export default function Reminders() {
   const navigate = useNavigate();
   const [isAsking, setIsAsking] = useState<boolean>(false);
+  const [permission, setPermission] = useState<PermissionState>(() => (canUsePush() ? readPermission() : "unsupported"));
 
-  const pushAvailable = canUsePush();
   const browserOnly = isIOS() && !isStandalone();
 
-  function goOn(): void {
+  const goOn = useCallback((): void => {
     navigate("/onboarding", { replace: true });
-  }
+  }, [navigate]);
+
+  /**
+   * Re-read on return from Settings.
+   *
+   * Someone sent to iOS Settings to switch notifications on comes back to a
+   * screen that was rendered while they were still denied. iOS doesn't reload
+   * the page, so without this the screen keeps insisting they're blocked.
+   */
+  useEffect(() => {
+    function refresh(): void {
+      if (document.visibilityState === "visible" && canUsePush()) setPermission(readPermission());
+    }
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, []);
+
+  /** Register in the background — the result belongs on Account, not here. */
+  const registerQuietly = useCallback((): void => {
+    void registerForReminders().catch((error: unknown) => {
+      console.error("reminders: background registration failed", error);
+    });
+  }, []);
 
   /**
    * Ask, then move on immediately.
@@ -37,27 +76,42 @@ export default function Reminders() {
    * iOS it can take several seconds — long enough that the screen read as
    * broken. So the moment they answer, they advance; registration finishes
    * behind them, and Account is where its result gets confirmed.
+   *
+   * The prompt is requested before any state is touched. iOS only honours this
+   * call while it can still see the tap that caused it, and anything done first
+   * risks spending that tap elsewhere.
    */
-  async function requestPermission(): Promise<void> {
+  function requestPermission(): void {
     if (isAsking) return;
-    setIsAsking(true);
+
+    let pending: Promise<NotificationPermission>;
     try {
-      const result = await Notification.requestPermission();
-      if (result === "granted") {
-        // Deliberately not awaited — see above.
-        void registerForReminders().catch((error: unknown) => {
-          console.error("reminders: background registration failed", error);
-        });
-      } else {
-        console.warn("reminders: permission not granted");
-      }
+      pending = Notification.requestPermission();
     } catch (error) {
-      // A refusal must never dead-end the funnel.
+      // A refusal, or an older callback-only API, must never dead-end the funnel.
       console.error("reminders: permission request failed", error);
-    } finally {
-      setIsAsking(false);
       goOn();
+      return;
     }
+
+    setIsAsking(true);
+    pending
+      .then((result) => {
+        if (result === "granted") registerQuietly();
+        else console.warn(`reminders: permission ${result}`);
+      })
+      .catch((error: unknown) => {
+        console.error("reminders: permission request failed", error);
+      })
+      .finally(() => {
+        setIsAsking(false);
+        goOn();
+      });
+  }
+
+  function continueWithReminders(): void {
+    registerQuietly();
+    goOn();
   }
 
   return (
@@ -74,27 +128,48 @@ export default function Reminders() {
       </div>
 
       {browserOnly ? (
-        <div className="mt-8 flex gap-3 rounded-lg border border-border bg-card p-4 animate-rise-in [animation-delay:80ms]">
-          <BellOff className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">Reminders need the Home Screen version.</span> iPhone only
-            allows notifications once GymTaxx is installed. You can add it any time from Account.
-          </p>
-        </div>
+        <Notice icon={BellOff}>
+          <span className="font-semibold text-foreground">Reminders need the Home Screen version.</span> iPhone only
+          allows notifications once GymTaxx is installed. You can add it any time from Account.
+        </Notice>
+      ) : null}
+
+      {permission === "granted" ? (
+        <Notice icon={Check}>
+          <span className="font-semibold text-foreground">Reminders are already on.</span> You said yes on this iPhone
+          before, so there's nothing else to do. You can turn them off in Account.
+        </Notice>
+      ) : null}
+
+      {permission === "denied" ? (
+        <Notice icon={Settings}>
+          <span className="font-semibold text-foreground">Notifications are switched off for GymTaxx.</span> iPhone only
+          asks once, so it has to be changed by hand: open Settings, tap Notifications, find GymTaxx in the list, then
+          turn on Allow Notifications.
+        </Notice>
       ) : null}
 
       <ScreenActions>
-        {pushAvailable ? (
+        {permission === "askable" ? (
           <Button size="xl" className="w-full" onClick={requestPermission} disabled={isAsking}>
             {isAsking ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
             Remind me
           </Button>
         ) : (
-          <Button size="xl" className="w-full" onClick={goOn}>
+          <Button size="xl" className="w-full" onClick={permission === "granted" ? continueWithReminders : goOn}>
             Continue
           </Button>
         )}
       </ScreenActions>
     </Screen>
+  );
+}
+
+function Notice({ icon: Icon, children }: { icon: typeof Bell; children: React.ReactNode }) {
+  return (
+    <div className="mt-8 flex gap-3 rounded-lg border border-border bg-card p-4 animate-rise-in [animation-delay:80ms]">
+      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <p className="text-sm leading-relaxed text-muted-foreground">{children}</p>
+    </div>
   );
 }
