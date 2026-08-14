@@ -1,8 +1,9 @@
 import { Camera, ChevronRight, Clock, Loader2, Sparkles } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { BottomNav } from "@/components/BottomNav";
+import { ConfirmingDeposit } from "@/components/ConfirmingDeposit";
 import { CountUpMoney } from "@/components/CountUp";
 import { Screen } from "@/components/Screen";
 import { WeekDots } from "@/components/WeekDots";
@@ -12,6 +13,7 @@ import { CHALLENGE_WEEKS, currencyForRegion, depositFor, formatMoney, isWeeklyGo
 import { loadAnswers } from "@/lib/onboarding";
 import { alreadyLoggedToday, computeProgress, formatDeadline, statusOf } from "@/lib/progress";
 import { useCurrentChallenge, useParticipation, useSubmissions } from "@/lib/queries";
+import { clearDepositSettling, depositSettlingSince } from "@/lib/settlement";
 import { weeklyStart, currentZone } from "@/lib/gymweek";
 import type { ChallengeRow, UserChallengeRow, WorkoutSubmissionRow } from "@/lib/database.types";
 
@@ -27,6 +29,14 @@ export default function Home() {
   const { data: challenge, isLoading: loadingChallenge } = useCurrentChallenge();
   const { data: submissions, isLoading: loadingSubmissions } = useSubmissions(participation?.id);
 
+  // Snapshotted at mount, so clearing it below can't change this render pass.
+  const settlingSince = useMemo(() => depositSettlingSince(), []);
+  const isPaid = participation?.payment_status === "paid";
+
+  useEffect(() => {
+    if (isPaid) clearDepositSettling();
+  }, [isPaid]);
+
   const isLoading = loadingParticipation || loadingChallenge || (Boolean(participation) && loadingSubmissions);
 
   if (isLoading) {
@@ -40,7 +50,11 @@ export default function Home() {
     );
   }
 
-  if (!participation || participation.payment_status !== "paid") {
+  if (!participation || !isPaid) {
+    // Their card has already been charged; the confirmation just hasn't arrived.
+    // Dropping them on the sell screen here would tell someone who has just paid
+    // £80 that they haven't paid at all.
+    if (settlingSince !== null) return <ConfirmingDeposit since={settlingSince} withNav />;
     return <ReadyWhenYouAre />;
   }
 

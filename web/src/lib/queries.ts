@@ -2,6 +2,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import { useAuth } from "@/context/AuthProvider";
 import type { ChallengeRow, UserChallengeRow, WorkoutSubmissionRow } from "./database.types";
+import { isDepositSettling } from "./settlement";
 import { supabase } from "./supabase";
 
 /** Shared keys, so a mutation can invalidate exactly what it changed. */
@@ -36,7 +37,14 @@ export function useCurrentChallenge(): UseQueryResult<ChallengeRow | null> {
   });
 }
 
-/** The signed-in user's active participation, if they have one. */
+/**
+ * The signed-in user's active participation, if they have one.
+ *
+ * Rows are created unpaid, and only the Stripe webhook marks one paid. That
+ * happens a beat after the card is charged, so the query polls itself while a
+ * deposit is settling — every screen reading this key picks up the confirmation
+ * without needing to know a payment just happened.
+ */
 export function useParticipation(): UseQueryResult<UserChallengeRow | null> {
   const { user } = useAuth();
 
@@ -54,6 +62,16 @@ export function useParticipation(): UseQueryResult<UserChallengeRow | null> {
       if (error) throw error;
       return data;
     },
+    // Off unless a payment is actually in flight, so the normal case costs
+    // nothing. Stops the moment the row reads paid, and the marker expires on
+    // its own, so this can't turn into a permanent polling loop.
+    refetchInterval: (query) => {
+      if (query.state.data?.payment_status === "paid") return false;
+      return isDepositSettling() ? 1_500 : false;
+    },
+    // A 3-D Secure detour can suspend the app mid-payment; coming back should
+    // re-read rather than trust what was cached before the card was charged.
+    refetchOnWindowFocus: true,
   });
 }
 

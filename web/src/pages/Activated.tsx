@@ -1,7 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
+
+import { ConfirmingDeposit } from "@/components/ConfirmingDeposit";
+import { clearDepositSettling, depositSettlingSince } from "@/lib/settlement";
 
 import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
@@ -14,20 +17,31 @@ import { CHALLENGE_WEEKS } from "@/lib/money";
 /**
  * Step 12: the moment the commitment becomes real.
  *
- * The webhook marks the deposit paid a beat after Stripe confirms, so this
- * screen refetches the participation on arrival rather than trusting whatever
- * was cached before the payment.
+ * The webhook marks the deposit paid a beat after Stripe confirms, so this screen
+ * waits for that rather than congratulating someone on a row that still reads
+ * unpaid. Waiting also means the start date shown is the re-anchored one — the
+ * webhook can move it, and announcing a Monday that has already passed would be
+ * the first thing they see being wrong.
  */
 export default function Activated() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { data: participation } = useParticipation();
+  const { data: participation, isLoading } = useParticipation();
   const { data: challenge } = useCurrentChallenge();
+
+  // Snapshotted at mount so the value can't change underneath this render pass
+  // once the marker is cleared below.
+  const settlingSince = useMemo(() => depositSettlingSince(), []);
+  const isPaid = participation?.payment_status === "paid";
 
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.participation(user?.id) });
   }, [queryClient, user?.id]);
+
+  useEffect(() => {
+    if (isPaid) clearDepositSettling();
+  }, [isPaid]);
 
   const currency = currencyFrom(participation?.currency);
   const weeks = challenge?.number_of_weeks ?? CHALLENGE_WEEKS;
@@ -41,6 +55,25 @@ export default function Activated() {
       currency === "gbp" ? "en-GB" : "en-US",
     );
   }, [participation, currency]);
+
+  if (!isPaid) {
+    if (settlingSince !== null) return <ConfirmingDeposit since={settlingSince} />;
+
+    // Still loading, so don't decide anything yet — redirecting here would bounce
+    // a paid user off their own confirmation screen.
+    if (isLoading) {
+      return (
+        <Screen>
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+          </div>
+        </Screen>
+      );
+    }
+
+    // No payment in flight and nothing paid: someone opened this URL directly.
+    return <Navigate to="/home" replace />;
+  }
 
   return (
     <Screen>

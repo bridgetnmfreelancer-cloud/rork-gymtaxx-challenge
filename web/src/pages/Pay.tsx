@@ -3,13 +3,14 @@ import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Lock } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
 import { metaAttribution } from "@/lib/meta";
 import { currencyFrom, formatMoney } from "@/lib/money";
+import { clearDepositSettling, markDepositSettling } from "@/lib/settlement";
 import { callFunction } from "@/lib/supabase";
 
 type DepositResponse =
@@ -91,8 +92,9 @@ export default function Pay() {
   }
 
   if (data.status === "paid") {
-    navigate("/activated", { replace: true });
-    return null;
+    // Declarative redirect rather than navigating from the render body, which
+    // React treats as a side effect during render.
+    return <Navigate to="/activated" replace />;
   }
 
   const currency = currencyFrom(data.currency);
@@ -149,6 +151,12 @@ function PaymentForm({ amountLabel }: { amountLabel: string }) {
 
     setError(null);
     setIsPaying(true);
+
+    // Marked before confirming, not after. A 3-D Secure challenge redirects away
+    // mid-call and may never return to this line, so setting it afterwards would
+    // miss exactly the payments most likely to be slow to confirm.
+    markDepositSettling();
+
     try {
       const result = await stripe.confirmPayment({
         elements,
@@ -159,6 +167,9 @@ function PaymentForm({ amountLabel }: { amountLabel: string }) {
       });
 
       if (result.error) {
+        // No money moved, so the marker has to go — otherwise a decline would
+        // leave them on a screen insisting their deposit is being confirmed.
+        clearDepositSettling();
         // Card declines and validation problems both land here, and Stripe's
         // own message is clearer than anything generic we could write.
         setError(result.error.message ?? "That payment didn't go through. Try another card.");
@@ -168,6 +179,9 @@ function PaymentForm({ amountLabel }: { amountLabel: string }) {
       navigate("/activated", { replace: true });
     } catch (caught) {
       console.error("pay: confirmation failed", caught);
+      // Deliberately left in place: an interrupted confirmation may still have
+      // been captured by Stripe, so the waiting screen is the honest state
+      // rather than telling them nothing happened.
       setError("Something interrupted the payment. Check your connection and try again.");
     } finally {
       setIsPaying(false);
