@@ -15,11 +15,12 @@ import { attributionFromRequest, minorToMajor, sendPurchaseEvent } from "../_sha
  * success here proves the access token, hashing, payload shape and endpoint are
  * all correct.
  *
- * It does NOT touch the database, Stripe, or any real participation. Delete this
- * function once the event has been seen in Events Manager.
+ * It does NOT touch the database, Stripe, or any real participation.
  *
- * Admin-gated, and the amount is fixed rather than caller-supplied so this can't
- * be used to push arbitrary revenue into reporting.
+ * This is also the only place the Events Manager test code is applied, which is
+ * what keeps real deposits reporting live regardless of what is left in the
+ * environment. Admin-gated, and the amount is fixed rather than caller-supplied
+ * so it can't be used to push arbitrary revenue into reporting.
  */
 
 /** Emails allowed to run this, comma-separated. Empty means nobody. */
@@ -58,6 +59,8 @@ Deno.serve(async (req) => {
       userId: user.id,
       clientIp,
       clientUserAgent,
+      // Without this the £1 would be counted as real revenue against your ads.
+      testEventCode,
     });
 
     return json({

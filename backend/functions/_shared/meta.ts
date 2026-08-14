@@ -42,6 +42,15 @@ export interface PurchaseEvent extends PurchaseAttribution {
   currency: string;
   email?: string | null;
   userId: string;
+  /**
+   * Events Manager test code. Set ONLY by the deliberate verification path.
+   *
+   * Passed in rather than read from the environment on purpose: while a test code
+   * is present an event goes to Test Events instead of live reporting, so reading
+   * it globally would let a leftover env var silently divert real customers'
+   * deposits out of live reporting, with nothing on screen to reveal it.
+   */
+  testEventCode?: string | null;
 }
 
 export type PurchaseResult =
@@ -131,9 +140,9 @@ export async function sendPurchaseEvent(event: PurchaseEvent): Promise<PurchaseR
       ],
     };
 
-    // Set only while verifying in Events Manager -> Test Events. With this
-    // present the event shows up in the test view instead of live reporting.
-    const testEventCode = clean(Deno.env.get("META_CAPI_TEST_EVENT_CODE"));
+    // Present only for the verification path, so the event lands in Test Events
+    // rather than live reporting.
+    const testEventCode = clean(event.testEventCode);
     if (testEventCode) payload.test_event_code = testEventCode;
 
     const response = await fetch(
