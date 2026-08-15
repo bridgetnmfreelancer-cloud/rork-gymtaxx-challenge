@@ -16,6 +16,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import History from "./pages/History";
 import Home from "./pages/Home";
 import Install from "./pages/Install";
+import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import Onboarding from "./pages/Onboarding";
 import Pay from "./pages/Pay";
@@ -60,6 +61,9 @@ const App = () => (
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<Entry />} />
+            {/* The paid-traffic landing page. Currency-neutral slug, because the
+                deposit is charged in pounds or dollars depending on the reader. */}
+            <Route path="/4weekchallenge" element={<Landing />} />
             <Route path="/install" element={<Install />} />
             <Route path="/welcome" element={<Welcome />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
