@@ -1,4 +1,4 @@
-import { Banknote, Camera, Check, Clock, MapPin, ShieldCheck, Target } from "lucide-react";
+import { ArrowRight, Banknote, Camera, Check, Clock, MapPin, ShieldCheck, Target } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -83,41 +83,34 @@ export default function Landing() {
 
   return (
     <div className="min-h-full bg-background">
-      {/* ---------------------------------------------------------------- hero */}
-      <header className="bg-primary text-primary-foreground">
-        <div className="mx-auto w-full max-w-md px-5 pt-safe lg:max-w-6xl lg:px-10">
-          <div className="grid items-center gap-12 py-12 lg:min-h-[36rem] lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:py-20">
-            <div>
-              <h1 className="text-[2.6rem] font-extrabold leading-[1.03] tracking-tight animate-rise-in sm:text-5xl lg:text-6xl xl:text-7xl">
-                Finally stay consistent with the gym
-              </h1>
+      {/* ---------------------------------------------------------------- hero
+          Centred, roomy, nothing but the message and one button — matching the
+          marketing site's opening screen. The glow is a single soft radial wash
+          so the navy has some depth without becoming a decorated panel. */}
+      <header className="relative overflow-hidden bg-primary text-primary-foreground">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[70%] bg-[radial-gradient(ellipse_60%_55%_at_50%_0%,rgba(134,239,172,0.10),transparent_70%)]"
+        />
 
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-primary-foreground/70 animate-rise-in [animation-delay:80ms] lg:text-xl">
-                Stick with your gym routine without relying on motivation, discipline, or willpower.
-              </p>
+        <div className="relative mx-auto flex min-h-[78svh] w-full max-w-md flex-col items-center justify-center px-6 py-20 pt-safe text-center lg:min-h-[80svh] lg:max-w-4xl">
+          <h1 className="text-[2.6rem] font-extrabold leading-[1.05] tracking-tight animate-rise-in sm:text-5xl lg:text-6xl xl:text-7xl">
+            Finally stay consistent with the gym
+          </h1>
 
-              <div ref={heroCta} className="mt-9 animate-rise-in [animation-delay:160ms] lg:mt-10">
-                <Button
-                  size="xl"
-                  onClick={start}
-                  className="w-full bg-accent text-success-ink hover:bg-accent/90 lg:w-auto lg:px-12"
-                >
-                  Download the app
-                </Button>
-                <p className="mt-3 text-center text-sm text-primary-foreground/60 lg:text-left">
-                  Free to install on iPhone. No App Store needed.
-                </p>
-              </div>
-            </div>
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-primary-foreground/70 animate-rise-in [animation-delay:80ms] lg:mt-7 lg:text-xl">
+            Stick with your gym routine without relying on motivation, discipline, or willpower.
+          </p>
 
-            {/* Gives the wide layout something to look at, and puts the deposit
-                maths above the fold where ad review will actually see it. */}
-            <DepositCard
-              deposit={exampleDeposit}
-              perWorkout={perWorkout}
-              goal={EXAMPLE_GOAL}
-              workouts={exampleWorkouts}
-            />
+          <div ref={heroCta} className="mt-10 w-full animate-rise-in [animation-delay:160ms]">
+            <Button
+              size="xl"
+              onClick={start}
+              className="w-full rounded-full bg-accent text-success-ink hover:bg-accent/90 lg:w-auto lg:px-14"
+            >
+              Download the app
+              <ArrowRight className="h-5 w-5" aria-hidden="true" />
+            </Button>
           </div>
         </div>
       </header>
@@ -303,60 +296,6 @@ function Section({ children }: { children: React.ReactNode }) {
 
 function Heading({ children }: { children: React.ReactNode }) {
   return <h2 className="text-title text-foreground lg:text-4xl xl:text-5xl">{children}</h2>;
-}
-
-/**
- * The deposit, stated as a picture: what's committed, what's been earned back so
- * far, and the per-workout rate that connects the two.
- */
-function DepositCard({
-  deposit,
-  perWorkout,
-  goal,
-  workouts,
-}: {
-  deposit: string;
-  perWorkout: string;
-  goal: number;
-  workouts: number;
-}) {
-  const earnedCount = 6;
-
-  return (
-    <div className="rounded-lg bg-primary-foreground/[0.06] p-6 animate-rise-in [animation-delay:240ms] lg:p-8">
-      <p className="text-xs font-bold uppercase tracking-widest text-primary-foreground/50">
-        {goal} workouts a week, {CHALLENGE_WEEKS} weeks
-      </p>
-
-      <div className="mt-5 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-primary-foreground/60">Committed</p>
-          <p className="text-4xl font-extrabold tracking-tight text-primary-foreground lg:text-5xl">{deposit}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-primary-foreground/60">Per workout</p>
-          <p className="text-4xl font-extrabold tracking-tight text-accent lg:text-5xl">{perWorkout}</p>
-        </div>
-      </div>
-
-      <div className="mt-7 flex flex-wrap gap-2" aria-hidden="true">
-        {Array.from({ length: workouts }, (_, i) => (
-          <span
-            key={i}
-            className={`flex h-7 w-7 items-center justify-center rounded-full ${
-              i < earnedCount ? "bg-accent" : "border border-primary-foreground/20"
-            }`}
-          >
-            {i < earnedCount ? <Check className="h-4 w-4 text-success-ink" strokeWidth={3} /> : null}
-          </span>
-        ))}
-      </div>
-
-      <p className="mt-5 text-sm leading-relaxed text-primary-foreground/60">
-        {workouts} verified workouts, {perWorkout} earned back each time, until the full {deposit} is yours again.
-      </p>
-    </div>
-  );
 }
 
 function Step({
