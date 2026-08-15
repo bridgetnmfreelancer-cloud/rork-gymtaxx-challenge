@@ -2,7 +2,7 @@ import { Banknote, Camera, Check, Clock, MapPin, ShieldCheck, Target } from "luc
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Logo, Wordmark } from "@/components/Logo";
+import { Wordmark } from "@/components/Logo";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
@@ -31,6 +31,10 @@ const EXAMPLE_GOAL = 4;
  * Deliberately currency-neutral — the old `/5poundchallenge` slug can't
  * describe a dollar deposit, so every amount here is derived from the reader's
  * own region using the same pricing rule the server charges on.
+ *
+ * Laid out for phones first, then widened for desktop. Roughly half the traffic
+ * from a link in a Meta feed opens on a laptop, and a phone-width column
+ * stranded in the middle of a large screen reads as a broken page.
  */
 export default function Landing() {
   const navigate = useNavigate();
@@ -40,12 +44,13 @@ export default function Landing() {
   const symbol = currencySymbol(currency);
   const exampleDeposit = formatMoney(depositFor(EXAMPLE_GOAL), currency);
   const perWorkout = `${symbol}${REWARD_PER_WORKOUT}`;
+  const exampleWorkouts = EXAMPLE_GOAL * CHALLENGE_WEEKS;
 
   const heroCta = useRef<HTMLDivElement | null>(null);
   const [showStickyCta, setShowStickyCta] = useState<boolean>(false);
 
   useEffect(() => {
-    document.title = "GymTaxx | Put money behind every workout";
+    document.title = "GymTaxx | Finally stay consistent with the gym";
   }, []);
 
   /**
@@ -56,10 +61,9 @@ export default function Landing() {
     const target = heroCta.current;
     if (!target || typeof IntersectionObserver === "undefined") return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => setShowStickyCta(!entry.isIntersecting),
-      { rootMargin: "-8px 0px 0px 0px" },
-    );
+    const observer = new IntersectionObserver(([entry]) => setShowStickyCta(!entry.isIntersecting), {
+      rootMargin: "-8px 0px 0px 0px",
+    });
     observer.observe(target);
     return () => observer.disconnect();
   }, []);
@@ -81,71 +85,72 @@ export default function Landing() {
     <div className="min-h-full bg-background">
       {/* ---------------------------------------------------------------- hero */}
       <header className="bg-primary text-primary-foreground">
-        <div className="mx-auto w-full max-w-md px-5 pt-safe">
-          <div className="flex items-center gap-2.5 py-5">
-            <Logo size={32} />
-            <span className="text-lg font-extrabold tracking-tight text-primary-foreground">
-              GYM<span className="text-primary-foreground/50">TAXX</span>
-            </span>
-          </div>
+        <div className="mx-auto w-full max-w-md px-5 pt-safe lg:max-w-6xl lg:px-10">
+          <div className="grid items-center gap-12 py-12 lg:min-h-[36rem] lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:py-20">
+            <div>
+              <h1 className="text-[2.6rem] font-extrabold leading-[1.03] tracking-tight animate-rise-in sm:text-5xl lg:text-6xl xl:text-7xl">
+                Finally stay consistent with the gym
+              </h1>
 
-          <div className="pb-10 pt-4">
-            <p className="inline-flex items-center gap-2 rounded-full bg-primary-foreground/10 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-accent animate-rise-in">
-              The {CHALLENGE_WEEKS} week challenge
-            </p>
-
-            <h1 className="mt-5 text-[2.75rem] font-extrabold leading-[1.03] tracking-tight animate-rise-in [animation-delay:60ms]">
-              Put {perWorkout} behind
-              <br />
-              every workout.
-            </h1>
-
-            <p className="mt-5 text-lg leading-relaxed text-primary-foreground/70 animate-rise-in [animation-delay:120ms]">
-              Motivation runs out. Money doesn't. Commit your own {exampleDeposit}, prove each gym visit, and earn every{" "}
-              {perWorkout} of it back.
-            </p>
-
-            <div ref={heroCta} className="mt-8 animate-rise-in [animation-delay:180ms]">
-              <Button
-                size="xl"
-                onClick={start}
-                className="w-full bg-accent text-success-ink hover:bg-accent/90"
-              >
-                Download the app
-              </Button>
-              <p className="mt-3 text-center text-sm text-primary-foreground/60">
-                Free to install on iPhone. No App Store needed.
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-primary-foreground/70 animate-rise-in [animation-delay:80ms] lg:text-xl">
+                Stick with your gym routine without relying on motivation, discipline, or willpower.
               </p>
+
+              <div ref={heroCta} className="mt-9 animate-rise-in [animation-delay:160ms] lg:mt-10">
+                <Button
+                  size="xl"
+                  onClick={start}
+                  className="w-full bg-accent text-success-ink hover:bg-accent/90 lg:w-auto lg:px-12"
+                >
+                  Download the app
+                </Button>
+                <p className="mt-3 text-center text-sm text-primary-foreground/60 lg:text-left">
+                  Free to install on iPhone. No App Store needed.
+                </p>
+              </div>
             </div>
+
+            {/* Gives the wide layout something to look at, and puts the deposit
+                maths above the fold where ad review will actually see it. */}
+            <DepositCard
+              deposit={exampleDeposit}
+              perWorkout={perWorkout}
+              goal={EXAMPLE_GOAL}
+              workouts={exampleWorkouts}
+            />
           </div>
         </div>
       </header>
 
       {/* ------------------------------------------------------- the mechanic */}
-      <section className="mx-auto w-full max-w-md px-5 py-12">
-        <h2 className="text-title text-foreground">Your own money. Nobody else's.</h2>
-        <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-          You hold {exampleDeposit} behind a {EXAMPLE_GOAL}-workout week. Every workout you verify earns {perWorkout} of
-          it back. Complete all {EXAMPLE_GOAL * CHALLENGE_WEEKS} and the whole deposit is yours again.
-        </p>
+      <Section>
+        <div className="lg:grid lg:grid-cols-[1fr_1.15fr] lg:items-start lg:gap-16">
+          <div>
+            <Heading>Your own money. Nobody else's.</Heading>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">
+              You hold {exampleDeposit} behind a {EXAMPLE_GOAL}-workout week. Every workout you verify earns {perWorkout}{" "}
+              of it back. Complete all {exampleWorkouts} and the whole deposit is yours again.
+            </p>
+          </div>
 
-        <div className="mt-6 space-y-3">
-          <Assurance icon={ShieldCheck} title="Fully refundable">
-            The most you can ever get back is exactly what you put in. There's nothing to gain beyond your own deposit,
-            and nobody else's money is involved.
-          </Assurance>
-          <Assurance icon={Clock} title="Paid up front, earned back">
-            The deposit is taken once, when you join. You're never charged at the moment you miss a workout.
-          </Assurance>
+          <div className="mt-6 grid gap-3 lg:mt-0 lg:grid-cols-2">
+            <Assurance icon={ShieldCheck} title="Fully refundable">
+              The most you can ever get back is exactly what you put in. There's nothing to gain beyond your own deposit,
+              and nobody else's money is involved.
+            </Assurance>
+            <Assurance icon={Clock} title="Paid up front, earned back">
+              The deposit is taken once, when you join. You're never charged at the moment you miss a workout.
+            </Assurance>
+          </div>
         </div>
-      </section>
+      </Section>
 
       {/* -------------------------------------------------------- how it works */}
-      <section className="bg-card py-12">
-        <div className="mx-auto w-full max-w-md px-5">
-          <h2 className="text-title text-foreground">How it works</h2>
+      <div className="bg-card">
+        <Section>
+          <Heading>How it works</Heading>
 
-          <ol className="mt-6 space-y-3">
+          <ol className="mt-6 grid gap-3 lg:mt-10 lg:grid-cols-2 lg:gap-4">
             <Step
               icon={Target}
               index={1}
@@ -171,34 +176,38 @@ export default function Landing() {
               detail={`Every workout you prove earns ${perWorkout} of your money back.`}
             />
           </ol>
-        </div>
-      </section>
+        </Section>
+      </div>
 
       {/* ------------------------------------------------------- verification */}
-      <section className="mx-auto w-full max-w-md px-5 py-12">
-        <h2 className="text-title text-foreground">Proof, not promises</h2>
-        <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-          A workout only counts once it's verified. That's what stops this being another goal you quietly drop in week
-          two.
-        </p>
+      <Section>
+        <div className="lg:grid lg:grid-cols-[1fr_1.15fr] lg:items-start lg:gap-16">
+          <div>
+            <Heading>Proof, not promises</Heading>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">
+              A workout only counts once it's verified. That's what stops this being another goal you quietly drop in
+              week two.
+            </p>
+          </div>
 
-        <div className="mt-6 space-y-3">
-          <Assurance icon={Camera} title="Live camera only">
-            You take the photo at the gym, there and then. There's no way to upload an old picture from your library.
-          </Assurance>
-          <Assurance icon={MapPin} title="Time and place recorded">
-            Each photo is stamped with when and where it was taken. No signal in the basement? The time still counts and
-            we check it by hand.
-          </Assurance>
+          <div className="mt-6 grid gap-3 lg:mt-0 lg:grid-cols-2">
+            <Assurance icon={Camera} title="Live camera only">
+              You take the photo at the gym, there and then. There's no way to upload an old picture from your library.
+            </Assurance>
+            <Assurance icon={MapPin} title="Time and place recorded">
+              Each photo is stamped with when and where it was taken. No signal in the basement? The time still counts
+              and we check it by hand.
+            </Assurance>
+          </div>
         </div>
-      </section>
+      </Section>
 
       {/* ---------------------------------------------------------------- faq */}
-      <section className="bg-card py-12">
-        <div className="mx-auto w-full max-w-md px-5">
-          <h2 className="text-title text-foreground">Questions</h2>
+      <div className="bg-card">
+        <Section>
+          <Heading>Questions</Heading>
 
-          <Accordion type="single" collapsible className="mt-4">
+          <Accordion type="single" collapsible className="mx-auto mt-4 lg:mt-8 lg:max-w-3xl">
             <Faq question="How much do I have to put behind it?">
               Your weekly goal, times {CHALLENGE_WEEKS} weeks, times {perWorkout}. A {EXAMPLE_GOAL}-workout week comes
               to {exampleDeposit}. You see the exact figure before you pay anything.
@@ -226,49 +235,52 @@ export default function Landing() {
               any time and a person will answer.
             </Faq>
           </Accordion>
-        </div>
-      </section>
+        </Section>
+      </div>
 
       {/* --------------------------------------------------------- closing cta */}
-      <section className="mx-auto w-full max-w-md px-5 py-14 text-center">
-        <h2 className="text-display text-foreground">
-          {CHALLENGE_WEEKS} weeks from now,
-          <br />
-          you'll wish you'd started.
-        </h2>
-        <Button size="xl" className="mt-8 w-full" onClick={start}>
-          Download the app
-        </Button>
-        <p className="mt-3 text-sm text-muted-foreground">Takes about a minute to set up.</p>
-      </section>
+      <Section>
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-display text-foreground lg:text-6xl">
+            {CHALLENGE_WEEKS} weeks from now, you'll wish you'd started.
+          </h2>
+          <Button size="xl" className="mt-8 w-full lg:w-auto lg:px-14" onClick={start}>
+            Download the app
+          </Button>
+          <p className="mt-3 text-sm text-muted-foreground">Takes about a minute to set up.</p>
+        </div>
+      </Section>
 
       <footer className="border-t border-border py-8">
-        <div className="mx-auto w-full max-w-md px-5">
-          <Wordmark />
-          <nav className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-            <a href="https://www.gymtaxx.com/terms" className="underline-offset-4 hover:underline">
-              Terms
-            </a>
-            <a href="https://www.gymtaxx.com/privacy" className="underline-offset-4 hover:underline">
-              Privacy
-            </a>
-            <a href="https://www.gymtaxx.com/support" className="underline-offset-4 hover:underline">
-              Support
-            </a>
-          </nav>
-          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+        <div className="mx-auto w-full max-w-md px-5 lg:max-w-6xl lg:px-10">
+          <div className="lg:flex lg:items-center lg:justify-between lg:gap-8">
+            <Wordmark />
+            <nav className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground lg:mt-0">
+              <a href="https://www.gymtaxx.com/terms" className="underline-offset-4 hover:underline">
+                Terms
+              </a>
+              <a href="https://www.gymtaxx.com/privacy" className="underline-offset-4 hover:underline">
+                Privacy
+              </a>
+              <a href="https://www.gymtaxx.com/support" className="underline-offset-4 hover:underline">
+                Support
+              </a>
+            </nav>
+          </div>
+          <p className="mt-4 max-w-3xl text-xs leading-relaxed text-muted-foreground">
             GymTaxx is an accountability tool, not a game of chance. Your deposit is refundable in full by completing
             your own goal, and the maximum return is the amount you deposited.
           </p>
         </div>
         {/* Clears the sticky bar so the small print is never trapped behind it. */}
-        <div aria-hidden="true" className={showStickyCta ? "h-24" : "h-0"} />
+        <div aria-hidden="true" className={showStickyCta ? "h-24 lg:h-0" : "h-0"} />
       </footer>
 
       {/* Reappears once the hero button is gone, so the offer is always one tap
-          away however far down someone has read. */}
+          away however far down someone has read. Phones only — on a desktop the
+          buttons in the page are never far from the pointer. */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-5 pb-safe pt-3 backdrop-blur transition-all duration-300 ${
+        className={`fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-5 pb-safe pt-3 backdrop-blur transition-all duration-300 lg:hidden ${
           showStickyCta ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"
         }`}
       >
@@ -278,6 +290,71 @@ export default function Landing() {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Shared page gutter: a phone column on small screens, a real page on large. */
+function Section({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="mx-auto w-full max-w-md px-5 py-12 lg:max-w-6xl lg:px-10 lg:py-20">{children}</section>
+  );
+}
+
+function Heading({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-title text-foreground lg:text-4xl xl:text-5xl">{children}</h2>;
+}
+
+/**
+ * The deposit, stated as a picture: what's committed, what's been earned back so
+ * far, and the per-workout rate that connects the two.
+ */
+function DepositCard({
+  deposit,
+  perWorkout,
+  goal,
+  workouts,
+}: {
+  deposit: string;
+  perWorkout: string;
+  goal: number;
+  workouts: number;
+}) {
+  const earnedCount = 6;
+
+  return (
+    <div className="rounded-lg bg-primary-foreground/[0.06] p-6 animate-rise-in [animation-delay:240ms] lg:p-8">
+      <p className="text-xs font-bold uppercase tracking-widest text-primary-foreground/50">
+        {goal} workouts a week, {CHALLENGE_WEEKS} weeks
+      </p>
+
+      <div className="mt-5 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-primary-foreground/60">Committed</p>
+          <p className="text-4xl font-extrabold tracking-tight text-primary-foreground lg:text-5xl">{deposit}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-primary-foreground/60">Per workout</p>
+          <p className="text-4xl font-extrabold tracking-tight text-accent lg:text-5xl">{perWorkout}</p>
+        </div>
+      </div>
+
+      <div className="mt-7 flex flex-wrap gap-2" aria-hidden="true">
+        {Array.from({ length: workouts }, (_, i) => (
+          <span
+            key={i}
+            className={`flex h-7 w-7 items-center justify-center rounded-full ${
+              i < earnedCount ? "bg-accent" : "border border-primary-foreground/20"
+            }`}
+          >
+            {i < earnedCount ? <Check className="h-4 w-4 text-success-ink" strokeWidth={3} /> : null}
+          </span>
+        ))}
+      </div>
+
+      <p className="mt-5 text-sm leading-relaxed text-primary-foreground/60">
+        {workouts} verified workouts, {perWorkout} earned back each time, until the full {deposit} is yours again.
+      </p>
     </div>
   );
 }
@@ -294,16 +371,16 @@ function Step({
   detail: string;
 }) {
   return (
-    <li className="flex items-start gap-4 rounded-lg bg-background p-4">
+    <li className="flex items-start gap-4 rounded-lg bg-background p-4 lg:p-6">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-accent">
         <Icon className="h-5 w-5 text-success-ink" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className="text-base font-bold leading-snug text-foreground">
-          <span className="tabular text-muted-foreground">{index}. </span>
+        <p className="text-base font-bold leading-snug text-foreground lg:text-lg">
+          <span className="tabular-nums text-muted-foreground">{index}. </span>
           {title}
         </p>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{detail}</p>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground lg:text-base">{detail}</p>
       </div>
     </li>
   );
@@ -319,10 +396,10 @@ function Assurance({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-4 rounded-lg bg-card p-4">
+    <div className="flex items-start gap-4 rounded-lg bg-card p-4 lg:h-full lg:flex-col lg:gap-3 lg:p-6">
       <Icon className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
       <div className="min-w-0">
-        <p className="text-base font-bold leading-snug text-foreground">{title}</p>
+        <p className="text-base font-bold leading-snug text-foreground lg:text-lg">{title}</p>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{children}</p>
       </div>
     </div>
@@ -332,8 +409,10 @@ function Assurance({
 function Faq({ question, children }: { question: string; children: React.ReactNode }) {
   return (
     <AccordionItem value={question} className="border-border">
-      <AccordionTrigger className="text-left text-base font-bold text-foreground">{question}</AccordionTrigger>
-      <AccordionContent className="text-sm leading-relaxed text-muted-foreground">{children}</AccordionContent>
+      <AccordionTrigger className="text-left text-base font-bold text-foreground lg:text-lg">{question}</AccordionTrigger>
+      <AccordionContent className="text-sm leading-relaxed text-muted-foreground lg:text-base">
+        {children}
+      </AccordionContent>
     </AccordionItem>
   );
 }
