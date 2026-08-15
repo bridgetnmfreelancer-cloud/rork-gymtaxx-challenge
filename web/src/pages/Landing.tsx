@@ -2,7 +2,7 @@ import { ArrowRight, Camera, Star, Target, Trophy, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Wordmark } from "@/components/Logo";
+import { Logo, Wordmark } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
 import {
@@ -89,6 +89,37 @@ export default function Landing() {
 
   return (
     <div className="min-h-full bg-background">
+      {/* ----------------------------------------------------------------- nav
+          Sticks to the top so the join button is always within reach however
+          far down the page someone has read. White against the navy hero, so
+          the mint pill is the loudest thing on the opening screen. */}
+      <nav className="sticky top-0 z-50 border-b border-border bg-background/90 pt-safe backdrop-blur">
+        <div className="mx-auto flex w-full max-w-md items-center gap-4 px-5 py-3 lg:max-w-6xl lg:px-10">
+          <a href="https://www.gymtaxx.com" className="flex shrink-0 items-center gap-2.5" aria-label="GymTaxx home">
+            <Logo size={28} />
+            <Wordmark />
+          </a>
+
+          {/* Room for more links as they're needed — they'll sit alongside Blog
+              without the join pill moving. */}
+          <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            <a
+              href="https://www.gymtaxx.com/blog"
+              className="rounded-full px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-4 sm:text-base"
+            >
+              Blog
+            </a>
+
+            <Button
+              onClick={start}
+              className="h-11 rounded-full bg-accent px-5 text-base font-semibold text-success-ink hover:bg-accent/90 sm:px-6"
+            >
+              Join Now
+            </Button>
+          </div>
+        </div>
+      </nav>
+
       {/* ---------------------------------------------------------------- hero */}
       <header className="relative overflow-hidden bg-primary text-primary-foreground">
         <div
@@ -96,7 +127,7 @@ export default function Landing() {
           className="pointer-events-none absolute inset-x-0 top-0 h-[70%] bg-[radial-gradient(ellipse_60%_55%_at_50%_0%,rgba(134,239,172,0.10),transparent_70%)]"
         />
 
-        <div className="relative mx-auto flex min-h-[78svh] w-full max-w-md flex-col items-center justify-center px-6 py-20 pt-safe text-center lg:min-h-[80svh] lg:max-w-4xl">
+        <div className="relative mx-auto flex min-h-[74svh] w-full max-w-md flex-col items-center justify-center px-6 py-20 text-center lg:min-h-[76svh] lg:max-w-4xl">
           <h1 className="text-[2.6rem] font-extrabold leading-[1.05] tracking-tight animate-rise-in sm:text-5xl lg:text-6xl xl:text-7xl">
             Finally stay consistent with the gym
           </h1>
