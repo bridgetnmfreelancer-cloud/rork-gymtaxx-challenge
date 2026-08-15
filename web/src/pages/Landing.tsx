@@ -1,40 +1,64 @@
-import { ArrowRight, Banknote, Camera, Check, Clock, MapPin, ShieldCheck, Target } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Camera, Star, Target, Trophy, Wallet } from "lucide-react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Wordmark } from "@/components/Logo";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
 import {
   CHALLENGE_WEEKS,
   REWARD_PER_WORKOUT,
+  WEEKLY_GOALS,
   currencyForRegion,
   currencySymbol,
   depositFor,
   formatMoney,
+  totalWorkouts,
 } from "@/lib/money";
 import { isStandalone } from "@/lib/pwa";
 
-/** The example goal every figure on the page is worked out from. */
-const EXAMPLE_GOAL = 4;
+/**
+ * The smallest goal, used for the worked example in step two — the same one the
+ * marketing site quotes.
+ */
+const EXAMPLE_GOAL = WEEKLY_GOALS[0];
+
+type Testimonial = {
+  quote: string;
+  name: string;
+};
+
+/**
+ * Real members, quoted as they wrote it — including the pound amounts, since
+ * these are UK members and rewriting their words into dollars would be putting
+ * figures in their mouths.
+ */
+const TESTIMONIALS: readonly Testimonial[] = [
+  {
+    quote:
+      "I've joined so many accountability groups before and they always die after a few days. What surprised me was that we barely even talked in the chat, but I still went to the gym because I didn't want to lose my £50.",
+    name: "June, Essex",
+  },
+  {
+    quote:
+      "I used to go to the gym maybe once every couple of weeks. This was the first month in a long time where I actually stuck to what I said I was going to do.",
+    name: "Dee, London",
+  },
+  {
+    quote:
+      "I was travelling and normally I would've taken a break from the gym. Instead I found a gym while I was away because I didn't want to break my streak and lose my deposit.",
+    name: "Afshan, Oxford",
+  },
+] as const;
 
 /**
  * The paid-traffic landing page, living inside the app rather than on the
- * marketing site.
+ * marketing site so the ad's destination URL matches the app's domain.
  *
- * It exists here for one reason: Meta will only accept a landing page that
- * carries the pixel, and the pixel lives in this app's HTML. Because that tag
- * is in the static document rather than added by script, it fires on this route
- * without anything extra being wired up.
- *
- * Deliberately currency-neutral — the old `/5poundchallenge` slug can't
- * describe a dollar deposit, so every amount here is derived from the reader's
- * own region using the same pricing rule the server charges on.
- *
- * Laid out for phones first, then widened for desktop. Roughly half the traffic
- * from a link in a Meta feed opens on a laptop, and a phone-width column
- * stranded in the middle of a large screen reads as a broken page.
+ * Mirrors the marketing site's page section for section, with two deliberate
+ * differences: no month is named anywhere (this page has to stay accurate in
+ * September), and money is written in the reader's own currency using the same
+ * pricing rule the server charges on.
  */
 export default function Landing() {
   const navigate = useNavigate();
@@ -42,30 +66,12 @@ export default function Landing() {
 
   const currency = useMemo(() => currencyForRegion(), []);
   const symbol = currencySymbol(currency);
-  const exampleDeposit = formatMoney(depositFor(EXAMPLE_GOAL), currency);
   const perWorkout = `${symbol}${REWARD_PER_WORKOUT}`;
-  const exampleWorkouts = EXAMPLE_GOAL * CHALLENGE_WEEKS;
-
-  const heroCta = useRef<HTMLDivElement | null>(null);
-  const [showStickyCta, setShowStickyCta] = useState<boolean>(false);
+  const exampleWorkouts = totalWorkouts(EXAMPLE_GOAL);
+  const exampleDeposit = formatMoney(depositFor(EXAMPLE_GOAL), currency);
 
   useEffect(() => {
     document.title = "GymTaxx | Finally stay consistent with the gym";
-  }, []);
-
-  /**
-   * Show the sticky bar only once the hero button has scrolled away, so there's
-   * never a second button competing with the first one.
-   */
-  useEffect(() => {
-    const target = heroCta.current;
-    if (!target || typeof IntersectionObserver === "undefined") return;
-
-    const observer = new IntersectionObserver(([entry]) => setShowStickyCta(!entry.isIntersecting), {
-      rootMargin: "-8px 0px 0px 0px",
-    });
-    observer.observe(target);
-    return () => observer.disconnect();
   }, []);
 
   /**
@@ -83,10 +89,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-full bg-background">
-      {/* ---------------------------------------------------------------- hero
-          Centred, roomy, nothing but the message and one button — matching the
-          marketing site's opening screen. The glow is a single soft radial wash
-          so the navy has some depth without becoming a decorated panel. */}
+      {/* ---------------------------------------------------------------- hero */}
       <header className="relative overflow-hidden bg-primary text-primary-foreground">
         <div
           aria-hidden="true"
@@ -102,7 +105,7 @@ export default function Landing() {
             Stick with your gym routine without relying on motivation, discipline, or willpower.
           </p>
 
-          <div ref={heroCta} className="mt-10 w-full animate-rise-in [animation-delay:160ms]">
+          <div className="mt-10 w-full animate-rise-in [animation-delay:160ms]">
             <Button
               size="xl"
               onClick={start}
@@ -115,134 +118,93 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* ------------------------------------------------------- the mechanic */}
-      <Section>
-        <div className="lg:grid lg:grid-cols-[1fr_1.15fr] lg:items-start lg:gap-16">
-          <div>
-            <Heading>Your own money. Nobody else's.</Heading>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">
-              You hold {exampleDeposit} behind a {EXAMPLE_GOAL}-workout week. Every workout you verify earns {perWorkout}{" "}
-              of it back. Complete all {exampleWorkouts} and the whole deposit is yours again.
-            </p>
-          </div>
-
-          <div className="mt-6 grid gap-3 lg:mt-0 lg:grid-cols-2">
-            <Assurance icon={ShieldCheck} title="Fully refundable">
-              The most you can ever get back is exactly what you put in. There's nothing to gain beyond your own deposit,
-              and nobody else's money is involved.
-            </Assurance>
-            <Assurance icon={Clock} title="Paid up front, earned back">
-              The deposit is taken once, when you join. You're never charged at the moment you miss a workout.
-            </Assurance>
-          </div>
-        </div>
-      </Section>
-
       {/* -------------------------------------------------------- how it works */}
-      <div className="bg-card">
-        <Section>
-          <Heading>How it works</Heading>
+      <section className="bg-card py-16 lg:py-24">
+        <div className="mx-auto w-full max-w-md px-5 lg:max-w-3xl lg:px-0">
+          <SectionHeading>How it works</SectionHeading>
 
-          <ol className="mt-6 grid gap-3 lg:mt-10 lg:grid-cols-2 lg:gap-4">
-            <Step
-              icon={Target}
-              index={1}
-              title="Choose your weekly goal"
-              detail={`3, 4 or 5 workouts a week for ${CHALLENGE_WEEKS} weeks.`}
-            />
-            <Step
-              icon={Banknote}
-              index={2}
-              title={`Put ${perWorkout} behind each workout`}
-              detail="Your own money, held up front. That's what makes it real."
-            />
-            <Step
-              icon={Camera}
-              index={3}
-              title="Verify each workout"
-              detail="A quick photo from the gym, stamped with the time and place."
-            />
-            <Step
-              icon={Check}
-              index={4}
-              title="Complete your goal, earn your deposit back"
-              detail={`Every workout you prove earns ${perWorkout} of your money back.`}
-            />
+          <ol className="mt-8 space-y-4 lg:mt-12">
+            <Step icon={Target} index="01" title="Set your weekly goal">
+              Choose how many times you'll go to the gym each week.
+            </Step>
+            <Step icon={Wallet} index="02" title={`Deposit ${perWorkout} per workout`}>
+              We'll calculate your refundable deposit. Complete a workout and earn back {perWorkout}. For example:{" "}
+              {EXAMPLE_GOAL} workouts/week = {exampleWorkouts} workouts per month = {exampleDeposit} deposit.
+            </Step>
+            <Step icon={Camera} index="03" title="Verify your workouts">
+              Every workout must be verified with a gym photo and location before it counts.
+            </Step>
+            <Step icon={Trophy} index="04" title="Get your money back">
+              Every verified workout earns back {perWorkout}. Miss a workout and you lose {perWorkout}.
+            </Step>
           </ol>
-        </Section>
-      </div>
+        </div>
+      </section>
 
-      {/* ------------------------------------------------------- verification */}
-      <Section>
-        <div className="lg:grid lg:grid-cols-[1fr_1.15fr] lg:items-start lg:gap-16">
-          <div>
-            <Heading>Proof, not promises</Heading>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">
-              A workout only counts once it's verified. That's what stops this being another goal you quietly drop in
-              week two.
-            </p>
-          </div>
+      {/* ---------------------------------------------------------- why it works */}
+      <section className="bg-primary py-16 text-primary-foreground lg:py-24">
+        <div className="mx-auto w-full max-w-md px-5 text-center lg:max-w-4xl">
+          <h2 className="text-title lg:text-4xl xl:text-5xl">Why It Works</h2>
 
-          <div className="mt-6 grid gap-3 lg:mt-0 lg:grid-cols-2">
-            <Assurance icon={Camera} title="Live camera only">
-              You take the photo at the gym, there and then. There's no way to upload an old picture from your library.
-            </Assurance>
-            <Assurance icon={MapPin} title="Time and place recorded">
-              Each photo is stamped with when and where it was taken. No signal in the basement? The time still counts
-              and we check it by hand.
-            </Assurance>
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-primary-foreground/60 lg:text-xl">
+            Most people don't fail because they don't know what to do.
+          </p>
+          <p className="mx-auto mt-4 max-w-2xl text-lg font-medium leading-relaxed text-primary-foreground lg:text-xl">
+            They fail because nothing happens when they don't do it.
+          </p>
+
+          <dl className="mt-12 grid gap-10 sm:grid-cols-3 sm:gap-6 lg:mt-16">
+            <Stat value="456">women have used our accountability system</Stat>
+            <Stat value="97%">completed their challenge</Stat>
+            <Stat value="<1×">per month — how often most were going to the gym before joining</Stat>
+          </dl>
+        </div>
+      </section>
+
+      {/* --------------------------------------------------------- testimonials */}
+      <section className="py-16 lg:py-24">
+        <div className="mx-auto w-full max-w-md px-5 lg:max-w-6xl lg:px-10">
+          <SectionHeading>What our members say</SectionHeading>
+
+          <div className="mt-8 grid gap-4 lg:mt-14 lg:grid-cols-3 lg:gap-6">
+            {TESTIMONIALS.map((item) => (
+              <figure key={item.name} className="flex flex-col rounded-lg bg-card p-6">
+                <Stars />
+                <blockquote className="mt-4 flex-1 text-base leading-relaxed text-muted-foreground">
+                  {item.quote}
+                </blockquote>
+                <figcaption className="mt-5 text-base font-bold text-foreground">{item.name}</figcaption>
+              </figure>
+            ))}
           </div>
         </div>
-      </Section>
-
-      {/* ---------------------------------------------------------------- faq */}
-      <div className="bg-card">
-        <Section>
-          <Heading>Questions</Heading>
-
-          <Accordion type="single" collapsible className="mx-auto mt-4 lg:mt-8 lg:max-w-3xl">
-            <Faq question="How much do I have to put behind it?">
-              Your weekly goal, times {CHALLENGE_WEEKS} weeks, times {perWorkout}. A {EXAMPLE_GOAL}-workout week comes
-              to {exampleDeposit}. You see the exact figure before you pay anything.
-            </Faq>
-            <Faq question={`Can I really get all ${exampleDeposit} back?`}>
-              Yes. Verify every workout in your goal and the full deposit returns to you, {perWorkout} at a time. That's
-              also the ceiling — you can never end up with more than you put in.
-            </Faq>
-            <Faq question="What happens if I miss one?">
-              The {perWorkout} behind that workout is forfeited. Nothing else changes, and the rest of your deposit is
-              still yours to earn.
-            </Faq>
-            <Faq question="How do you know I actually went?">
-              Every submission is a live photo from the gym with the time and place attached, and each one is checked by
-              hand before the money moves.
-            </Faq>
-            <Faq question="Do I need the App Store?">
-              No. GymTaxx installs straight onto your iPhone home screen from Safari, and opens like any other app.
-            </Faq>
-            <Faq question="How do I get my money back?">
-              Your deposit is returned to the card you paid with, in the currency you paid in. Email{" "}
-              <a href="mailto:support@gymtaxx.com" className="font-semibold text-foreground underline">
-                support@gymtaxx.com
-              </a>{" "}
-              any time and a person will answer.
-            </Faq>
-          </Accordion>
-        </Section>
-      </div>
+      </section>
 
       {/* --------------------------------------------------------- closing cta */}
-      <Section>
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-display text-foreground lg:text-6xl">
-            {CHALLENGE_WEEKS} weeks from now, you'll wish you'd started.
-          </h2>
-          <Button size="xl" className="mt-8 w-full lg:w-auto lg:px-14" onClick={start}>
-            Download the app
+      <section className="bg-card py-16 lg:py-24">
+        <div className="mx-auto w-full max-w-md px-5 text-center lg:max-w-3xl">
+          <h2 className="text-title text-foreground lg:text-4xl xl:text-5xl">The Challenge Is Open</h2>
+
+          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">
+            If your current approach was working, you probably wouldn't be here.
+          </p>
+
+          <div className="mt-8 space-y-2 text-base text-foreground lg:text-lg">
+            <p>Choose a challenge.</p>
+            <p>Commit to it for a month.</p>
+            <p>See what happens.</p>
+          </div>
+
+          <Button
+            size="xl"
+            onClick={start}
+            className="mt-10 w-full rounded-full bg-accent uppercase tracking-wide text-success-ink hover:bg-accent/90 lg:w-auto lg:px-14"
+          >
+            Join the challenge
+            <ArrowRight className="h-5 w-5" aria-hidden="true" />
           </Button>
-          <p className="mt-3 text-sm text-muted-foreground">Takes about a minute to set up.</p>
         </div>
-      </Section>
+      </section>
 
       <footer className="border-t border-border py-8">
         <div className="mx-auto w-full max-w-md px-5 lg:max-w-6xl lg:px-10">
@@ -260,98 +222,59 @@ export default function Landing() {
               </a>
             </nav>
           </div>
-          <p className="mt-4 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-            GymTaxx is an accountability tool, not a game of chance. Your deposit is refundable in full by completing
-            your own goal, and the maximum return is the amount you deposited.
-          </p>
         </div>
-        {/* Clears the sticky bar so the small print is never trapped behind it. */}
-        <div aria-hidden="true" className={showStickyCta ? "h-24 lg:h-0" : "h-0"} />
       </footer>
-
-      {/* Reappears once the hero button is gone, so the offer is always one tap
-          away however far down someone has read. Phones only — on a desktop the
-          buttons in the page are never far from the pointer. */}
-      <div
-        className={`fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-5 pb-safe pt-3 backdrop-blur transition-all duration-300 lg:hidden ${
-          showStickyCta ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"
-        }`}
-      >
-        <div className="mx-auto w-full max-w-md">
-          <Button size="xl" className="w-full" onClick={start}>
-            Download the app
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
 
-/** Shared page gutter: a phone column on small screens, a real page on large. */
-function Section({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="mx-auto w-full max-w-md px-5 py-12 lg:max-w-6xl lg:px-10 lg:py-20">{children}</section>
-  );
-}
-
-function Heading({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-title text-foreground lg:text-4xl xl:text-5xl">{children}</h2>;
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-center text-title text-foreground lg:text-4xl xl:text-5xl">{children}</h2>;
 }
 
 function Step({
   icon: Icon,
   index,
   title,
-  detail,
+  children,
 }: {
   icon: typeof Target;
-  index: number;
+  index: string;
   title: string;
-  detail: string;
+  children: React.ReactNode;
 }) {
   return (
-    <li className="flex items-start gap-4 rounded-lg bg-background p-4 lg:p-6">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-accent">
+    <li className="flex items-start gap-4 rounded-lg bg-background p-5 lg:gap-5 lg:p-6">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent/25">
         <Icon className="h-5 w-5 text-success-ink" aria-hidden="true" />
       </span>
       <div className="min-w-0">
         <p className="text-base font-bold leading-snug text-foreground lg:text-lg">
-          <span className="tabular-nums text-muted-foreground">{index}. </span>
+          <span className="mr-2 text-sm font-bold tracking-widest text-success-ink">{index}</span>
           {title}
         </p>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground lg:text-base">{detail}</p>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground lg:text-base">{children}</p>
       </div>
     </li>
   );
 }
 
-function Assurance({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: typeof ShieldCheck;
-  title: string;
-  children: React.ReactNode;
-}) {
+function Stat({ value, children }: { value: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-4 rounded-lg bg-card p-4 lg:h-full lg:flex-col lg:gap-3 lg:p-6">
-      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
-      <div className="min-w-0">
-        <p className="text-base font-bold leading-snug text-foreground lg:text-lg">{title}</p>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{children}</p>
-      </div>
+    <div>
+      <dt className="text-4xl font-extrabold tracking-tight text-accent lg:text-5xl">{value}</dt>
+      <dd className="mx-auto mt-2 max-w-[16rem] text-sm leading-relaxed text-primary-foreground/60">{children}</dd>
     </div>
   );
 }
 
-function Faq({ question, children }: { question: string; children: React.ReactNode }) {
+/** Five filled stars. Decorative — the rating is carried by the words beside it. */
+function Stars() {
   return (
-    <AccordionItem value={question} className="border-border">
-      <AccordionTrigger className="text-left text-base font-bold text-foreground lg:text-lg">{question}</AccordionTrigger>
-      <AccordionContent className="text-sm leading-relaxed text-muted-foreground lg:text-base">
-        {children}
-      </AccordionContent>
-    </AccordionItem>
+    <div className="flex gap-1" aria-hidden="true">
+      {Array.from({ length: 5 }, (_, i) => (
+        <Star key={i} className="h-4 w-4 fill-accent text-accent" />
+      ))}
+    </div>
   );
 }
