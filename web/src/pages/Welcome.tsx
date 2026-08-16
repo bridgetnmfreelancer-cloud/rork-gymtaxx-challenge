@@ -37,10 +37,17 @@ export default function Welcome() {
     try {
       if (mode === "signUp") {
         await signUp(email, password);
+        // A brand new account has seen nothing yet, so it starts at the top of
+        // the funnel: the reminder ask, then the questions.
+        navigate("/reminders", { replace: true });
       } else {
         await signIn(email, password);
+        // Someone logging back in has already been through all of that. Home
+        // reads their actual state and shows the dashboard if they've paid, or
+        // the start screen if they haven't — so it's the only correct landing
+        // place for a returning account.
+        navigate("/home", { replace: true });
       }
-      navigate("/reminders", { replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Something went wrong. Try again.");
     } finally {
