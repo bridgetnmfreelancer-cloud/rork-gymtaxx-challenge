@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { PushSync } from "@/components/PushSync";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AuthProvider } from "@/context/AuthProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -57,6 +58,7 @@ const App = () => (
     <AuthProvider>
       <TooltipProvider>
         <Toaster position="top-center" />
+        <PushSync />
         <OfflineBanner />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>

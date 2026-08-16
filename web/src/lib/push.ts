@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { canUsePush } from "@/lib/pwa";
 
 /**
  * Push reminder subscriptions.
@@ -115,6 +116,30 @@ export async function registerForReminders(): Promise<boolean> {
   } catch (error) {
     console.error("push: registration failed", error);
     return false;
+  }
+}
+
+/**
+ * Re-attach this device on launch, if it already has permission.
+ *
+ * Registration otherwise only happens on the reminders screen during sign-up,
+ * which a returning user never sees — so a registration that gets dropped is
+ * dropped for good. That happens routinely: reinstalling the app makes the
+ * browser throw its subscription away, and the sender abandons a device after
+ * repeated delivery failures. Either way the person keeps believing reminders
+ * are on while nothing can reach them.
+ *
+ * Cheap and idempotent. An already-registered device re-saves the same endpoint
+ * over itself, so this cannot produce duplicates or a second notification.
+ */
+export async function syncRemindersIfAllowed(): Promise<void> {
+  try {
+    if (!canUsePush()) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    await registerForReminders();
+  } catch (error) {
+    // Never allowed to affect the screen the user was actually opening.
+    console.error("push: device sync failed", error);
   }
 }
 
