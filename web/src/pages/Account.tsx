@@ -35,12 +35,20 @@ import {
 import { useAuth } from "@/context/AuthProvider";
 import { formatStartDate } from "@/lib/gymweek";
 import { CHALLENGE_WEEKS, currencyFrom, depositFor, formatMoney } from "@/lib/money";
-import { hasActiveReminders, registerForReminders, unregisterReminders } from "@/lib/push";
+import {
+  hasActiveReminders,
+  isRegisteredOnServer,
+  registerForRemindersDetailed,
+  unregisterReminders,
+} from "@/lib/push";
 import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
 import { useCurrentChallenge, useParticipation } from "@/lib/queries";
 import { callFunction } from "@/lib/supabase";
 
 const SUPPORT_EMAIL = "support@gymtaxx.com";
+
+/** Shown only when registration fails without naming a cause. */
+const REMINDER_FALLBACK_ERROR = "Turning reminders on failed. Try again in a moment.";
 
 /**
  * Operator accounts, for showing the test controls only.
@@ -100,14 +108,41 @@ export default function Account() {
 
   const notInstalled = isIOS() && !isStandalone();
   const pushAvailable = canUsePush();
+  /**
+   * The test is the only thing that proves delivery end to end, so it stays
+   * reachable whenever this phone *could* receive one. Gating it on the switch
+   * hid it in exactly the case worth investigating: permission granted, but the
+   * device never made it onto our list.
+   */
+  const canTestReminders =
+    pushAvailable && typeof Notification !== "undefined" && Notification.permission === "granted";
   const [remindersOn, setRemindersOn] = useState<boolean>(false);
   const [isTogglingReminders, setIsTogglingReminders] = useState<boolean>(false);
+  const [pushError, setPushError] = useState<string | null>(null);
 
+  /**
+   * Reconcile what the browser thinks with what the server actually has.
+   *
+   * These can disagree, and when they do the switch reads "on" while nothing we
+   * send can arrive — the silent failure that made a missing reminder look like
+   * a delivery problem. Repairing it here is safe: re-saving the same device
+   * overwrites its own record, so it cannot cause a duplicate notification.
+   */
   useEffect(() => {
     let cancelled = false;
-    void hasActiveReminders().then((active) => {
-      if (!cancelled) setRemindersOn(active);
-    });
+    void (async () => {
+      const active = await hasActiveReminders();
+      if (cancelled) return;
+      setRemindersOn(active);
+      if (!active) return;
+
+      if (await isRegisteredOnServer()) return;
+      if (cancelled) return;
+
+      const result = await registerForRemindersDetailed();
+      if (cancelled) return;
+      if (!result.ok) setPushError(result.reason ?? REMINDER_FALLBACK_ERROR);
+    })();
     return () => {
       cancelled = true;
     };
@@ -115,6 +150,7 @@ export default function Account() {
 
   const toggleReminders = useCallback(async (next: boolean): Promise<void> => {
     setIsTogglingReminders(true);
+    setPushError(null);
     try {
       if (!next) {
         await unregisterReminders();
@@ -130,10 +166,14 @@ export default function Account() {
         setRemindersOn(false);
         return;
       }
-      setRemindersOn(await registerForReminders());
+
+      const result = await registerForRemindersDetailed();
+      setRemindersOn(result.ok);
+      if (!result.ok) setPushError(result.reason ?? REMINDER_FALLBACK_ERROR);
     } catch (error) {
       console.error("account: reminder toggle failed", error);
       setRemindersOn(false);
+      setPushError(REMINDER_FALLBACK_ERROR);
     } finally {
       setIsTogglingReminders(false);
     }
@@ -153,7 +193,8 @@ export default function Account() {
       if (result.devices === 0) {
         setTestState({
           kind: "error",
-          message: "This phone isn't registered yet. Turn the switch off and back on, then try again.",
+          message:
+            "We have no device on file for this account, so there was nothing to send to. Turn the switch off, then on again, and read any message that appears underneath it.",
         });
         return;
       }
@@ -316,7 +357,13 @@ export default function Account() {
             </p>
           ) : null}
 
-          {remindersOn ? (
+          {pushError ? (
+            <p role="status" className="mt-2 text-sm leading-relaxed text-danger-ink">
+              {pushError}
+            </p>
+          ) : null}
+
+          {canTestReminders ? (
             <>
               <button
                 type="button"

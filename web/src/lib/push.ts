@@ -57,25 +57,42 @@ function arrayBufferToBase64Url(buffer: ArrayBuffer | null): string {
 }
 
 /**
+ * Why registering this device didn't work, in words the person can act on.
+ *
+ * Registration has two halves that fail independently: the browser creating a
+ * subscription, and that subscription reaching our own list. The second half
+ * used to fail silently, which meant the switch could read "on" while nothing
+ * we send could ever arrive. Naming the step that broke is the difference
+ * between a fixable problem and a mystery.
+ */
+export type RegisterResult = { ok: true; reason?: undefined } | { ok: false; reason: string };
+
+/**
  * Subscribe this device and store it against the signed-in user.
  *
  * Safe to call repeatedly — the endpoint is unique, so re-subscribing on an
  * already-registered device updates the existing row rather than duplicating
  * it and sending someone the same reminder twice.
  */
-export async function registerForReminders(): Promise<boolean> {
+export async function registerForRemindersDetailed(): Promise<RegisterResult> {
   try {
     const publicKey = import.meta.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY;
     if (!publicKey) {
       console.warn("push: no VAPID public key configured");
-      return false;
+      return { ok: false, reason: "Reminders aren't configured on this version of the app yet." };
     }
 
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
-    if (Notification.permission !== "granted") return false;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      return { ok: false, reason: "This browser can't send reminders. Open GymTaxx from your Home Screen." };
+    }
+    if (Notification.permission !== "granted") {
+      return { ok: false, reason: "Notifications are switched off for GymTaxx in your iPhone Settings." };
+    }
 
     const registration = await withTimeout(navigator.serviceWorker.ready, 8000, "service worker ready");
-    if (!registration) return false;
+    if (!registration) {
+      return { ok: false, reason: "The app's background helper didn't start. Close GymTaxx fully, reopen it, and try again." };
+    }
 
     const existing = await registration.pushManager.getSubscription();
     const subscription =
@@ -89,11 +106,13 @@ export async function registerForReminders(): Promise<boolean> {
         "push subscribe",
       ));
 
-    if (!subscription) return false;
+    if (!subscription) {
+      return { ok: false, reason: "Your iPhone wouldn't set up reminders. Close GymTaxx fully, reopen it, and try again." };
+    }
 
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
-    if (!userId) return false;
+    if (!userId) return { ok: false, reason: "You're signed out. Log in, then turn reminders on." };
 
     const { error } = await supabase.from("push_subscriptions").upsert(
       {
@@ -108,13 +127,52 @@ export async function registerForReminders(): Promise<boolean> {
     );
 
     if (error) {
+      // The half that used to fail invisibly. The raw message is kept because it
+      // names the actual cause — a blocked write, or a missing constraint.
       console.error("push: could not save subscription", error.message);
-      return false;
+      return { ok: false, reason: `Your phone couldn't be saved to our reminder list: ${error.message}` };
     }
 
-    return true;
+    return { ok: true };
   } catch (error) {
     console.error("push: registration failed", error);
+    const detail = error instanceof Error ? error.message : "unknown error";
+    return { ok: false, reason: `Setting up reminders failed: ${detail}` };
+  }
+}
+
+/** Boolean form, for callers that only need to know whether it worked. */
+export async function registerForReminders(): Promise<boolean> {
+  return (await registerForRemindersDetailed()).ok;
+}
+
+/**
+ * Whether *our server* has this exact device on file.
+ *
+ * `hasActiveReminders` only asks the browser, which is not the same question —
+ * a device the browser is happy with is still unreachable if it never made it
+ * onto our list. Checking both is what stops the switch quietly lying.
+ */
+export async function isRegisteredOnServer(): Promise<boolean> {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+    const registration = await withTimeout(navigator.serviceWorker.ready, 5000, "service worker ready");
+    if (!registration) return false;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) return false;
+
+    const { count, error } = await supabase
+      .from("push_subscriptions")
+      .select("id", { count: "exact", head: true })
+      .eq("endpoint", subscription.endpoint);
+
+    if (error) {
+      console.error("push: could not check server registration", error.message);
+      return false;
+    }
+    return (count ?? 0) > 0;
+  } catch (error) {
+    console.error("push: server registration check failed", error);
     return false;
   }
 }
