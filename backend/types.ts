@@ -258,7 +258,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_push_device: {
+        Args: {
+          p_auth: string
+          p_endpoint: string
+          p_p256dh: string
+          p_time_zone: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

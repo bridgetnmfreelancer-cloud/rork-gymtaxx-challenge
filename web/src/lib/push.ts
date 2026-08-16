@@ -114,21 +114,22 @@ export async function registerForRemindersDetailed(): Promise<RegisterResult> {
     const userId = sessionData.session?.user.id;
     if (!userId) return { ok: false, reason: "You're signed out. Log in, then turn reminders on." };
 
-    const { error } = await supabase.from("push_subscriptions").upsert(
-      {
-        user_id: userId,
-        endpoint: subscription.endpoint,
-        p256dh: arrayBufferToBase64Url(subscription.getKey("p256dh")),
-        auth: arrayBufferToBase64Url(subscription.getKey("auth")),
-        // The sender needs the user's own zone to pick a sensible hour.
-        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-      { onConflict: "endpoint" },
-    );
+    // Deliberately not a plain upsert. A phone whose push endpoint was last
+    // registered by a *different* account (a second account on a shared phone,
+    // or a test login) cannot overwrite that row under row-level security, and
+    // cannot delete it either — so reminders broke permanently and silently.
+    // `claim_push_device` transfers the device to the caller instead.
+    const { error } = await supabase.rpc("claim_push_device", {
+      p_endpoint: subscription.endpoint,
+      p_p256dh: arrayBufferToBase64Url(subscription.getKey("p256dh")),
+      p_auth: arrayBufferToBase64Url(subscription.getKey("auth")),
+      // The sender needs the user's own zone to pick a sensible hour.
+      p_time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
 
     if (error) {
-      // The half that used to fail invisibly. The raw message is kept because it
-      // names the actual cause — a blocked write, or a missing constraint.
+      // This half used to fail invisibly. The raw message is kept because it
+      // names the actual cause rather than hiding it behind a generic apology.
       console.error("push: could not save subscription", error.message);
       return { ok: false, reason: `Your phone couldn't be saved to our reminder list: ${error.message}` };
     }
