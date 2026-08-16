@@ -11,11 +11,11 @@ import { safeZone, weeklyStart } from "../_shared/gymweek.ts";
  * - **Mid-challenge and behind.** Told while there is still time to fix it,
  *   never after the week has closed. A reminder that arrives too late to act
  *   on just tells someone they've lost money.
- * - **Not in a challenge.** A short weekly sequence pointing back at the one
- *   thing left to do. The wording never assumes how far they got, so the same
- *   messages fit someone who never built a challenge and someone who built one
- *   and never paid — those two behave identically from here, and guessing wrong
- *   means congratulating people for something they haven't done.
+ * - **Not in a challenge.** A four-week sequence pointing back at the one thing
+ *   left to do, then silence. The wording never assumes how far they got, so the
+ *   same messages fit someone who never built a challenge and someone who built
+ *   one and never paid — those two behave identically from here, and guessing
+ *   wrong means congratulating people for something they haven't done.
  *
  * Meant to be called hourly by a scheduler. Each run only sends to people
  * whose *local* time is in the evening window, which is how one hourly job
@@ -35,14 +35,11 @@ const DAY_MS = 86_400_000;
 type Message = { title: string; body: string };
 
 /**
- * The weekly sequence for anyone yet to start a challenge, keyed by local
- * weekday (0 = Sunday). Friday closes the week off, Sunday looks at the next
- * one, Monday is the last day a challenge can still start inside it.
- *
- * Week-specific variants would slot in here later; for now every week reads the
- * same.
+ * Their first week, keyed by local weekday (0 = Sunday). Friday closes the week
+ * off, Sunday looks at the next one, and Monday is the last day a challenge can
+ * still start inside it.
  */
-const PRE_CHALLENGE_SCHEDULE: Record<number, Message | undefined> = {
+const WEEK_ONE_SCHEDULE: Record<number, Message | undefined> = {
   5: {
     title: "Be honest. How did this week go?",
     body: "Are you being consistent with the gym? We are still here for you if you need a little extra motivation.",
@@ -56,6 +53,25 @@ const PRE_CHALLENGE_SCHEDULE: Record<number, Message | undefined> = {
     body: "Last chance to join a challenge and actually stick to your routine this week.",
   },
 };
+
+/**
+ * Weeks two, three and four: twice a week, Friday and Sunday. The urgency of
+ * week one has passed, so this reads as an open door rather than a deadline —
+ * the same pair each week, quiet enough to repeat without grating.
+ */
+const LATER_WEEKS_SCHEDULE: Record<number, Message | undefined> = {
+  5: {
+    title: "Did you keep your promise this week?",
+    body: "You said you wanted to be more consistent. We are still here for you whenever you are ready!",
+  },
+  0: {
+    title: "Same goals. Different week?",
+    body: "Last chance to be consistent next week. Join a challenge and let's get you closer to your goals.",
+  },
+};
+
+/** The last week anyone yet to start a challenge hears from us. */
+const FINAL_WEEK = 4;
 
 /** The one-off nudge a few hours after signing up. */
 const WELCOME: Message = {
@@ -122,6 +138,35 @@ function localParts(now: Date, zone: string): { date: string; hour: number; week
 /** The local calendar date one day before `now`, as the user would read it. */
 function previousLocalDate(now: Date, zone: string): string {
   return localParts(new Date(now.getTime() - DAY_MS), zone).date;
+}
+
+/** A local calendar date as a plain day count, so days can be subtracted. */
+function localDayNumber(at: Date, zone: string): number {
+  const [year, month, day] = localParts(at, zone).date.split("-").map(Number);
+  return Math.round(Date.UTC(year, month - 1, day) / DAY_MS);
+}
+
+/**
+ * Which week of the pre-challenge sequence someone is in, counting from 1.
+ *
+ * Week one runs from signing up until the first Monday *after* that — the last
+ * day a challenge can still start in the week they joined, and the natural end
+ * of the opening sequence. Every week after that is a plain seven days.
+ *
+ * Returns a number above `FINAL_WEEK` once the sequence is spent.
+ */
+function preChallengeWeek(signedUpAt: Date, now: Date, zone: string): number {
+  const signUpDay = localDayNumber(signedUpAt, zone);
+  const signUpWeekday = localParts(signedUpAt, zone).weekday;
+
+  // Signing up on a Monday means the following Monday, not the same evening.
+  const daysToMonday = signUpWeekday === MONDAY ? 7 : (8 - signUpWeekday) % 7;
+  const closingMonday = signUpDay + daysToMonday;
+
+  const today = localDayNumber(now, zone);
+  if (today <= closingMonday) return 1;
+
+  return 1 + Math.ceil((today - closingMonday) / 7);
 }
 
 function plural(count: number, one: string, many: string): string {
@@ -217,7 +262,14 @@ Deno.serve(async (req) => {
           title = WELCOME.title;
           body = WELCOME.body;
         } else {
-          const scheduled = PRE_CHALLENGE_SCHEDULE[weekday];
+          const week = preChallengeWeek(new Date(sub.created_at), now, zone);
+          if (week > FINAL_WEEK) {
+            skipped += 1;
+            continue;
+          }
+
+          const scheduled =
+            week === 1 ? WEEK_ONE_SCHEDULE[weekday] : LATER_WEEKS_SCHEDULE[weekday];
           if (!scheduled || hour < SEND_HOUR_START || hour > SEND_HOUR_END) {
             skipped += 1;
             continue;
