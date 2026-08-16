@@ -107,7 +107,7 @@ const WELCOME_HOUR_END = 21;
 const FIRST_WORKOUT_CHECK_IN: Message = {
   title: "Wednesday check-in \u{1F440}",
   body:
-    "Just checking in for your first workout. Don't forget to log your workouts when you go to the gym to secure your stake!",
+    "Just checking in for your first workout. Don't forget to log your workouts when you go to the gym to secure your deposit!",
 };
 
 type Subscription = {

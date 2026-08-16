@@ -14,7 +14,7 @@ import { CHALLENGE_WEEKS, REWARD_PER_WORKOUT } from "@/lib/money";
 import { useQueryClient } from "@tanstack/react-query";
 
 /**
- * Step 10: the stake, stated plainly.
+ * Step 10: the deposit, stated plainly.
  *
  * Both outcomes are spelled out here rather than buried — someone should not be
  * able to reach the payment sheet without having read what happens if they miss.
