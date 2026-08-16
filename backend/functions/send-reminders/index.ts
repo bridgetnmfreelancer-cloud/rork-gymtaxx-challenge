@@ -11,9 +11,11 @@ import { safeZone, weeklyStart } from "../_shared/gymweek.ts";
  * - **Mid-challenge and behind.** Told while there is still time to fix it,
  *   never after the week has closed. A reminder that arrives too late to act
  *   on just tells someone they've lost money.
- * - **Installed but never paid.** Nudged back to the start screen, at most
- *   once a week. This is the return path the whole install-first funnel exists
- *   to create, so it has to earn its place without becoming spam.
+ * - **Not in a challenge.** A short weekly sequence pointing back at the one
+ *   thing left to do. The wording never assumes how far they got, so the same
+ *   messages fit someone who never built a challenge and someone who built one
+ *   and never paid — those two behave identically from here, and guessing wrong
+ *   means congratulating people for something they haven't done.
  *
  * Meant to be called hourly by a scheduler. Each run only sends to people
  * whose *local* time is in the evening window, which is how one hourly job
@@ -26,8 +28,57 @@ const SEND_HOUR_END = 20;
 
 /** Days a behind-schedule participant hears from us (0 = Sunday). */
 const NAG_DAYS = new Set<number>([3, 5, 0]);
-/** Day a non-paying installer gets their weekly nudge. */
-const WINBACK_DAY = 0;
+
+const MONDAY = 1;
+const DAY_MS = 86_400_000;
+
+type Message = { title: string; body: string };
+
+/**
+ * The weekly sequence for anyone yet to start a challenge, keyed by local
+ * weekday (0 = Sunday). Friday closes the week off, Sunday looks at the next
+ * one, Monday is the last day a challenge can still start inside it.
+ *
+ * Week-specific variants would slot in here later; for now every week reads the
+ * same.
+ */
+const PRE_CHALLENGE_SCHEDULE: Record<number, Message | undefined> = {
+  5: {
+    title: "Be honest. How did this week go?",
+    body: "Are you being consistent with the gym? We are still here for you if you need a little extra motivation.",
+  },
+  0: {
+    title: "Who will you be next week?",
+    body: "Set your gym goal and stick with it. Prove to yourself you can do it.",
+  },
+  1: {
+    title: "It starts today",
+    body: "Last chance to join a challenge and actually stick to your routine this week.",
+  },
+};
+
+/** The one-off nudge a few hours after signing up. */
+const WELCOME: Message = {
+  title: "You're almost there",
+  body: "Next step is setting up your challenge and you will be one step closer to reaching your gym goals.",
+};
+
+/**
+ * How long after registering the welcome may go out. The lower bound keeps it
+ * from arriving while they're still in the app; the upper bound stops a device
+ * that has somehow never been messaged from getting a "just signed up" note
+ * weeks later.
+ */
+const WELCOME_MIN_HOURS = 3;
+const WELCOME_MAX_HOURS = 72;
+
+/**
+ * A wider window than the evening one, because the welcome is timed from the
+ * sign-up rather than the clock. Sign-ups peak late at night and three hours
+ * after a 1am sign-up is 4am, so a late joiner is held until the morning.
+ */
+const WELCOME_HOUR_START = 9;
+const WELCOME_HOUR_END = 21;
 
 /** After this many consecutive delivery failures, stop trying this device. */
 const MAX_FAILURES = 5;
@@ -41,6 +92,7 @@ type Subscription = {
   time_zone: string;
   last_sent_on: string | null;
   failure_count: number;
+  created_at: string;
 };
 
 /** The local calendar date and hour for a zone, as the user would read them. */
@@ -65,6 +117,11 @@ function localParts(now: Date, zone: string): { date: string; hour: number; week
     hour: Number.parseInt(get("hour"), 10) % 24,
     weekday: weekdayMap[get("weekday")] ?? 1,
   };
+}
+
+/** The local calendar date one day before `now`, as the user would read it. */
+function previousLocalDate(now: Date, zone: string): string {
+  return localParts(new Date(now.getTime() - DAY_MS), zone).date;
 }
 
 function plural(count: number, one: string, many: string): string {
@@ -94,7 +151,7 @@ Deno.serve(async (req) => {
 
   const { data: subscriptions, error } = await admin
     .from("push_subscriptions")
-    .select("id, user_id, endpoint, p256dh, auth, time_zone, last_sent_on, failure_count")
+    .select("id, user_id, endpoint, p256dh, auth, time_zone, last_sent_on, failure_count, created_at")
     .lt("failure_count", MAX_FAILURES);
 
   if (error) {
@@ -110,11 +167,8 @@ Deno.serve(async (req) => {
       const zone = safeZone(sub.time_zone);
       const { date, hour, weekday } = localParts(now, zone);
 
-      // Right hour, and never twice in one local day.
-      if (hour < SEND_HOUR_START || hour > SEND_HOUR_END) {
-        skipped += 1;
-        continue;
-      }
+      // Never twice in one local day, whoever they are. Acceptable hours differ
+      // per message, so those are checked inside each branch below.
       if (sub.last_sent_on === date) {
         skipped += 1;
         continue;
@@ -136,14 +190,52 @@ Deno.serve(async (req) => {
       let url: string;
 
       if (!participation) {
-        // Never paid, or finished. One nudge a week, on the day before a
-        // Monday start — the moment it's easiest to say yes.
-        if (weekday !== WINBACK_DAY) {
+        const { count: paidBefore } = await admin
+          .from("user_challenges")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", sub.user_id)
+          .eq("payment_status", "paid");
+
+        // Someone whose four weeks have finished needs their own sequence —
+        // inviting them to take a first step they've already taken reads as if
+        // we weren't paying attention. Silence beats the wrong words until that
+        // sequence is written.
+        if ((paidBefore ?? 0) > 0) {
           skipped += 1;
           continue;
         }
-        title = "Your challenge starts tomorrow";
-        body = "You built it. Put something behind it and it begins Monday.";
+
+        const ageHours = (now.getTime() - new Date(sub.created_at).getTime()) / 3_600_000;
+        const isWelcomeDue =
+          sub.last_sent_on === null && ageHours >= WELCOME_MIN_HOURS && ageHours <= WELCOME_MAX_HOURS;
+
+        if (isWelcomeDue) {
+          if (hour < WELCOME_HOUR_START || hour > WELCOME_HOUR_END) {
+            skipped += 1;
+            continue;
+          }
+          title = WELCOME.title;
+          body = WELCOME.body;
+        } else {
+          const scheduled = PRE_CHALLENGE_SCHEDULE[weekday];
+          if (!scheduled || hour < SEND_HOUR_START || hour > SEND_HOUR_END) {
+            skipped += 1;
+            continue;
+          }
+
+          // Two evenings running reads as pestering, which is exactly what a
+          // Saturday sign-up would otherwise get. Monday is the exception: it's
+          // the last day a challenge can still start this week, so it goes out
+          // even to someone who heard from us on Sunday.
+          if (weekday !== MONDAY && sub.last_sent_on === previousLocalDate(now, zone)) {
+            skipped += 1;
+            continue;
+          }
+
+          title = scheduled.title;
+          body = scheduled.body;
+        }
+
         url = "/home";
       } else {
         const goal = participation.goal_workouts_per_week;
