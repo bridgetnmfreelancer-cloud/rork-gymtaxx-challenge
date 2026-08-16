@@ -86,6 +86,31 @@ export function weeklyStart(at: Date, zone: string = DEFAULT_ZONE): Date {
   );
 }
 
+/**
+ * The Monday of the week `at` falls in, in `zone` — the start of the week that is
+ * currently being scored.
+ *
+ * The counterpart to `weeklyStart`, which looks *forward* to the Monday a new
+ * challenge would open on. Counting the workouts done so far this week needs the
+ * Monday already behind you; the forward-looking one filters on a date in the
+ * future and always counts zero.
+ */
+export function currentWeekStart(at: Date, zone: string = DEFAULT_ZONE): Date {
+  const tz = safeZone(zone);
+  const local = new Date(at.getTime() + zoneOffsetMs(at, tz));
+  const weekday = local.getUTCDay(); // 0 Sun, 1 Mon
+  // Weeks run Monday 00:00 to Sunday 23:59, so Sunday looks back six days.
+  const daysBack = (weekday + 6) % 7;
+
+  const target = new Date(local.getTime() - daysBack * DAY_MS);
+  return zoneMidnight(
+    target.getUTCFullYear(),
+    target.getUTCMonth() + 1,
+    target.getUTCDate(),
+    tz,
+  );
+}
+
 /** Whole weeks between two instants, rounded — used to preserve a challenge's length. */
 export function weeksBetween(start: Date, end: Date): number {
   return Math.round((end.getTime() - start.getTime()) / (7 * DAY_MS));

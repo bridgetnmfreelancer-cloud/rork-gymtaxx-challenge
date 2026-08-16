@@ -5,6 +5,8 @@ import {
   json,
   requireAuth,
 } from "../_shared/auth.ts";
+import { currentWeekStart, safeZone } from "../_shared/gymweek.ts";
+import { notifyUser } from "../_shared/push.ts";
 
 const PROOF_BUCKET = "workout-proofs";
 /** How long a proof photo link stays valid for the reviewer. */
@@ -33,6 +35,82 @@ function adminEmails(): string[] {
     .split(",")
     .map((entry) => entry.trim().toLowerCase())
     .filter((entry) => entry.length > 0);
+}
+
+type Admin = ReturnType<typeof createAdminClient>;
+
+/** Used only if a challenge row somehow predates the reward column. */
+const FALLBACK_REWARD = 5;
+
+/**
+ * Tells the participant what was decided about their proof.
+ *
+ * Waiting on a human review is the one part of the app nobody can see progress
+ * on, so the decision is worth interrupting someone for either way — an approval
+ * because it is the moment money comes back, a rejection because it is only
+ * fixable while there is still week left.
+ *
+ * Swallows every error it can raise. The decision is already recorded by the time
+ * this runs, and a failed notification must never make a successful review look
+ * like it failed.
+ */
+async function notifyDecision(
+  admin: Admin,
+  userId: string,
+  participationId: string,
+  decision: "verified" | "rejected",
+  reason: string | null,
+): Promise<void> {
+  try {
+    if (decision === "rejected") {
+      await notifyUser(admin, userId, {
+        title: "Workout not approved",
+        body: reason
+          ? `${reason} \u2014 log another from the gym and we'll take another look.`
+          : "Log another one from the gym and we'll take another look.",
+        url: "/history",
+        tag: "gymtaxx-review",
+      });
+      return;
+    }
+
+    const { data: participation } = await admin
+      .from("user_challenges")
+      .select("goal_workouts_per_week, time_zone, currency, challenges(reward_per_workout)")
+      .eq("id", participationId)
+      .maybeSingle();
+
+    const challenge = Array.isArray(participation?.challenges)
+      ? participation?.challenges[0]
+      : participation?.challenges;
+
+    const reward = Number(challenge?.reward_per_workout ?? FALLBACK_REWARD);
+    const symbol = String(participation?.currency ?? "gbp").toLowerCase() === "usd" ? "$" : "\u00A3";
+    const goal = Number(participation?.goal_workouts_per_week ?? 0);
+
+    const weekStart = currentWeekStart(new Date(), safeZone(participation?.time_zone));
+    const { count } = await admin
+      .from("workout_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_challenge_id", participationId)
+      .eq("status", "verified")
+      .gte("captured_at", weekStart.toISOString());
+
+    const done = count ?? 0;
+    const earned = `${symbol}${reward} earned back.`;
+
+    await notifyUser(admin, userId, {
+      title: "Workout approved \u2705",
+      body:
+        goal > 0 && done >= goal
+          ? `${earned} That's the week complete \u2014 ${done} of ${goal}.`
+          : `${earned} ${done} of ${goal} done this week.`,
+      url: "/home",
+      tag: "gymtaxx-review",
+    });
+  } catch (err) {
+    console.error("review-workouts: decision notification failed", err);
+  }
 }
 
 type ReviewRequest = {
@@ -119,7 +197,7 @@ Deno.serve(async (req) => {
       const reason =
         decision === "rejected" && body.reason ? String(body.reason).slice(0, 200) : null;
 
-      const { error } = await admin
+      const { data: reviewed, error } = await admin
         .from("workout_submissions")
         .update({
           status: decision,
@@ -127,11 +205,23 @@ Deno.serve(async (req) => {
           reviewed_at: new Date().toISOString(),
           reviewed_by: user.id,
         })
-        .eq("id", submissionId);
+        .eq("id", submissionId)
+        .select("user_id, user_challenge_id")
+        .maybeSingle();
 
       if (error) {
         console.error("review-workouts: decision failed", submissionId, error.message);
         return json({ error: "update_failed" }, 500);
+      }
+
+      if (reviewed) {
+        await notifyDecision(
+          admin,
+          reviewed.user_id,
+          reviewed.user_challenge_id,
+          decision,
+          reason,
+        );
       }
 
       return json({ status: "ok" });

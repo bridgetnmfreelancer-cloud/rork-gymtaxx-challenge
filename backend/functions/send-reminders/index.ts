@@ -1,7 +1,8 @@
 import webpush from "npm:web-push@3.6.7";
 
 import { corsHeaders, createAdminClient, json } from "../_shared/auth.ts";
-import { safeZone, weeklyStart } from "../_shared/gymweek.ts";
+import { currentWeekStart, safeZone } from "../_shared/gymweek.ts";
+import { MAX_FAILURES } from "../_shared/push.ts";
 
 /**
  * Sends the reminders that bring people back.
@@ -30,6 +31,7 @@ const SEND_HOUR_END = 20;
 const NAG_DAYS = new Set<number>([3, 5, 0]);
 
 const MONDAY = 1;
+const WEDNESDAY = 3;
 const DAY_MS = 86_400_000;
 
 type Message = { title: string; body: string };
@@ -96,8 +98,17 @@ const WELCOME_MAX_HOURS = 72;
 const WELCOME_HOUR_START = 9;
 const WELCOME_HOUR_END = 21;
 
-/** After this many consecutive delivery failures, stop trying this device. */
-const MAX_FAILURES = 5;
+/**
+ * Midway through the first week, for someone who has not logged anything at all
+ * yet. Their deposit is down and nothing is coming back, which is the worst
+ * position to be in silently — and Wednesday still leaves most of the week to
+ * fix it.
+ */
+const FIRST_WORKOUT_CHECK_IN: Message = {
+  title: "Wednesday check-in \u{1F440}",
+  body:
+    "Just checking in for your first workout. Don't forget to log your workouts when you go to the gym to secure your stake!",
+};
 
 type Subscription = {
   id: string;
@@ -291,7 +302,7 @@ Deno.serve(async (req) => {
         url = "/home";
       } else {
         const goal = participation.goal_workouts_per_week;
-        const weekStart = weeklyStart(now, safeZone(participation.time_zone));
+        const weekStart = currentWeekStart(now, safeZone(participation.time_zone));
 
         const { count } = await admin
           .from("workout_submissions")
@@ -312,9 +323,25 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // "Your first workout" has to actually be their first, so this looks at
+        // the whole challenge rather than just this week — and counts every
+        // submission regardless of status, because someone whose proof was
+        // rejected has still logged one and needs the count, not the welcome.
+        let isFirstEver = false;
+        if (weekday === WEDNESDAY && done === 0) {
+          const { count: everCount } = await admin
+            .from("workout_submissions")
+            .select("id", { count: "exact", head: true })
+            .eq("user_challenge_id", participation.id);
+          isFirstEver = (everCount ?? 0) === 0;
+        }
+
         const daysLeft = weekday === 0 ? 1 : 7 - weekday + 1;
 
-        if (weekday === 0) {
+        if (isFirstEver) {
+          title = FIRST_WORKOUT_CHECK_IN.title;
+          body = FIRST_WORKOUT_CHECK_IN.body;
+        } else if (weekday === 0) {
           title = remaining === 1 ? "One workout left today" : `${remaining} workouts left today`;
           body = "The week closes at midnight. After that it's gone.";
         } else {
