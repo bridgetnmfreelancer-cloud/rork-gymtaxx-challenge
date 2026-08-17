@@ -1,9 +1,8 @@
-import { Compass, MoreHorizontal, Share, SquarePlus } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { MoreHorizontal, Share, SquarePlus } from "lucide-react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Logo } from "@/components/Logo";
-import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
+import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { isInAppBrowser } from "@/lib/pwa";
 import { recordVisit } from "@/lib/visitor";
 
@@ -33,17 +32,28 @@ function RoundChip({ icon: Icon, label }: { icon: typeof Share; label: string })
   );
 }
 
-const STEPS: ReactNode[] = [
-  <>
-    Press <RoundChip icon={MoreHorizontal} label="Browser menu" /> in the bottom left corner
-  </>,
-  <>
-    Tap <Chip icon={Share} label="Share" /> and then <Chip label="View more" />
-  </>,
-  <>
-    Select <Chip icon={SquarePlus} label="Add to Home Screen" />
-  </>,
-];
+/**
+ * A standalone swatch of the control, shown under its step.
+ *
+ * The Share button carries no label in Safari, so a written description alone
+ * leaves someone scanning a toolbar for a word that isn't there.
+ */
+function ControlBox({ icon: Icon, label }: { icon: typeof Share; label?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-2.5 rounded-lg border border-border ${
+        label ? "px-3.5 py-2.5" : "h-12 w-12 justify-center"
+      }`}
+      role="img"
+      aria-label={label ?? "Share"}
+    >
+      <Icon className="h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
+      {label ? <span className="text-base font-semibold text-foreground">{label}</span> : null}
+    </span>
+  );
+}
+
+type Step = { title: ReactNode; detail?: ReactNode };
 
 /**
  * Step 2 of the funnel, and deliberately before the pitch.
@@ -52,9 +62,18 @@ const STEPS: ReactNode[] = [
  * on iPhone, push is only granted to an installed web app. The cost is real
  * drop-off here, so the page stays short and gives a way past.
  *
+ * Safari is step one rather than a subtitle. Watching someone open the page in
+ * Chrome showed the cost of burying it: the steps described a Share button she
+ * did not have, and it took nearly two minutes to work out why. The browser
+ * requirement is the first thing that can be wrong, so it is now the first
+ * thing read.
+ *
+ * Step three covers older iOS toolbars, where Share sits behind the overflow
+ * menu instead of on the bar itself. People rarely know which layout they have,
+ * so it is framed as a question they can answer by looking.
+ *
  * iPhone only in v1 — Android arrives later via the Play Store, so there is no
- * second set of steps. The steps name the exact controls in Safari; describing
- * a button someone cannot see reads as being in the wrong place.
+ * second set of steps.
  *
  * There is deliberately no "I've installed it" button: adding to the Home
  * Screen drops the person onto their Home Screen, so a confirm button would sit
@@ -63,7 +82,6 @@ const STEPS: ReactNode[] = [
 export default function Install() {
   const navigate = useNavigate();
   const embedded = isInAppBrowser();
-  const host = typeof window === "undefined" ? "gymtaxx.com" : window.location.host;
 
   // The step with no completion signal — finishing an install closes this page
   // rather than advancing it. Counting arrivals here is what makes the size of
@@ -72,40 +90,71 @@ export default function Install() {
     void recordVisit("install");
   }, []);
 
+  const steps = useMemo<Step[]>(
+    () => [
+      {
+        title: "Open this page in Safari",
+        detail: (
+          <p className="mt-1.5 text-base leading-relaxed text-muted-foreground">
+            GymTaxx can only be installed from Safari on iPhone.
+            {embedded ? ' Tap the menu in the corner and choose "Open in browser".' : ""}
+          </p>
+        ),
+      },
+      {
+        title: (
+          <>
+            Tap the <span className="font-semibold">Share</span> button
+          </>
+        ),
+        detail: (
+          <span className="mt-2.5 block">
+            <ControlBox icon={Share} />
+          </span>
+        ),
+      },
+      {
+        title: "Don't see Share?",
+        detail: (
+          <p className="mt-1.5 text-base leading-loose text-muted-foreground">
+            Tap <RoundChip icon={MoreHorizontal} label="Browser menu" />, then <Chip label="View more" /> to find it.
+          </p>
+        ),
+      },
+      {
+        title: (
+          <>
+            Tap <span className="font-semibold">Add to Home Screen</span>
+          </>
+        ),
+        detail: (
+          <span className="mt-2.5 block">
+            <ControlBox icon={SquarePlus} label="Add to Home Screen" />
+          </span>
+        ),
+      },
+    ],
+    [embedded],
+  );
+
   return (
     <Screen>
       <div className="mt-6 animate-rise-in">
         <ScreenTitle>Install the app</ScreenTitle>
-        <ScreenSubtitle>You'll need to be in the Safari browser to install GymTaxx.</ScreenSubtitle>
       </div>
 
-      <div className="mt-6 flex items-center gap-4 rounded-xl border border-border bg-card p-4 animate-rise-in [animation-delay:60ms]">
-        <Logo size={56} />
-        <div className="min-w-0">
-          <p className="font-extrabold leading-tight tracking-tight text-foreground">GymTaxx</p>
-          <p className="mt-0.5 truncate text-sm text-muted-foreground">{host}</p>
-        </div>
-      </div>
-
-      {embedded ? (
-        <div className="mt-4 flex gap-3 rounded-lg border border-border p-4 animate-rise-in [animation-delay:100ms]">
-          <Compass className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">Open this in Safari first.</span> Tap the menu in the corner
-            and choose "Open in browser" — you can't add to your Home Screen from inside this app.
-          </p>
-        </div>
-      ) : null}
-
-      <ol className="mt-7 space-y-5">
-        {STEPS.map((step, index) => (
+      <ol className="mt-8 space-y-7">
+        {steps.map((step, index) => (
           <li
             key={index}
-            className="flex items-baseline gap-3 animate-rise-in"
-            style={{ animationDelay: `${140 + index * 70}ms` }}
+            className="flex gap-3 animate-rise-in"
+            style={{ animationDelay: `${80 + index * 70}ms` }}
           >
             <span className="tabular shrink-0 text-base font-bold text-muted-foreground">{index + 1}.</span>
-            <p className="text-base leading-[2] text-foreground">{step}</p>
+            <div className="min-w-0">
+              <p className="text-base leading-snug text-foreground">{step.title}</p>
+              {step.detail}
+            </div>
           </li>
         ))}
       </ol>
