@@ -116,9 +116,11 @@ type Step = { title: ReactNode; detail?: ReactNode };
  * requirement is the first thing that can be wrong, so it is now the first
  * thing read, and step one calls the browser out by name when it can.
  *
- * Step three covers older iOS toolbars, where Share sits behind the overflow
- * menu instead of on the bar itself. People rarely know which layout they have,
- * so it is framed as a question they can answer by looking.
+ * The only difference between iOS toolbar layouts is how Share is reached: on
+ * older ones it sits behind the overflow menu rather than on the bar itself.
+ * That is why the three dots are a fallback inside the Share step rather than a
+ * step of their own — View more comes after Share on both layouts, so it stays
+ * unconditional and the numbering reads as one path instead of a branch.
  *
  * iPhone only in v1 — Android arrives later via the Play Store, so there is no
  * second set of steps.
