@@ -52,9 +52,13 @@ type Person = {
   verified: number;
 };
 
+type Journey = { stages: Stage[]; steps: Step[] };
+
 type Stats = {
   since: string;
   days: number;
+  journey: Journey;
+  trackingStartedAt: string | null;
   stages: Stage[];
   steps: Step[];
   installed: {
@@ -87,6 +91,56 @@ const STAGE_NAMES: Record<string, string> = {
   paid: "Paid",
   logged_workout: "Logged a workout",
 };
+
+const EMPTY_ARRIVALS: Arrivals = {
+  stages: [],
+  steps: [],
+  total: 0,
+  skippedLanding: 0,
+  inAppBrowser: 0,
+  continuedInBrowser: 0,
+  signedUpInBrowser: 0,
+  fromInstalledApp: { reachedSignup: 0, signedUp: 0 },
+};
+
+/**
+ * Fill in anything the server didn't send.
+ *
+ * This screen reads deep into the response, and a single missing branch used to
+ * take the entire page down to a white screen — which is exactly what happened
+ * when the deployed function was a version behind the client that called it.
+ * An analytics page failing to show one card is a nuisance; failing to render
+ * at all looks like the whole thing is broken.
+ */
+function normalise(data: Partial<Stats> | undefined): Stats {
+  return {
+    since: data?.since ?? "",
+    days: data?.days ?? 0,
+    journey: {
+      stages: data?.journey?.stages ?? [],
+      steps: data?.journey?.steps ?? [],
+    },
+    trackingStartedAt: data?.trackingStartedAt ?? null,
+    stages: data?.stages ?? [],
+    steps: data?.steps ?? [],
+    installed: {
+      stages: data?.installed?.stages ?? [],
+      steps: data?.installed?.steps ?? [],
+      notInstalledPaid: data?.installed?.notInstalledPaid ?? 0,
+      notInstalledTotal: data?.installed?.notInstalledTotal ?? 0,
+    },
+    installConfidence: {
+      confirmed: data?.installConfidence?.confirmed ?? 0,
+      inferredFromReminders: data?.installConfidence?.inferredFromReminders ?? 0,
+    },
+    arrivals: data?.arrivals ?? EMPTY_ARRIVALS,
+    sources: data?.sources ?? [],
+    visitsByDay: data?.visitsByDay ?? [],
+    byDay: data?.byDay ?? [],
+    places: data?.places ?? [],
+    people: data?.people ?? [],
+  };
+}
 
 /** "Europe/London" reads as "London" — the region prefix adds nothing here. */
 function placeName(zone: string): string {
@@ -160,7 +214,12 @@ function DropRow({ step, worst }: { step: Step; worst: boolean }) {
 }
 
 function Funnel({ stages, steps }: { stages: Stage[]; steps: Step[] }) {
-  const top = stages[0]?.count ?? 0;
+  // Sized against the biggest rung rather than the first one. Normally they are
+  // the same, but the whole-journey funnel mixes visitor counts with account
+  // counts, and when visitor tracking is younger than the accounts a later rung
+  // can legitimately be bigger than the first — which would otherwise draw a bar
+  // several times wider than the card.
+  const top = stages.reduce((max, stage) => Math.max(max, stage.count), 0);
   const worstLost = steps.reduce((max, step) => Math.max(max, step.lost), 0);
   // Only ever flag one step as the worst, even when two lose the same number.
   const worstIndex = steps.findIndex((step) => step.lost === worstLost && step.lost > 0);
@@ -206,12 +265,14 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 export default function Stats() {
   const [days, setDays] = useState<number>(1);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data: raw, isLoading, isError } = useQuery({
     queryKey: ["funnel", days],
-    queryFn: () => callFunction<Stats>("funnel-stats", { days }),
+    queryFn: () => callFunction<Partial<Stats>>("funnel-stats", { days }),
     staleTime: 60_000,
     retry: 0,
   });
+
+  const data = useMemo(() => normalise(raw), [raw]);
 
   const people = useMemo(() => data?.people ?? [], [data]);
 
@@ -302,6 +363,16 @@ export default function Stats() {
   const sawLanding = arrivals.stages[0]?.count ?? 0;
   const installedCount = data.stages.find((stage) => stage.key === "installed")?.count ?? 0;
   const { confirmed, inferredFromReminders } = data.installConfidence;
+  const journeyTotal = data.journey.stages.reduce((sum, stage) => sum + stage.count, 0);
+
+  /**
+   * Visitor tracking is younger than the accounts, so on the wider ranges the
+   * top of the funnel is missing days that the bottom of it still counts. Said
+   * plainly, because otherwise it reads as a collapse in traffic.
+   */
+  const trackingNote = data.trackingStartedAt
+    ? `Visitor counting started ${timeLabel(data.trackingStartedAt)}. Anyone who arrived before then is missing from the first three rows but still counted in the rest.`
+    : null;
 
   return (
     <Screen className="pb-12">
@@ -355,6 +426,30 @@ export default function Stats() {
           <p className="mt-0.5 text-xs text-muted-foreground">Paid</p>
         </div>
       </div>
+
+      <Card title="The whole journey">
+        {journeyTotal === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing recorded in this range.</p>
+        ) : (
+          <>
+            <Funnel stages={data.journey.stages} steps={data.journey.steps} />
+            <p className="mt-4 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
+              The first three rows count browsers; the rest count accounts. The step between them is the install, and
+              an installed app gets its own private storage on iPhone, so someone who installs comes back looking like
+              a brand new visitor and cannot be matched to the advert they arrived from. Treat that one step as a
+              rough guide and every other step as exact.
+            </p>
+            {trackingNote ? (
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{trackingNote}</p>
+            ) : null}
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Of the {signedUp} who signed up,{" "}
+              <span className="tabular font-semibold text-foreground">{installedCount}</span> are running it from their
+              home screen. Installs by people who never signed up cannot be counted at all.
+            </p>
+          </>
+        )}
+      </Card>
 
       <Card title="Before they sign up">
         {arrivals.total === 0 ? (

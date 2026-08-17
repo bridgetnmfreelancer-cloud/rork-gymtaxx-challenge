@@ -258,6 +258,46 @@ function buildArrivals(visits: VisitRow[]) {
   };
 }
 
+/**
+ * The whole journey on one ladder, from advert click to deposit paid.
+ *
+ * Deliberately spans two different measuring systems, because no single one can
+ * see the whole thing. The first three rungs count anonymous browsers; the rest
+ * count accounts. The join between them is the install, and on iPhone an
+ * installed app is given its own private storage, so the person who installs
+ * comes back indistinguishable from a stranger. Nothing can carry an id across
+ * that gap.
+ *
+ * The practical consequence is that the step from "reached the install steps"
+ * to "signed up" is the one number here that is an estimate rather than a
+ * count, and it reads wrong whenever the two sides cover different periods —
+ * visitor tracking started long after the first accounts existed. The client
+ * says so on screen rather than letting it be read as a real leak.
+ */
+function buildJourney(visits: VisitRow[], rows: FunnelRow[]): { stages: Stage[]; steps: Step[] } {
+  const browser = visits.filter((visit) => !visit.is_standalone);
+
+  const stages: Stage[] = [
+    { key: "landed", label: "Saw the landing page", count: browser.filter((v) => v.landed_at !== null).length },
+    { key: "tapped_join", label: "Tapped Join", count: browser.filter((v) => v.tapped_join_at !== null).length },
+    {
+      key: "reached_install",
+      label: "Reached the install steps",
+      count: browser.filter((v) => v.reached_install_at !== null).length,
+    },
+    { key: "signed_up", label: "Signed up", count: rows.length },
+    { key: "answered", label: "Answered the questions", count: rows.filter((r) => r.answered).length },
+    {
+      key: "built",
+      label: "Started setting up their challenge",
+      count: rows.filter((r) => r.has_challenge).length,
+    },
+    { key: "paid", label: "Paid the deposit", count: rows.filter(isPaid).length },
+  ];
+
+  return { stages, steps: buildSteps(stages) };
+}
+
 /** Which ad or link brought them, first touch only. */
 function buildSources(visits: VisitRow[]): { source: string; visitors: number; reachedInstall: number }[] {
   const counts = new Map<string, { visitors: number; reachedInstall: number }>();
@@ -351,6 +391,17 @@ Deno.serve(async (req) => {
     if (visitError) console.error("funnel-stats: visits query failed", visitError);
     const visits = (visitData ?? []) as VisitRow[];
 
+    // The first visit ever recorded, regardless of the range being viewed.
+    // Without it the visitor numbers look catastrophic on the "All" range,
+    // where accounts go back to launch but visits only go back to the day
+    // tracking shipped.
+    const { data: firstVisit } = await admin
+      .from("visits")
+      .select("first_seen_at")
+      .order("first_seen_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
     // The same funnel, but starting from people who reached the home screen.
     // This is the one that says whether installing actually helps someone pay.
     const installedRows = rows.filter(isInstalled);
@@ -364,6 +415,8 @@ Deno.serve(async (req) => {
       days,
       stages,
       steps,
+      journey: buildJourney(visits, rows),
+      trackingStartedAt: firstVisit?.first_seen_at ?? null,
       arrivals: buildArrivals(visits),
       sources: buildSources(visits),
       visitsByDay: buildVisitsByDay(visits),
