@@ -80,6 +80,17 @@ export default function Verify() {
 
   useEffect(() => stopCamera, [stopCamera]);
 
+  // Reachable directly by URL, so the start date is enforced here too. A photo
+  // taken before the opening Monday falls outside all four weeks and would earn
+  // nothing, however it was reviewed.
+  const notStartedYet = participation !== null && participation !== undefined
+    ? new Date() < new Date(participation.started_at)
+    : false;
+
+  useEffect(() => {
+    if (notStartedYet) navigate("/home", { replace: true });
+  }, [notStartedYet, navigate]);
+
   // Revoke the preview blob URL when it's replaced, or it leaks for the session.
   useEffect(() => {
     return () => {

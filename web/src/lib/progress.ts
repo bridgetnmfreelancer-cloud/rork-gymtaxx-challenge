@@ -25,6 +25,8 @@ export type ChallengeProgress = {
   end: Date;
   /** End of the week in play — the deadline shown on the dashboard. */
   weekEnds: Date;
+  /** False while a paid challenge is still waiting for its opening Monday. */
+  hasStarted: boolean;
   verifiedThisWeek: number;
   pendingThisWeek: number;
   verifiedTotal: number;
@@ -41,6 +43,13 @@ export type ChallengeProgress = {
  * Money is derived from *verified* submissions only: a pending photo has not
  * earned anything yet, and showing it as earned would be a promise we might
  * have to take back at review.
+ *
+ * It is also derived from submissions *inside the challenge window* only. Money
+ * used to be counted from every verified submission on the participation, while
+ * the weekly counts were always windowed — so a workout logged before the
+ * opening Monday paid out while appearing in no week at all, leaving the
+ * dashboard reading "£5 earned" above "0 of 4 done". Both numbers now come from
+ * the same set, so they can never disagree again.
  */
 export function computeProgress({
   participation,
@@ -70,9 +79,14 @@ export function computeProgress({
     return at >= weekFrom && at < weekEnds;
   });
 
+  const inChallenge = submissions.filter((row) => {
+    const at = new Date(row.captured_at);
+    return at >= start && at < end;
+  });
+
   const verifiedThisWeek = inThisWeek.filter((row) => statusOf(row) === "verified").length;
   const pendingThisWeek = inThisWeek.filter((row) => statusOf(row) === "pending").length;
-  const verifiedTotal = submissions.filter((row) => statusOf(row) === "verified").length;
+  const verifiedTotal = inChallenge.filter((row) => statusOf(row) === "verified").length;
 
   const deposit = depositFor(goalPerWeek, totalWeeks);
   const earned = Math.min(verifiedTotal * reward, deposit);
@@ -86,6 +100,7 @@ export function computeProgress({
     start,
     end,
     weekEnds,
+    hasStarted: now >= start,
     verifiedThisWeek,
     pendingThisWeek,
     verifiedTotal,

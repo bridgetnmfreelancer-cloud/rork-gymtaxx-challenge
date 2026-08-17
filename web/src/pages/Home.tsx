@@ -138,6 +138,13 @@ function Dashboard({
     [submissions, participation.time_zone],
   );
 
+  // Paid, but the opening Monday hasn't arrived. Logging now would bank nothing:
+  // the workout would sit outside all four weeks and earn nothing back.
+  const startLabel = useMemo(
+    () => formatStartDate(progress.start, participation.time_zone, locale),
+    [progress.start, participation.time_zone, locale],
+  );
+
   const recent = submissions.slice(0, 3);
 
   return (
@@ -193,13 +200,23 @@ function Dashboard({
         <Button
           size="xl"
           className="w-full"
-          disabled={loggedToday || progress.isComplete}
+          disabled={loggedToday || progress.isComplete || !progress.hasStarted}
           onClick={() => navigate("/verify")}
         >
           <Camera className="h-5 w-5" aria-hidden="true" />
-          {progress.isComplete ? "Challenge finished" : loggedToday ? "Logged for today" : "Verify a workout"}
+          {progress.isComplete
+            ? "Challenge finished"
+            : !progress.hasStarted
+              ? `Starts ${startLabel}`
+              : loggedToday
+                ? "Logged for today"
+                : "Verify a workout"}
         </Button>
-        {loggedToday && !progress.isComplete ? (
+        {!progress.hasStarted ? (
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Workouts count from {startLabel}. Anything logged before then earns nothing back.
+          </p>
+        ) : loggedToday && !progress.isComplete ? (
           <p className="mt-3 text-center text-xs text-muted-foreground">
             One workout a day counts. Come back tomorrow.
           </p>
