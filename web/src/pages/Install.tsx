@@ -192,17 +192,26 @@ export default function Install() {
           </>
         ),
         detail: (
-          <span className="mt-2.5 block">
-            <ControlBox icon={Share} />
-          </span>
+          <>
+            <span className="mt-2.5 block">
+              <ControlBox icon={Share} />
+            </span>
+            <p className="mt-2.5 text-base leading-loose text-muted-foreground">
+              Don't see it? Tap <RoundChip icon={MoreHorizontal} label="Browser menu" /> to reveal it.
+            </p>
+          </>
         ),
       },
       {
-        title: "Don't see Share?",
+        title: (
+          <>
+            Tap <span className="font-semibold">View more</span>
+          </>
+        ),
         detail: (
-          <p className="mt-1.5 text-base leading-loose text-muted-foreground">
-            Tap <RoundChip icon={MoreHorizontal} label="Browser menu" />, then <Chip label="View more" /> to find it.
-          </p>
+          <span className="mt-2.5 block">
+            <Chip label="View more" />
+          </span>
         ),
       },
       {
