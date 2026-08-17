@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ShieldAlert, TrendingDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertTriangle, Copy, Download, Loader2, ShieldAlert, TrendingDown } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { Screen, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
+import { suggestEmailFix } from "@/lib/email";
 import { callFunction } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -185,6 +187,65 @@ export default function Stats() {
 
   const people = useMemo(() => data?.people ?? [], [data]);
 
+  const emails = useMemo<string[]>(
+    () => people.map((person) => person.email).filter((email): email is string => Boolean(email)),
+    [people],
+  );
+
+  /**
+   * Addresses that look mistyped.
+   *
+   * Sending to these is worse than pointless: every bounce chips away at the
+   * sending reputation of the domain, which makes the reminders and password
+   * resets that matter more likely to land in spam.
+   */
+  const suspect = useMemo<{ email: string; likely: string }[]>(
+    () =>
+      emails
+        .map((email) => ({ email, likely: suggestEmailFix(email) }))
+        .filter((row): row is { email: string; likely: string } => row.likely !== null),
+    [emails],
+  );
+
+  const copyEmails = useCallback(async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(emails.join(", "));
+      toast.success(`${emails.length} addresses copied`);
+    } catch (error) {
+      console.error("stats: clipboard refused", error);
+      toast.error("Couldn't copy. Use the file instead.");
+    }
+  }, [emails]);
+
+  const downloadCsv = useCallback((): void => {
+    // Quoted so an address never breaks a column, and with the funnel stage
+    // alongside it so the list can be segmented rather than blasted.
+    const header = "email,signed_up,stage,place,goal,currency,reachable_by_reminder";
+    const rows = people
+      .filter((person) => person.email)
+      .map((person) =>
+        [
+          person.email ?? "",
+          person.signedUpAt,
+          person.stage,
+          person.place ?? "",
+          person.goal ?? "",
+          person.currency ?? "",
+          person.hasDevice ? "yes" : "no",
+        ]
+          .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+          .join(","),
+      );
+
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `gymtaxx-signups-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [people]);
+
   if (isLoading) {
     return (
       <Screen>
@@ -349,6 +410,54 @@ export default function Stats() {
         )}
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
           Only known once someone builds a challenge or turns on reminders, so early leavers show as unknown.
+        </p>
+      </Card>
+
+      <Card title={`Email list (${emails.length})`}>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => void copyEmails()}
+            disabled={emails.length === 0}
+            className="flex flex-1 items-center justify-center gap-2 rounded-md bg-foreground py-3 text-sm font-semibold text-background disabled:opacity-40"
+          >
+            <Copy className="h-4 w-4" aria-hidden="true" />
+            Copy all
+          </button>
+          <button
+            type="button"
+            onClick={downloadCsv}
+            disabled={emails.length === 0}
+            className="flex flex-1 items-center justify-center gap-2 rounded-md bg-muted py-3 text-sm font-semibold text-foreground disabled:opacity-40"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Spreadsheet
+          </button>
+        </div>
+
+        {suspect.length > 0 ? (
+          <div className="mt-4 rounded-md bg-destructive/15 px-4 py-3">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-danger-ink">
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {suspect.length} look mistyped
+            </p>
+            <ul className="mt-2 space-y-1">
+              {suspect.map((row) => (
+                <li key={row.email} className="break-all text-xs text-foreground">
+                  {row.email} <span className="text-muted-foreground">→ probably {row.likely}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Leave these out. Bounces damage the reputation of your sending domain, which pushes real reminders and
+              password resets into spam.
+            </p>
+          </div>
+        ) : null}
+
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          The spreadsheet includes how far each person got, so you can write to people who stopped at the deposit
+          differently from people who never built a challenge.
         </p>
       </Card>
 

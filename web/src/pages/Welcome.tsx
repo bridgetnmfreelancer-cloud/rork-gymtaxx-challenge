@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthProvider";
+import { suggestEmailFix } from "@/lib/email";
 
 type Mode = "signUp" | "logIn";
 
@@ -25,12 +26,27 @@ export default function Welcome() {
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  /** The exact address they've insisted is right, so we stop asking about it. */
+  const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null);
 
   const skippedInstall = params.get("browser") === "1";
+
+  // A mistyped address can't be reset and can't be reminded, so it's worth
+  // catching here rather than discovering it when someone needs their account
+  // back. Only offered on sign-up: an existing account is proof enough.
+  const suggestion = useMemo<string | null>(
+    () => (mode === "signUp" ? suggestEmailFix(email) : null),
+    [mode, email],
+  );
+  const isUnresolved = suggestion !== null && confirmedEmail !== email.trim().toLowerCase();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (isSubmitting) return;
+
+    // One tap to accept or wave off, and only for the small number of people
+    // whose address looks wrong.
+    if (isUnresolved) return;
 
     setError(null);
     setIsSubmitting(true);
@@ -83,6 +99,33 @@ export default function Welcome() {
             placeholder="you@example.com"
             className="h-14 rounded-lg bg-card text-base"
           />
+
+          {isUnresolved && suggestion ? (
+            <div className="rounded-md bg-destructive/15 px-4 py-3 animate-rise-in">
+              <p className="text-sm leading-snug text-foreground">
+                Did you mean <span className="font-semibold break-all">{suggestion}</span>?
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background"
+                  onClick={() => {
+                    setEmail(suggestion);
+                    setConfirmedEmail(suggestion);
+                  }}
+                >
+                  Yes, use that
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
+                  onClick={() => setConfirmedEmail(email.trim().toLowerCase())}
+                >
+                  No, mine is right
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-2">
