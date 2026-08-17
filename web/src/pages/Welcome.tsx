@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthProvider";
 import { suggestEmailFix } from "@/lib/email";
+import { recordVisit } from "@/lib/visitor";
 
 type Mode = "signUp" | "logIn";
 
@@ -30,6 +31,12 @@ export default function Welcome() {
   const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null);
 
   const skippedInstall = params.get("browser") === "1";
+
+  // The last anonymous step. Reaching this form but not submitting it is a
+  // different failure from never getting here.
+  useEffect(() => {
+    void recordVisit("signup_form");
+  }, []);
 
   // A mistyped address can't be reset and can't be reminded, so it's worth
   // catching here rather than discovering it when someone needs their account
@@ -53,6 +60,9 @@ export default function Welcome() {
     try {
       if (mode === "signUp") {
         await signUp(email, password);
+        // Closes the loop: the account now exists, so this arrival stops being
+        // anonymous and joins up with the rest of the funnel.
+        void recordVisit("signed_up");
         // A brand new account has seen nothing yet, so it starts at the top of
         // the funnel: the reminder ask, then the questions.
         navigate("/reminders", { replace: true });

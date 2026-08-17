@@ -23,6 +23,21 @@ type DayBucket = { date: string; signups: number; installs: number; built: numbe
 
 type Place = { place: string; count: number };
 
+type Arrivals = {
+  stages: Stage[];
+  steps: Step[];
+  total: number;
+  skippedLanding: number;
+  inAppBrowser: number;
+  continuedInBrowser: number;
+  signedUpInBrowser: number;
+  fromInstalledApp: { reachedSignup: number; signedUp: number };
+};
+
+type Source = { source: string; visitors: number; reachedInstall: number };
+
+type VisitDay = { date: string; arrivals: number; tappedJoin: number; reachedInstall: number; signedUp: number };
+
 type Person = {
   email: string | null;
   signedUpAt: string;
@@ -49,6 +64,9 @@ type Stats = {
     notInstalledTotal: number;
   };
   installConfidence: { confirmed: number; inferredFromReminders: number };
+  arrivals: Arrivals;
+  sources: Source[];
+  visitsByDay: VisitDay[];
   byDay: DayBucket[];
   places: Place[];
   people: Person[];
@@ -155,6 +173,16 @@ function Funnel({ stages, steps }: { stages: Stage[]; steps: Step[] }) {
           {index < steps.length ? <DropRow step={steps[index]} worst={index === worstIndex} /> : null}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** A plain labelled number, for counts that sit outside the funnel bars. */
+function Line({ label, value, muted = false }: { label: string; value: number; muted?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className={muted ? "text-muted-foreground" : "text-foreground"}>{label}</span>
+      <span className="tabular shrink-0 font-semibold text-foreground">{value}</span>
     </div>
   );
 }
@@ -270,6 +298,8 @@ export default function Stats() {
 
   const signedUp = data.stages[0]?.count ?? 0;
   const paid = data.stages.find((stage) => stage.key === "paid")?.count ?? 0;
+  const arrivals = data.arrivals;
+  const sawLanding = arrivals.stages[0]?.count ?? 0;
   const installedCount = data.stages.find((stage) => stage.key === "installed")?.count ?? 0;
   const { confirmed, inferredFromReminders } = data.installConfidence;
 
@@ -300,7 +330,11 @@ export default function Stats() {
         ))}
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-2">
+      <div className="mt-6 grid grid-cols-4 gap-2">
+        <div className="rounded-lg bg-card p-3 text-center">
+          <p className="tabular text-2xl font-extrabold text-foreground">{arrivals.total}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Visitors</p>
+        </div>
         <div className="rounded-lg bg-card p-3 text-center">
           <p className="tabular text-2xl font-extrabold text-foreground">{signedUp}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">Signed up</p>
@@ -321,6 +355,104 @@ export default function Stats() {
           <p className="mt-0.5 text-xs text-muted-foreground">Paid</p>
         </div>
       </div>
+
+      <Card title="Before they sign up">
+        {arrivals.total === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nobody visited in this range. Visitor tracking only counts arrivals from the moment it went live, so older
+            days will read zero.
+          </p>
+        ) : (
+          <>
+            {sawLanding > 0 ? <Funnel stages={arrivals.stages} steps={arrivals.steps} /> : null}
+
+            <div className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
+              <Line label="Visitors in total" value={arrivals.total} />
+              {arrivals.skippedLanding > 0 ? (
+                <Line label="Skipped the landing page" value={arrivals.skippedLanding} muted />
+              ) : null}
+              <Line label="Carried on in the browser" value={arrivals.continuedInBrowser} muted />
+              <Line label="Signed up without installing" value={arrivals.signedUpInBrowser} muted />
+              <Line label="Signed up from the installed app" value={arrivals.fromInstalledApp.signedUp} muted />
+            </div>
+
+            {arrivals.inAppBrowser > 0 ? (
+              <div className="mt-4 rounded-md bg-destructive/15 px-4 py-3">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-danger-ink">
+                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {arrivals.inAppBrowser} opened inside TikTok or Instagram
+                </p>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                  Those browsers have no “Add to Home Screen” at all, so these people cannot install however good the
+                  page is. They have to open it in Safari first.
+                </p>
+              </div>
+            ) : null}
+
+            <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+              The trail stops at the install steps. An installed app gets its own separate storage on iPhone, so someone
+              who installs comes back as a brand new visitor and cannot be matched to the ad they arrived from. That is
+              why sign-ups from the installed app are counted on their own line rather than inside the funnel.
+            </p>
+          </>
+        )}
+      </Card>
+
+      <Card title="Where visitors came from">
+        {data.sources.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted-foreground">
+                <th className="pb-2 text-left font-medium">Source</th>
+                <th className="pb-2 text-right font-medium">Visitors</th>
+                <th className="pb-2 text-right font-medium">To install</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.sources.map((source) => (
+                <tr key={source.source} className="border-t border-border">
+                  <td className="truncate py-2 text-left text-foreground">{source.source}</td>
+                  <td className="tabular py-2 text-right text-foreground">{source.visitors}</td>
+                  <td className="tabular py-2 text-right text-muted-foreground">{source.reachedInstall}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Taken from the link they arrived on. Add utm_source to your ad links to see each ad separately — without it,
+          everything from one platform lands in the same row.
+        </p>
+      </Card>
+
+      <Card title="Visitors by day">
+        {data.visitsByDay.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted-foreground">
+                <th className="pb-2 text-left font-medium">Day</th>
+                <th className="pb-2 text-right font-medium">Visited</th>
+                <th className="pb-2 text-right font-medium">Join</th>
+                <th className="pb-2 text-right font-medium">Install</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.visitsByDay.map((bucket) => (
+                <tr key={bucket.date} className="border-t border-border">
+                  <td className="py-2 text-left text-foreground">{dayLabel(bucket.date)}</td>
+                  <td className="tabular py-2 text-right text-foreground">{bucket.arrivals}</td>
+                  <td className="tabular py-2 text-right text-muted-foreground">{bucket.tappedJoin}</td>
+                  <td className="tabular py-2 text-right text-muted-foreground">{bucket.reachedInstall}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
 
       <Card title="Every step">
         {signedUp === 0 ? (

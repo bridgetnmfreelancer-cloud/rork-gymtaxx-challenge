@@ -203,6 +203,57 @@ export type Database = {
           },
         ]
       }
+      visits: {
+        Row: {
+          campaign: string | null
+          first_seen_at: string
+          is_in_app_browser: boolean
+          is_standalone: boolean
+          landed_at: string | null
+          last_seen_at: string
+          reached_install_at: string | null
+          reached_signup_at: string | null
+          referrer_host: string | null
+          signed_up_at: string | null
+          source: string | null
+          tapped_join_at: string | null
+          user_id: string | null
+          visitor_id: string
+        }
+        Insert: {
+          campaign?: string | null
+          first_seen_at?: string
+          is_in_app_browser?: boolean
+          is_standalone?: boolean
+          landed_at?: string | null
+          last_seen_at?: string
+          reached_install_at?: string | null
+          reached_signup_at?: string | null
+          referrer_host?: string | null
+          signed_up_at?: string | null
+          source?: string | null
+          tapped_join_at?: string | null
+          user_id?: string | null
+          visitor_id: string
+        }
+        Update: {
+          campaign?: string | null
+          first_seen_at?: string
+          is_in_app_browser?: boolean
+          is_standalone?: boolean
+          landed_at?: string | null
+          last_seen_at?: string
+          reached_install_at?: string | null
+          reached_signup_at?: string | null
+          referrer_host?: string | null
+          signed_up_at?: string | null
+          source?: string | null
+          tapped_join_at?: string | null
+          user_id?: string | null
+          visitor_id?: string
+        }
+        Relationships: []
+      }
       workout_submissions: {
         Row: {
           captured_at: string
@@ -298,6 +349,18 @@ export type Database = {
       }
       mark_app_open: { Args: { p_standalone: boolean }; Returns: undefined }
       mark_questions_answered: { Args: never; Returns: undefined }
+      record_visit: {
+        Args: {
+          p_campaign?: string
+          p_in_app?: boolean
+          p_referrer?: string
+          p_source?: string
+          p_standalone?: boolean
+          p_step: string
+          p_visitor: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

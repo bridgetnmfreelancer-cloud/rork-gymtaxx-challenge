@@ -16,6 +16,7 @@ import {
   totalWorkouts,
 } from "@/lib/money";
 import { isStandalone } from "@/lib/pwa";
+import { recordVisit } from "@/lib/visitor";
 
 /**
  * The smallest goal, used for the worked example in step two — the same one the
@@ -74,6 +75,12 @@ export default function Landing() {
     document.title = "GymTaxx | Finally stay consistent with the gym";
   }, []);
 
+  // The top of the funnel. Everything above sign-up was previously invisible,
+  // so an ad click that went nowhere left no trace at all.
+  useEffect(() => {
+    void recordVisit("landing");
+  }, []);
+
   /**
    * Send them wherever they actually need to go.
    *
@@ -82,6 +89,10 @@ export default function Landing() {
    * be told to install an app they're standing inside.
    */
   const start = useCallback((): void => {
+    // Separates "read the page and left" from "read the page and wanted in",
+    // which are very different problems to fix.
+    void recordVisit("join_tapped");
+
     if (session) navigate("/home");
     else if (isStandalone()) navigate("/welcome");
     else navigate("/install");

@@ -1,10 +1,11 @@
 import { Compass, MoreHorizontal, Share, SquarePlus } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { isInAppBrowser } from "@/lib/pwa";
+import { recordVisit } from "@/lib/visitor";
 
 /**
  * An inline reproduction of a real browser button, so the instruction points at
@@ -63,6 +64,13 @@ export default function Install() {
   const navigate = useNavigate();
   const embedded = isInAppBrowser();
   const host = typeof window === "undefined" ? "gymtaxx.com" : window.location.host;
+
+  // The step with no completion signal — finishing an install closes this page
+  // rather than advancing it. Counting arrivals here is what makes the size of
+  // the loss measurable at all.
+  useEffect(() => {
+    void recordVisit("install");
+  }, []);
 
   return (
     <Screen>
