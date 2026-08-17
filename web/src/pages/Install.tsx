@@ -1,9 +1,9 @@
-import { MoreHorizontal, Share, SquarePlus } from "lucide-react";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { Check, Copy, MoreHorizontal, Share, SquarePlus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
-import { isInAppBrowser } from "@/lib/pwa";
+import { browserName, detectBrowser } from "@/lib/pwa";
 import { recordVisit } from "@/lib/visitor";
 
 /**
@@ -53,6 +53,54 @@ function ControlBox({ icon: Icon, label }: { icon: typeof Share; label?: string 
   );
 }
 
+/**
+ * The way out of a browser that cannot install, offered as copying the address.
+ *
+ * Every iPhone browser hides "open this in Safari" somewhere different, and
+ * some do not offer it at all, so naming a menu item would mean sending people
+ * hunting for something that may not exist. Copying the address and pasting it
+ * works identically everywhere.
+ */
+function CopyLink() {
+  const [copied, setCopied] = useState<boolean>(false);
+  const [failed, setFailed] = useState<boolean>(false);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setFailed(false);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard access can be refused outright; showing the address means the
+      // step is still completable by hand rather than becoming a dead end.
+      setFailed(true);
+    }
+  }, []);
+
+  return (
+    <span className="mt-3 block">
+      <button
+        type="button"
+        onClick={() => void copy()}
+        className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2.5 text-base font-semibold text-foreground active:scale-[0.98]"
+      >
+        {copied ? (
+          <Check className="h-5 w-5 shrink-0" aria-hidden="true" />
+        ) : (
+          <Copy className="h-5 w-5 shrink-0" aria-hidden="true" />
+        )}
+        {copied ? "Link copied" : "Copy link"}
+      </button>
+      {failed ? (
+        <span className="mt-2 block text-sm text-muted-foreground">
+          Type this into Safari: <span className="font-semibold text-foreground">{window.location.host}</span>
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 type Step = { title: ReactNode; detail?: ReactNode };
 
 /**
@@ -66,7 +114,7 @@ type Step = { title: ReactNode; detail?: ReactNode };
  * Chrome showed the cost of burying it: the steps described a Share button she
  * did not have, and it took nearly two minutes to work out why. The browser
  * requirement is the first thing that can be wrong, so it is now the first
- * thing read.
+ * thing read, and step one calls the browser out by name when it can.
  *
  * Step three covers older iOS toolbars, where Share sits behind the overflow
  * menu instead of on the bar itself. People rarely know which layout they have,
@@ -81,7 +129,8 @@ type Step = { title: ReactNode; detail?: ReactNode };
  */
 export default function Install() {
   const navigate = useNavigate();
-  const embedded = isInAppBrowser();
+  const kind = useMemo(() => detectBrowser(), []);
+  const name = browserName(kind);
 
   // The step with no completion signal — finishing an install closes this page
   // rather than advancing it. Counting arrivals here is what makes the size of
@@ -90,17 +139,52 @@ export default function Install() {
     void recordVisit("install");
   }, []);
 
-  const steps = useMemo<Step[]>(
-    () => [
-      {
-        title: "Open this page in Safari",
-        detail: (
-          <p className="mt-1.5 text-base leading-relaxed text-muted-foreground">
-            GymTaxx can only be installed from Safari on iPhone.
-            {embedded ? ' Tap the menu in the corner and choose "Open in browser".' : ""}
-          </p>
-        ),
-      },
+  const steps = useMemo<Step[]>(() => {
+    // Only ever three states: a browser named with certainty, a social app's
+    // built-in browser, or say nothing specific and state the requirement.
+    const firstStep: Step =
+      name !== null
+        ? {
+            title: `You're in ${name}`,
+            detail: (
+              <>
+                <p className="mt-1.5 text-base leading-relaxed text-danger-ink">
+                  GymTaxx can't be installed from {name}. Only Safari can add apps to your Home Screen on iPhone.
+                </p>
+                <p className="mt-1.5 text-base leading-relaxed text-muted-foreground">
+                  Copy the link, then open Safari and paste it in.
+                </p>
+                <CopyLink />
+              </>
+            ),
+          }
+        : kind === "in-app"
+          ? {
+              title: "Open this page in Safari",
+              detail: (
+                <>
+                  <p className="mt-1.5 text-base leading-relaxed text-danger-ink">
+                    GymTaxx can't be installed from inside this app. Only Safari can add apps to your Home Screen on
+                    iPhone.
+                  </p>
+                  <p className="mt-1.5 text-base leading-relaxed text-muted-foreground">
+                    Tap the menu in the corner and choose "Open in browser", or copy the link and paste it into Safari.
+                  </p>
+                  <CopyLink />
+                </>
+              ),
+            }
+          : {
+              title: "Open this page in Safari",
+              detail: (
+                <p className="mt-1.5 text-base leading-relaxed text-muted-foreground">
+                  GymTaxx can only be installed from Safari on iPhone.
+                </p>
+              ),
+            };
+
+    return [
+      firstStep,
       {
         title: (
           <>
@@ -133,9 +217,8 @@ export default function Install() {
           </span>
         ),
       },
-    ],
-    [embedded],
-  );
+    ];
+  }, [kind, name]);
 
   return (
     <Screen>
@@ -145,11 +228,7 @@ export default function Install() {
 
       <ol className="mt-8 space-y-7">
         {steps.map((step, index) => (
-          <li
-            key={index}
-            className="flex gap-3 animate-rise-in"
-            style={{ animationDelay: `${80 + index * 70}ms` }}
-          >
+          <li key={index} className="flex gap-3 animate-rise-in" style={{ animationDelay: `${80 + index * 70}ms` }}>
             <span className="tabular shrink-0 text-base font-bold text-muted-foreground">{index + 1}.</span>
             <div className="min-w-0">
               <p className="text-base leading-snug text-foreground">{step.title}</p>

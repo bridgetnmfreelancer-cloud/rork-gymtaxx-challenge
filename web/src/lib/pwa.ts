@@ -39,6 +39,58 @@ export function isInAppBrowser(): boolean {
   return false;
 }
 
+/**
+ * Which browser this is, to the extent it can be trusted.
+ *
+ * On iPhone every browser is WebKit underneath, but only Safari can add to the
+ * Home Screen. Chrome and Firefox therefore render install steps describing a
+ * Share button they do not have, which reads as the instructions being wrong
+ * rather than the browser being wrong.
+ */
+export type BrowserKind = "safari" | "chrome" | "firefox" | "edge" | "opera" | "duckduckgo" | "in-app" | "unknown";
+
+/**
+ * Deliberately biased towards "unknown".
+ *
+ * Telling someone who is already in Safari that they are in Chrome would stop a
+ * person who was about to succeed — far more costly than staying quiet for a
+ * browser nobody uses. So a browser is only ever named from its own vendor
+ * token, never inferred from the absence of another.
+ */
+export function detectBrowser(): BrowserKind {
+  if (typeof navigator === "undefined") return "unknown";
+  const ua = navigator.userAgent;
+
+  // Vendor tokens first: most of these also contain "Safari", and Chrome and
+  // Firefox are otherwise hard to tell apart from an embedded WebView.
+  if (/CriOS/.test(ua)) return "chrome";
+  if (/FxiOS/.test(ua)) return "firefox";
+  if (/EdgiOS/.test(ua)) return "edge";
+  if (/OPiOS|OPT\//.test(ua)) return "opera";
+  if (/DuckDuckGo/.test(ua)) return "duckduckgo";
+  if (isInAppBrowser()) return "in-app";
+  if (isIOS() && /Safari/.test(ua)) return "safari";
+  return "unknown";
+}
+
+/** The browser's name as its own users would say it, or null when unsure. */
+export function browserName(kind: BrowserKind): string | null {
+  switch (kind) {
+    case "chrome":
+      return "Chrome";
+    case "firefox":
+      return "Firefox";
+    case "edge":
+      return "Edge";
+    case "opera":
+      return "Opera";
+    case "duckduckgo":
+      return "DuckDuckGo";
+    default:
+      return null;
+  }
+}
+
 /** Whether this browser could ever show a push permission prompt. */
 export function canUsePush(): boolean {
   if (typeof window === "undefined") return false;
