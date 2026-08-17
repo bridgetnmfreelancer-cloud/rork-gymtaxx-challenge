@@ -23,6 +23,7 @@ import {
   type HabitId,
   type OnboardingAnswers,
 } from "@/lib/onboarding";
+import { recordQuestionsAnswered } from "@/lib/telemetry";
 
 type Stage = "habit" | "goal" | "blocker" | "agitate" | "how";
 
@@ -106,7 +107,12 @@ export default function Onboarding() {
           subtitle="Whatever it is, it's beaten you before now."
           options={BLOCKER_OPTIONS.map((option) => ({ id: option.id, label: option.label, detail: option.detail }))}
           selected={answers.blocker}
-          onSelect={(id) => chooseAndAdvance({ blocker: id as BlockerId })}
+          onSelect={(id) => {
+            // The last of the three questions, so this is the point the funnel
+            // can tell "gave up at the questions" from "gave up at the price".
+            void recordQuestionsAnswered();
+            chooseAndAdvance({ blocker: id as BlockerId });
+          }}
         />
       ) : null}
 

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+import { AppOpenTracker } from "@/components/AppOpenTracker";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { PushSync } from "@/components/PushSync";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -23,6 +24,7 @@ import Onboarding from "./pages/Onboarding";
 import Pay from "./pages/Pay";
 import Reminders from "./pages/Reminders";
 import Review from "./pages/Review";
+import Stats from "./pages/Stats";
 import Verify from "./pages/Verify";
 import Welcome from "./pages/Welcome";
 
@@ -51,6 +53,7 @@ const PRIVATE_ROUTES = [
   { path: "/history", element: <History /> },
   { path: "/account", element: <Account /> },
   { path: "/review", element: <Review /> },
+  { path: "/stats", element: <Stats /> },
 ];
 
 const App = () => (
@@ -59,6 +62,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster position="top-center" />
         <PushSync />
+        <AppOpenTracker />
         <OfflineBanner />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>

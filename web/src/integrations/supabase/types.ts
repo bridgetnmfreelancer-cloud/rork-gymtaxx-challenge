@@ -62,29 +62,38 @@ export type Database = {
       }
       profiles: {
         Row: {
+          answered_questions_at: string | null
           avatar_url: string | null
           created_at: string
           current_workouts_per_week: string | null
           email: string | null
           id: string
+          installed_at: string | null
+          last_seen_at: string | null
           name: string | null
           onboarding_completed: boolean
         }
         Insert: {
+          answered_questions_at?: string | null
           avatar_url?: string | null
           created_at?: string
           current_workouts_per_week?: string | null
           email?: string | null
           id: string
+          installed_at?: string | null
+          last_seen_at?: string | null
           name?: string | null
           onboarding_completed?: boolean
         }
         Update: {
+          answered_questions_at?: string | null
           avatar_url?: string | null
           created_at?: string
           current_workouts_per_week?: string | null
           email?: string | null
           id?: string
+          installed_at?: string | null
+          last_seen_at?: string | null
           name?: string | null
           onboarding_completed?: boolean
         }
@@ -258,6 +267,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_funnel_rows: {
+        Args: { p_since: string }
+        Returns: {
+          answered: boolean
+          currency: string
+          email: string
+          goal: number
+          has_challenge: boolean
+          has_device: boolean
+          installed_at: string
+          last_seen_at: string
+          last_sign_in_at: string
+          payment_status: string
+          signed_up_at: string
+          submissions: number
+          time_zone: string
+          user_id: string
+          verified: number
+        }[]
+      }
       claim_push_device: {
         Args: {
           p_auth: string
@@ -267,6 +296,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_app_open: { Args: { p_standalone: boolean }; Returns: undefined }
+      mark_questions_answered: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
