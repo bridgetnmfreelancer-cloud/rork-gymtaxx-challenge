@@ -1,9 +1,8 @@
-import { Compass, MoreHorizontal, Share, SquarePlus } from "lucide-react";
+import { MoreHorizontal, Share, SquarePlus } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Logo } from "@/components/Logo";
-import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
+import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { isInAppBrowser } from "@/lib/pwa";
 import { recordVisit } from "@/lib/visitor";
 
@@ -20,7 +19,7 @@ function Chip({ icon: Icon, label }: { icon?: typeof Share; label: string }) {
   );
 }
 
-/** A round chip, matching how a browser renders its overflow menu button. */
+/** A round chip, matching how Safari renders its overflow menu button. */
 function RoundChip({ icon: Icon, label }: { icon: typeof Share; label: string }) {
   return (
     <span
@@ -33,17 +32,20 @@ function RoundChip({ icon: Icon, label }: { icon: typeof Share; label: string })
   );
 }
 
-const STEPS: ReactNode[] = [
-  <>
-    Press <RoundChip icon={MoreHorizontal} label="Browser menu" /> in the bottom left corner
-  </>,
-  <>
-    Tap <Chip icon={Share} label="Share" /> and then <Chip label="View more" />
-  </>,
-  <>
-    Select <Chip icon={SquarePlus} label="Add to Home Screen" />
-  </>,
-];
+/** The Share button drawn on its own, since it carries no label in Safari. */
+function ShareButton() {
+  return (
+    <span
+      className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-card text-foreground"
+      role="img"
+      aria-label="Share"
+    >
+      <Share className="h-5 w-5" aria-hidden="true" />
+    </span>
+  );
+}
+
+type Step = { title: ReactNode; detail?: ReactNode };
 
 /**
  * Step 2 of the funnel, and deliberately before the pitch.
@@ -52,9 +54,16 @@ const STEPS: ReactNode[] = [
  * on iPhone, push is only granted to an installed web app. The cost is real
  * drop-off here, so the page stays short and gives a way past.
  *
- * iPhone only in v1 — Android arrives later via the Play Store, so there is no
- * second set of steps. The steps name the exact controls in Safari; describing
- * a button someone cannot see reads as being in the wrong place.
+ * Safari leads as step one because watching a real person use this showed the
+ * wrong-browser problem is the expensive one: it isn't that the steps are hard,
+ * it's that in Chrome they describe buttons that do not exist, and nothing on
+ * screen says why. That has to be the first thing read, not a footnote.
+ *
+ * Steps 2 and 3 are split for the same reason. Safari moved the Share button
+ * into an overflow menu on newer iPhones, but plenty of people are still on the
+ * older layout with Share in the middle of the toolbar. One combined
+ * instruction is wrong for whichever half is reading it, so the common case
+ * leads and the menu route is offered to anyone who can't find it.
  *
  * There is deliberately no "I've installed it" button: adding to the Home
  * Screen drops the person onto their Home Screen, so a confirm button would sit
@@ -63,7 +72,6 @@ const STEPS: ReactNode[] = [
 export default function Install() {
   const navigate = useNavigate();
   const embedded = isInAppBrowser();
-  const host = typeof window === "undefined" ? "gymtaxx.com" : window.location.host;
 
   // The step with no completion signal — finishing an install closes this page
   // rather than advancing it. Counting arrivals here is what makes the size of
@@ -72,40 +80,65 @@ export default function Install() {
     void recordVisit("install");
   }, []);
 
+  const steps: Step[] = [
+    {
+      title: "Open this page in Safari",
+      detail: embedded ? (
+        // Inside TikTok or Instagram there is no Add to Home Screen at all, so
+        // naming their menu is the only instruction that can work here.
+        <>
+          Tap the menu in the corner and choose "Open in browser". GymTaxx can only be installed from Safari on iPhone.
+        </>
+      ) : (
+        <>GymTaxx can only be installed from Safari on iPhone.</>
+      ),
+    },
+    {
+      title: (
+        <>
+          Tap the <strong className="font-bold">Share</strong> button
+        </>
+      ),
+      detail: <ShareButton />,
+    },
+    {
+      title: "Don't see Share?",
+      detail: (
+        <>
+          Tap <RoundChip icon={MoreHorizontal} label="Browser menu" />, then <Chip label="View more" /> to find it.
+        </>
+      ),
+    },
+    {
+      title: (
+        <>
+          Tap <strong className="font-bold">Add to Home Screen</strong>
+        </>
+      ),
+      detail: <Chip icon={SquarePlus} label="Add to Home Screen" />,
+    },
+  ];
+
   return (
     <Screen>
       <div className="mt-6 animate-rise-in">
         <ScreenTitle>Install the app</ScreenTitle>
-        <ScreenSubtitle>You'll need to be in the Safari browser to install GymTaxx.</ScreenSubtitle>
       </div>
 
-      <div className="mt-6 flex items-center gap-4 rounded-xl border border-border bg-card p-4 animate-rise-in [animation-delay:60ms]">
-        <Logo size={56} />
-        <div className="min-w-0">
-          <p className="font-extrabold leading-tight tracking-tight text-foreground">GymTaxx</p>
-          <p className="mt-0.5 truncate text-sm text-muted-foreground">{host}</p>
-        </div>
-      </div>
-
-      {embedded ? (
-        <div className="mt-4 flex gap-3 rounded-lg border border-border p-4 animate-rise-in [animation-delay:100ms]">
-          <Compass className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            <span className="font-semibold text-foreground">Open this in Safari first.</span> Tap the menu in the corner
-            and choose "Open in browser" — you can't add to your Home Screen from inside this app.
-          </p>
-        </div>
-      ) : null}
-
-      <ol className="mt-7 space-y-5">
-        {STEPS.map((step, index) => (
+      <ol className="mt-8 space-y-7">
+        {steps.map((step, index) => (
           <li
             key={index}
             className="flex items-baseline gap-3 animate-rise-in"
-            style={{ animationDelay: `${140 + index * 70}ms` }}
+            style={{ animationDelay: `${60 + index * 70}ms` }}
           >
             <span className="tabular shrink-0 text-base font-bold text-muted-foreground">{index + 1}.</span>
-            <p className="text-base leading-[2] text-foreground">{step}</p>
+            <div className="min-w-0">
+              <p className="text-lg leading-snug text-foreground">{step.title}</p>
+              {step.detail ? (
+                <div className="mt-2 text-base leading-[1.9] text-muted-foreground">{step.detail}</div>
+              ) : null}
+            </div>
           </li>
         ))}
       </ol>

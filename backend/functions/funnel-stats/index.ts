@@ -193,102 +193,23 @@ function buildByDay(rows: FunnelRow[]): DayBucket[] {
 }
 
 type VisitRow = {
-  visitor_id: string;
-  first_seen_at: string;
   landed_at: string | null;
-  tapped_join_at: string | null;
-  reached_install_at: string | null;
-  reached_signup_at: string | null;
-  signed_up_at: string | null;
-  source: string | null;
-  campaign: string | null;
-  referrer_host: string | null;
   is_standalone: boolean;
-  is_in_app_browser: boolean;
 };
 
 /**
- * The anonymous funnel, built only from browser visits.
+ * How many people saw the landing page.
  *
- * Rows flagged standalone come from the installed app, which on iPhone gets its
- * own storage and therefore its own visitor id. Mixing them in would count one
- * person twice and make the arrivals numbers meaningless.
+ * Deliberately one number. Where the traffic came from and how it converted is
+ * already reported by the ad platforms, and a second version of those figures
+ * here would only ever disagree with them.
  *
- * The funnel itself starts at the landing page rather than at "arrived",
- * because someone opening the bare domain goes straight to the install steps
- * and never sees the landing page. Counting them as having dropped out of a
- * page they were never shown would invent a leak that isn't there.
+ * Standalone rows are excluded: those come from the installed app, which on
+ * iPhone gets its own storage and so returns as a fresh visitor. Counting them
+ * would inflate the landing figure with people who already installed.
  */
-function buildArrivals(visits: VisitRow[]) {
-  const browser = visits.filter((visit) => !visit.is_standalone);
-  const landed = browser.filter((visit) => visit.landed_at !== null);
-
-  const stages: Stage[] = [
-    { key: "landed", label: "Saw the landing page", count: landed.length },
-    { key: "tapped_join", label: "Tapped Join", count: landed.filter((v) => v.tapped_join_at !== null).length },
-    {
-      key: "reached_install",
-      label: "Reached the install steps",
-      count: landed.filter((v) => v.reached_install_at !== null).length,
-    },
-  ];
-
-  const installed = visits.filter((visit) => visit.is_standalone);
-
-  return {
-    stages,
-    steps: buildSteps(stages),
-    /** Every browser visit, including people who skipped the landing page. */
-    total: browser.length,
-    /** Arrived straight at the install steps, usually from the marketing site. */
-    skippedLanding: browser.length - landed.length,
-    /**
-     * Opened inside TikTok or Instagram, where "Add to Home Screen" does not
-     * exist at all. These people cannot install however good the page is.
-     */
-    inAppBrowser: browser.filter((visit) => visit.is_in_app_browser).length,
-    /** Carried on without installing, via the "continue in browser" link. */
-    continuedInBrowser: browser.filter((visit) => visit.reached_signup_at !== null).length,
-    signedUpInBrowser: browser.filter((visit) => visit.signed_up_at !== null).length,
-    /** Sign-ups that happened inside the installed app, counted separately. */
-    fromInstalledApp: {
-      reachedSignup: installed.filter((visit) => visit.reached_signup_at !== null).length,
-      signedUp: installed.filter((visit) => visit.signed_up_at !== null).length,
-    },
-  };
-}
-
-/** Which ad or link brought them, first touch only. */
-function buildSources(visits: VisitRow[]): { source: string; visitors: number; reachedInstall: number }[] {
-  const counts = new Map<string, { visitors: number; reachedInstall: number }>();
-  for (const visit of visits) {
-    if (visit.is_standalone) continue;
-    const source = visit.source ?? visit.referrer_host ?? "Direct";
-    const entry = counts.get(source) ?? { visitors: 0, reachedInstall: 0 };
-    entry.visitors += 1;
-    if (visit.reached_install_at !== null) entry.reachedInstall += 1;
-    counts.set(source, entry);
-  }
-  return [...counts.entries()]
-    .map(([source, entry]) => ({ source, ...entry }))
-    .sort((a, b) => b.visitors - a.visitors);
-}
-
-type VisitDay = { date: string; arrivals: number; tappedJoin: number; reachedInstall: number; signedUp: number };
-
-function buildVisitsByDay(visits: VisitRow[]): VisitDay[] {
-  const buckets = new Map<string, VisitDay>();
-  for (const visit of visits) {
-    if (visit.is_standalone) continue;
-    const date = londonDate(new Date(visit.first_seen_at));
-    const bucket = buckets.get(date) ?? { date, arrivals: 0, tappedJoin: 0, reachedInstall: 0, signedUp: 0 };
-    bucket.arrivals += 1;
-    if (visit.tapped_join_at !== null) bucket.tappedJoin += 1;
-    if (visit.reached_install_at !== null) bucket.reachedInstall += 1;
-    if (visit.signed_up_at !== null) bucket.signedUp += 1;
-    buckets.set(date, bucket);
-  }
-  return [...buckets.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
+function countLandingVisits(visits: VisitRow[]): number {
+  return visits.filter((visit) => !visit.is_standalone && visit.landed_at !== null).length;
 }
 
 /** Country is only ever known once a device or a challenge records a zone. */
@@ -337,15 +258,13 @@ Deno.serve(async (req) => {
     const stages = buildStages(rows);
     const steps = buildSteps(stages);
 
-    // Anonymous arrivals. Read with the service role because the table has no
+    // Landing page visits. Read with the service role because the table has no
     // policies at all — it is written through a function and read only here.
     // A failure to read visits must not take the whole funnel down, since the
     // account-level numbers are still useful on their own.
     const { data: visitData, error: visitError } = await admin
       .from("visits")
-      .select(
-        "visitor_id, first_seen_at, landed_at, tapped_join_at, reached_install_at, reached_signup_at, signed_up_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
-      )
+      .select("landed_at, is_standalone")
       .gte("first_seen_at", since.toISOString());
 
     if (visitError) console.error("funnel-stats: visits query failed", visitError);
@@ -364,9 +283,7 @@ Deno.serve(async (req) => {
       days,
       stages,
       steps,
-      arrivals: buildArrivals(visits),
-      sources: buildSources(visits),
-      visitsByDay: buildVisitsByDay(visits),
+      landingVisits: countLandingVisits(visits),
       installed: {
         stages: installedStages,
         steps: installedSteps,
