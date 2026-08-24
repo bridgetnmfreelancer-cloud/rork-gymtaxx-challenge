@@ -1,7 +1,7 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import { useAuth } from "@/context/AuthProvider";
-import type { ChallengeRow, UserChallengeRow, WorkoutSubmissionRow } from "./database.types";
+import type { ChallengeRow, ProfileRow, UserChallengeRow, WorkoutSubmissionRow } from "./database.types";
 import { isDepositSettling } from "./settlement";
 import { supabase } from "./supabase";
 
@@ -10,6 +10,7 @@ export const queryKeys = {
   currentChallenge: ["challenge", "current"] as const,
   participation: (userId: string | undefined) => ["participation", userId ?? "anon"] as const,
   submissions: (participationId: string | undefined) => ["submissions", participationId ?? "none"] as const,
+  profile: (userId: string | undefined) => ["profile", userId ?? "anon"] as const,
 };
 
 /**
@@ -71,6 +72,34 @@ export function useParticipation(): UseQueryResult<UserChallengeRow | null> {
     },
     // A 3-D Secure detour can suspend the app mid-payment; coming back should
     // re-read rather than trust what was cached before the card was charged.
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * The signed-in user's profile, which carries their membership state.
+ *
+ * Every billing column on it is written by the Stripe webhook through the
+ * service role and blocked from the client by a database trigger, so what this
+ * returns is the settled truth rather than anything the app decided locally.
+ */
+export function useProfile(): UseQueryResult<ProfileRow | null> {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: queryKeys.profile(user?.id),
+    enabled: Boolean(user?.id),
+    queryFn: async (): Promise<ProfileRow | null> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user?.id ?? "")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    // A plan is granted by the webhook a beat after the card clears, so this is
+    // re-read on return rather than served from a cache written before payment.
     refetchOnWindowFocus: true,
   });
 }

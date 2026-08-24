@@ -64,38 +64,68 @@ export type Database = {
         Row: {
           answered_questions_at: string | null
           avatar_url: string | null
+          capi_subscribe_sent_at: string | null
           created_at: string
           current_workouts_per_week: string | null
           email: string | null
+          free_challenge_used: boolean
+          grandfathered: boolean
           id: string
           installed_at: string | null
           last_seen_at: string | null
           name: string | null
           onboarding_completed: boolean
+          plan: string | null
+          plan_cancel_at_period_end: boolean
+          plan_renews_at: string | null
+          plan_started_at: string | null
+          plan_status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
         }
         Insert: {
           answered_questions_at?: string | null
           avatar_url?: string | null
+          capi_subscribe_sent_at?: string | null
           created_at?: string
           current_workouts_per_week?: string | null
           email?: string | null
+          free_challenge_used?: boolean
+          grandfathered?: boolean
           id: string
           installed_at?: string | null
           last_seen_at?: string | null
           name?: string | null
           onboarding_completed?: boolean
+          plan?: string | null
+          plan_cancel_at_period_end?: boolean
+          plan_renews_at?: string | null
+          plan_started_at?: string | null
+          plan_status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
         }
         Update: {
           answered_questions_at?: string | null
           avatar_url?: string | null
+          capi_subscribe_sent_at?: string | null
           created_at?: string
           current_workouts_per_week?: string | null
           email?: string | null
+          free_challenge_used?: boolean
+          grandfathered?: boolean
           id?: string
           installed_at?: string | null
           last_seen_at?: string | null
           name?: string | null
           onboarding_completed?: boolean
+          plan?: string | null
+          plan_cancel_at_period_end?: boolean
+          plan_renews_at?: string | null
+          plan_started_at?: string | null
+          plan_status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
         }
         Relationships: []
       }
@@ -138,18 +168,22 @@ export type Database = {
       user_challenges: {
         Row: {
           capi_purchase_sent_at: string | null
+          capi_start_trial_sent_at: string | null
           challenge_id: string
           challenge_status: string
           client_ip: string | null
           client_user_agent: string | null
           created_at: string
           currency: string
+          deposit_minor: number | null
           ends_at: string
           fbc: string | null
           fbp: string | null
+          fee_minor: number
           goal_workouts_per_week: number
           id: string
           payment_status: string
+          plan: string | null
           started_at: string
           stripe_payment_intent_id: string | null
           time_zone: string
@@ -157,18 +191,22 @@ export type Database = {
         }
         Insert: {
           capi_purchase_sent_at?: string | null
+          capi_start_trial_sent_at?: string | null
           challenge_id: string
           challenge_status?: string
           client_ip?: string | null
           client_user_agent?: string | null
           created_at?: string
           currency?: string
+          deposit_minor?: number | null
           ends_at: string
           fbc?: string | null
           fbp?: string | null
+          fee_minor?: number
           goal_workouts_per_week: number
           id?: string
           payment_status?: string
+          plan?: string | null
           started_at?: string
           stripe_payment_intent_id?: string | null
           time_zone?: string
@@ -176,18 +214,22 @@ export type Database = {
         }
         Update: {
           capi_purchase_sent_at?: string | null
+          capi_start_trial_sent_at?: string | null
           challenge_id?: string
           challenge_status?: string
           client_ip?: string | null
           client_user_agent?: string | null
           created_at?: string
           currency?: string
+          deposit_minor?: number | null
           ends_at?: string
           fbc?: string | null
           fbp?: string | null
+          fee_minor?: number
           goal_workouts_per_week?: number
           id?: string
           payment_status?: string
+          plan?: string | null
           started_at?: string
           stripe_payment_intent_id?: string | null
           time_zone?: string

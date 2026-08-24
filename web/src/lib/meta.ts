@@ -63,3 +63,28 @@ export function metaAttribution(): MetaAttribution {
     fbc: readCookie("_fbc") ?? fbcFromUrl(),
   };
 }
+
+/** The pixel, as installed by the snippet in `index.html`. */
+type Fbq = (command: string, event: string, params?: Record<string, unknown>) => void;
+
+/**
+ * Fire a browser-side pixel event for an *intent* step.
+ *
+ * Strictly for moments that involve no money: reaching the paywall, submitting
+ * card details. Anything that reports value — Purchase, StartTrial, Subscribe —
+ * is sent server-side from the Stripe webhook, because only Stripe knows whether
+ * money actually moved, and an installed app can be killed by iOS the instant
+ * the payment sheet closes.
+ *
+ * Silent when the pixel is blocked or absent. Ad reporting never interrupts a
+ * person mid-flow.
+ */
+export function trackIntent(event: "InitiateCheckout" | "AddPaymentInfo", params?: Record<string, unknown>): void {
+  try {
+    const fbq = (window as unknown as { fbq?: Fbq }).fbq;
+    if (typeof fbq !== "function") return;
+    fbq("track", event, params);
+  } catch (error) {
+    console.error("meta: pixel event failed", error);
+  }
+}

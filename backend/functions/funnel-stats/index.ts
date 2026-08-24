@@ -126,9 +126,10 @@ function isPaid(row: FunnelRow): boolean {
 }
 
 /** Furthest point reached, for the per-person list. */
-function stageOf(row: FunnelRow): string {
+function stageOf(row: FunnelRow, choseP1an: Set<string>): string {
   if (row.submissions > 0) return "logged_workout";
   if (isPaid(row)) return "paid";
+  if (choseP1an.has(row.user_id)) return "chose_plan";
   if (row.has_challenge) return "built";
   if (row.answered) return "answered";
   if (isInstalled(row)) return "installed";
@@ -137,15 +138,86 @@ function stageOf(row: FunnelRow): string {
 
 type Stage = { key: string; label: string; count: number };
 
-function buildStages(rows: FunnelRow[]): Stage[] {
+/**
+ * `chosePlan` is a separate rung because paying is no longer one decision.
+ *
+ * Someone now picks how they want to carry on and *then* hands over a card, and
+ * those two are lost at very different rates. Folding them into a single "paid"
+ * row would hide whichever of the two is actually leaking.
+ */
+function buildStages(rows: FunnelRow[], chosePlan: Set<string>): Stage[] {
   return [
     { key: "signed_up", label: "Signed up", count: rows.length },
     { key: "installed", label: "Added to home screen", count: rows.filter(isInstalled).length },
     { key: "answered", label: "Answered the questions", count: rows.filter((r) => r.answered).length },
     { key: "built", label: "Built a challenge", count: rows.filter((r) => r.has_challenge).length },
-    { key: "paid", label: "Paid the deposit", count: rows.filter(isPaid).length },
+    { key: "chose_plan", label: "Chose a plan", count: rows.filter((r) => chosePlan.has(r.user_id)).length },
+    { key: "paid", label: "Paid", count: rows.filter(isPaid).length },
     { key: "logged_workout", label: "Logged a workout", count: rows.filter((r) => r.submissions > 0).length },
   ];
+}
+
+type MoneyRow = {
+  user_id: string;
+  plan: string | null;
+  deposit_minor: number | null;
+  fee_minor: number | null;
+  currency: string | null;
+  payment_status: string;
+  goal_workouts_per_week: number;
+  challenges: { number_of_weeks: number; reward_per_workout: number } | { number_of_weeks: number; reward_per_workout: number }[] | null;
+};
+
+type MoneyTotals = { gbp: number; usd: number };
+
+function addTo(totals: MoneyTotals, currency: string | null, minor: number): void {
+  if (String(currency ?? "gbp").toLowerCase() === "usd") totals.usd += minor;
+  else totals.gbp += minor;
+}
+
+/**
+ * What was actually earned, kept apart from what is merely being held.
+ *
+ * This is the distinction the whole business rests on. The deposit is the
+ * participant's own money and is expected to go back to them; only the access
+ * fee is GymTaxx income. Adding the two together would report roughly ten times
+ * the real revenue and make every decision downstream of this number wrong.
+ */
+function buildMoney(moneyRows: MoneyRow[]) {
+  const revenue: MoneyTotals = { gbp: 0, usd: 0 };
+  const depositsHeld: MoneyTotals = { gbp: 0, usd: 0 };
+  const planCounts = new Map<string, number>();
+
+  for (const row of moneyRows) {
+    if (row.payment_status !== "paid") continue;
+
+    addTo(revenue, row.currency, Number(row.fee_minor ?? 0));
+
+    // Rows written before the split was recorded have no stored deposit, so it
+    // is recomputed from the same rule the charge used rather than counted as
+    // zero, which would quietly understate what is being held.
+    let deposit = Number(row.deposit_minor ?? 0);
+    if (!deposit) {
+      const challenge = Array.isArray(row.challenges) ? row.challenges[0] : row.challenges;
+      if (challenge) {
+        deposit = Math.round(
+          row.goal_workouts_per_week * challenge.number_of_weeks * Number(challenge.reward_per_workout) * 100,
+        );
+      }
+    }
+    addTo(depositsHeld, row.currency, deposit);
+
+    const plan = row.plan ?? "grandfathered";
+    planCounts.set(plan, (planCounts.get(plan) ?? 0) + 1);
+  }
+
+  return {
+    revenue,
+    depositsHeld,
+    planMix: [...planCounts.entries()]
+      .map(([plan, count]) => ({ plan, count }))
+      .sort((a, b) => b.count - a.count),
+  };
 }
 
 type Step = {
@@ -374,7 +446,24 @@ Deno.serve(async (req) => {
     }
 
     const rows = (data ?? []) as FunnelRow[];
-    const stages = buildStages(rows);
+
+    // The money split and the plan choice both live on the participation row.
+    // Read separately rather than widening the reporting function, so a failure
+    // here costs two cards rather than the whole page.
+    const { data: moneyData, error: moneyError } = await admin
+      .from("user_challenges")
+      .select(
+        "user_id, plan, deposit_minor, fee_minor, currency, payment_status, goal_workouts_per_week, challenges(number_of_weeks, reward_per_workout)",
+      )
+      .gte("created_at", since.toISOString());
+    if (moneyError) console.error("funnel-stats: money query failed", moneyError);
+    const moneyRows = (moneyData ?? []) as MoneyRow[];
+
+    const chosePlan = new Set<string>(
+      moneyRows.filter((row) => row.plan !== null).map((row) => row.user_id),
+    );
+
+    const stages = buildStages(rows, chosePlan);
     const steps = buildSteps(stages);
 
     // Anonymous arrivals. Read with the service role because the table has no
@@ -405,7 +494,7 @@ Deno.serve(async (req) => {
     // The same funnel, but starting from people who reached the home screen.
     // This is the one that says whether installing actually helps someone pay.
     const installedRows = rows.filter(isInstalled);
-    const installedStages = buildStages(installedRows).filter((stage) => stage.key !== "signed_up");
+    const installedStages = buildStages(installedRows, chosePlan).filter((stage) => stage.key !== "signed_up");
     const installedSteps = buildSteps(installedStages);
 
     const notInstalledRows = rows.filter((row) => !isInstalled(row));
@@ -432,12 +521,13 @@ Deno.serve(async (req) => {
         confirmed: rows.filter((row) => row.installed_at !== null).length,
         inferredFromReminders: rows.filter((row) => row.installed_at === null && row.has_device).length,
       },
+      money: buildMoney(moneyRows),
       byDay: buildByDay(rows),
       places: buildPlaces(rows),
       people: rows.map((row) => ({
         email: row.email,
         signedUpAt: row.signed_up_at,
-        stage: stageOf(row),
+        stage: stageOf(row, chosePlan),
         installed: isInstalled(row),
         hasDevice: row.has_device,
         goal: row.goal,

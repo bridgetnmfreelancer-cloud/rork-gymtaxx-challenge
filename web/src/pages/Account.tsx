@@ -11,6 +11,7 @@ import {
   Send,
   Share,
   ShieldCheck,
+  Sparkles,
   Target,
   Trash2,
 } from "lucide-react";
@@ -33,6 +34,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthProvider";
+import type { CurrencyCode } from "@/lib/money";
+import type { ProfileRow } from "@/lib/database.types";
 import { formatStartDate } from "@/lib/gymweek";
 import { CHALLENGE_WEEKS, currencyFrom, depositFor, formatMoney } from "@/lib/money";
 import {
@@ -42,7 +45,8 @@ import {
   unregisterReminders,
 } from "@/lib/push";
 import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
-import { useCurrentChallenge, useParticipation } from "@/lib/queries";
+import { formatFee, intervalSuffix, isPlanId, planById } from "@/lib/plans";
+import { queryKeys, useCurrentChallenge, useParticipation, useProfile } from "@/lib/queries";
 import { callFunction } from "@/lib/supabase";
 
 const SUPPORT_EMAIL = "support@gymtaxx.com";
@@ -76,6 +80,7 @@ export default function Account() {
   const { user, signOut } = useAuth();
   const { data: participation } = useParticipation();
   const { data: challenge } = useCurrentChallenge();
+  const { data: profile } = useProfile();
 
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -325,6 +330,8 @@ export default function Account() {
         </section>
       )}
 
+      <MembershipSection profile={profile ?? null} currency={currency} />
+
       {notInstalled ? (
         <section className="mt-4 flex items-start gap-3 rounded-lg border border-border p-4">
           <Share className="mt-0.5 h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
@@ -510,6 +517,104 @@ export default function Account() {
 
       <BottomNav />
     </Screen>
+  );
+}
+
+/**
+ * Membership: what they're on, when it renews, and how to stop it.
+ *
+ * Cancelling lives here rather than behind an email, because it has to be as
+ * easy to leave as it was to join. It takes effect at the end of the period they
+ * have already paid for, and it never interferes with a challenge in flight —
+ * someone with a deposit riding on this week keeps verifying workouts either way.
+ */
+function MembershipSection({ profile, currency }: { profile: ProfileRow | null; currency: CurrencyCode }) {
+  const queryClient = useQueryClient();
+  const [isWorking, setIsWorking] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const planId = isPlanId(profile?.plan) ? profile.plan : null;
+
+  // Grandfathered accounts joined before access was charged for and keep those
+  // terms. Showing them a plan row would invent a relationship that isn't there.
+  if (!profile || profile.grandfathered === true || !planId) return null;
+
+  const plan = planById(planId);
+  const isRecurring = plan.interval !== "one_off";
+  const status = profile.plan_status ?? "active";
+  const cancelling = profile.plan_cancel_at_period_end === true;
+
+  const renewLabel = profile.plan_renews_at
+    ? new Date(profile.plan_renews_at).toLocaleDateString(currency === "gbp" ? "en-GB" : "en-US", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+
+  async function change(action: "cancel" | "resume"): Promise<void> {
+    if (isWorking) return;
+    setError(null);
+    setIsWorking(true);
+    try {
+      await callFunction<{ status: string }>("manage-subscription", { action });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.profile(profile?.id) });
+    } catch (caught) {
+      console.error("account: plan change failed", caught);
+      setError("We couldn't change your plan just then. Try again, or email us and we'll sort it.");
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
+  return (
+    <section className="mt-4 overflow-hidden rounded-lg bg-card">
+      <div className="flex items-center justify-between px-4 py-4">
+        <div className="flex items-center gap-3">
+          <Sparkles className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="text-sm text-muted-foreground">Plan</span>
+        </div>
+        <span className="text-sm font-semibold text-foreground">{plan.name}</span>
+      </div>
+
+      <div className="border-t border-border px-4 py-4">
+        {status === "past_due" ? (
+          <p className="text-sm leading-relaxed text-danger-ink">
+            Your last payment didn't go through. Your challenge carries on as normal — update your card and we'll try
+            again.
+          </p>
+        ) : cancelling && renewLabel ? (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Cancelled. Your plan stays active until {renewLabel}, then stops.
+          </p>
+        ) : status === "trialing" && renewLabel ? (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Free until your challenge ends. The first {formatFee(plan.price, currency)} is taken on {renewLabel}, and
+            we'll remind you first.
+          </p>
+        ) : isRecurring && renewLabel ? (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {formatFee(plan.price, currency)} {intervalSuffix(plan.interval)}. Renews {renewLabel}.
+          </p>
+        ) : (
+          <p className="text-sm leading-relaxed text-muted-foreground">{plan.detail}</p>
+        )}
+
+        {error ? <p className="mt-2 text-sm font-medium text-danger-ink">{error}</p> : null}
+
+        {isRecurring ? (
+          <Button
+            variant="outline"
+            className="mt-3 w-full"
+            disabled={isWorking}
+            onClick={() => void change(cancelling ? "resume" : "cancel")}
+          >
+            {isWorking ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+            {cancelling ? "Keep my plan" : "Cancel plan"}
+          </Button>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

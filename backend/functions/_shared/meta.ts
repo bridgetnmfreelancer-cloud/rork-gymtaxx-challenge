@@ -31,6 +31,17 @@ export interface PurchaseAttribution {
   clientUserAgent?: string | null;
 }
 
+/**
+ * The conversion events this app reports.
+ *
+ * - `Purchase` — the access fee actually cleared. Value is the fee alone.
+ * - `StartTrial` — a free first challenge began. Value is zero: no money moved,
+ *   and giving it a price here would double-count against the `Subscribe` that
+ *   follows weeks later.
+ * - `Subscribe` — the first real recurring payment cleared after a trial.
+ */
+export type ConversionEventName = "Purchase" | "StartTrial" | "Subscribe";
+
 export interface PurchaseEvent extends PurchaseAttribution {
   /** Stripe PaymentIntent id. Doubles as Meta's `event_id` for deduplication. */
   eventId: string;
@@ -86,12 +97,20 @@ function clean(value: string | null | undefined): string | undefined {
 }
 
 /**
- * Send a Purchase event.
+ * Send a conversion event.
  *
  * Returns a result instead of throwing. `sent: false` means the caller should log
  * and carry on — never retry the payment, never undo an activation.
+ *
+ * The value passed in must be the GymTaxx access fee, never the deposit and
+ * never the two added together. A deposit is the user's own refundable money;
+ * reporting it as a sale would tell Meta to optimise against revenue that does
+ * not exist.
  */
-export async function sendPurchaseEvent(event: PurchaseEvent): Promise<PurchaseResult> {
+export async function sendConversionEvent(
+  eventName: ConversionEventName,
+  event: PurchaseEvent,
+): Promise<PurchaseResult> {
   try {
     const accessToken = Deno.env.get("META_CAPI_ACCESS_TOKEN");
     if (!accessToken) {
@@ -99,7 +118,9 @@ export async function sendPurchaseEvent(event: PurchaseEvent): Promise<PurchaseR
       return { sent: false, reason: "not_configured" };
     }
 
-    if (!Number.isFinite(event.value) || event.value <= 0) {
+    // A trial legitimately carries no money, so zero is valid for it alone.
+    const allowsZero = eventName === "StartTrial";
+    if (!Number.isFinite(event.value) || event.value < 0 || (!allowsZero && event.value <= 0)) {
       return { sent: false, reason: "invalid_value" };
     }
 
@@ -124,7 +145,7 @@ export async function sendPurchaseEvent(event: PurchaseEvent): Promise<PurchaseR
     const payload: Record<string, unknown> = {
       data: [
         {
-          event_name: "Purchase",
+          event_name: eventName,
           event_time: event.eventTime,
           // Stripe's PaymentIntent id is stable across webhook redeliveries, so
           // Meta can collapse duplicates even if our own guard is bypassed.
@@ -173,6 +194,11 @@ export async function sendPurchaseEvent(event: PurchaseEvent): Promise<PurchaseR
       detail: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/** Purchase, kept as its own name because it is by far the most common call. */
+export function sendPurchaseEvent(event: PurchaseEvent): Promise<PurchaseResult> {
+  return sendConversionEvent("Purchase", event);
 }
 
 /**

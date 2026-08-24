@@ -66,7 +66,7 @@ export default function BuildChallenge() {
 
   return (
     <Screen>
-      <StepProgress step={1} total={2} onBack={() => navigate(-1)} />
+      <StepProgress step={1} total={4} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Build a challenge</ScreenTitle>

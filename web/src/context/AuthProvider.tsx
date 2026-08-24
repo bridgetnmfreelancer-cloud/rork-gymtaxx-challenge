@@ -3,6 +3,9 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 import { supabase } from "@/lib/supabase";
 
+/** The social providers offered alongside email and password. */
+export type OAuthProvider = "apple" | "google";
+
 type AuthState = {
   session: Session | null;
   user: User | null;
@@ -10,6 +13,8 @@ type AuthState = {
   isLoading: boolean;
   signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Hand off to Apple or Google. Navigates away, so it never resolves normally. */
+  signInWithProvider: (provider: OAuthProvider) => Promise<void>;
   signOut: () => Promise<void>;
   /** Email a one-time reset code. Never reveals whether the account exists. */
   requestPasswordReset: (email: string) => Promise<void>;
@@ -99,6 +104,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
+        });
+        if (error) throw new Error(friendlyAuthError(error.message));
+      },
+      signInWithProvider: async (provider: OAuthProvider) => {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            // One landing place for both providers. It decides where to send
+            // people next, because a social login gives no signal about whether
+            // the account is new or returning.
+            redirectTo: `${window.location.origin}/auth/callback`,
+            // Apple hands back the name only on the very first authorisation,
+            // so it has to be asked for up front or it is gone for good.
+            ...(provider === "apple" ? { scopes: "name email" } : {}),
+          },
         });
         if (error) throw new Error(friendlyAuthError(error.message));
       },

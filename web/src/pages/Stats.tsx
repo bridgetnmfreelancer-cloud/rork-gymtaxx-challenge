@@ -54,6 +54,16 @@ type Person = {
 
 type Journey = { stages: Stage[]; steps: Step[] };
 
+type MoneyTotals = { gbp: number; usd: number };
+
+type Money = {
+  /** Access fees that actually cleared. This is the real revenue. */
+  revenue: MoneyTotals;
+  /** Deposits being held on participants' behalf. Not income. */
+  depositsHeld: MoneyTotals;
+  planMix: { plan: string; count: number }[];
+};
+
 type Stats = {
   since: string;
   days: number;
@@ -68,6 +78,7 @@ type Stats = {
     notInstalledTotal: number;
   };
   installConfidence: { confirmed: number; inferredFromReminders: number };
+  money: Money;
   arrivals: Arrivals;
   sources: Source[];
   visitsByDay: VisitDay[];
@@ -88,9 +99,45 @@ const STAGE_NAMES: Record<string, string> = {
   installed: "Installed",
   answered: "Answered questions",
   built: "Built a challenge",
+  chose_plan: "Chose a plan",
   paid: "Paid",
   logged_workout: "Logged a workout",
 };
+
+/** Plan ids as they read on screen. "grandfathered" is not a plan anyone chose. */
+const PLAN_NAMES: Record<string, string> = {
+  monthly: "Monthly",
+  annual: "Annual",
+  one_challenge: "One challenge",
+  lifetime: "Lifetime",
+  grandfathered: "No plan (joined earlier)",
+};
+
+const EMPTY_MONEY: Money = {
+  revenue: { gbp: 0, usd: 0 },
+  depositsHeld: { gbp: 0, usd: 0 },
+  planMix: [],
+};
+
+/** Minor units to a readable amount. Both supported currencies have two decimals. */
+function money(minor: number, symbol: string): string {
+  return `${symbol}${(minor / 100).toFixed(2)}`;
+}
+
+/** One currency's line, hidden entirely when there is nothing in it. */
+function MoneyLine({ label, gbp, usd }: { label: string; gbp: number; usd: number }) {
+  if (gbp === 0 && usd === 0) return null;
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="tabular shrink-0 font-semibold text-foreground">
+        {gbp > 0 ? money(gbp, "\u00a3") : null}
+        {gbp > 0 && usd > 0 ? " \u00b7 " : null}
+        {usd > 0 ? money(usd, "$") : null}
+      </span>
+    </div>
+  );
+}
 
 const EMPTY_ARRIVALS: Arrivals = {
   stages: [],
@@ -133,6 +180,7 @@ function normalise(data: Partial<Stats> | undefined): Stats {
       confirmed: data?.installConfidence?.confirmed ?? 0,
       inferredFromReminders: data?.installConfidence?.inferredFromReminders ?? 0,
     },
+    money: data?.money ?? EMPTY_MONEY,
     arrivals: data?.arrivals ?? EMPTY_ARRIVALS,
     sources: data?.sources ?? [],
     visitsByDay: data?.visitsByDay ?? [],
@@ -547,6 +595,47 @@ export default function Stats() {
             </tbody>
           </table>
         )}
+      </Card>
+
+      {/* Kept apart on purpose. The deposit total is money being held on other
+          people's behalf and expected to go back to them; only the fee is
+          income. Showing one number for both would overstate revenue roughly
+          tenfold and make everything decided from it wrong. */}
+      <Card title="Money">
+        <div className="rounded-md bg-primary px-4 py-4">
+          <p className="text-xs font-medium text-primary-foreground/70">Revenue · access fees taken</p>
+          <p className="tabular mt-1 text-3xl font-extrabold text-accent">
+            {data.money.revenue.gbp === 0 && data.money.revenue.usd === 0
+              ? "\u00a30.00"
+              : [
+                  data.money.revenue.gbp > 0 ? money(data.money.revenue.gbp, "\u00a3") : null,
+                  data.money.revenue.usd > 0 ? money(data.money.revenue.usd, "$") : null,
+                ]
+                  .filter(Boolean)
+                  .join(" \u00b7 ")}
+          </p>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          <MoneyLine label="Deposits held (not revenue)" gbp={data.money.depositsHeld.gbp} usd={data.money.depositsHeld.usd} />
+        </div>
+
+        {data.money.planMix.length > 0 ? (
+          <ul className="mt-4 space-y-2 border-t border-border pt-4">
+            {data.money.planMix.map((entry) => (
+              <li key={entry.plan} className="flex items-center justify-between text-sm">
+                <span className="text-foreground">{PLAN_NAMES[entry.plan] ?? entry.plan}</span>
+                <span className="tabular font-semibold text-foreground">{entry.count}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+          Deposits are participants' own money and are expected to go back to them, so they are never counted as
+          revenue — here or in your ad reporting. Forfeited deposits do become income, but only once a challenge has
+          finished, which is not shown on this screen.
+        </p>
       </Card>
 
       <Card title="Every step">

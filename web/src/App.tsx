@@ -11,6 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import Account from "./pages/Account";
 import Activated from "./pages/Activated";
+import AuthCallback from "./pages/AuthCallback";
 import BuildChallenge from "./pages/BuildChallenge";
 import Commit from "./pages/Commit";
 import Entry from "./pages/Entry";
@@ -22,6 +23,7 @@ import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import Onboarding from "./pages/Onboarding";
 import Pay from "./pages/Pay";
+import PlanPicker from "./pages/PlanPicker";
 import Reminders from "./pages/Reminders";
 import Review from "./pages/Review";
 import Stats from "./pages/Stats";
@@ -46,6 +48,7 @@ const PRIVATE_ROUTES = [
   { path: "/onboarding", element: <Onboarding /> },
   { path: "/challenge", element: <BuildChallenge /> },
   { path: "/commit", element: <Commit /> },
+  { path: "/plan", element: <PlanPicker /> },
   { path: "/pay", element: <Pay /> },
   { path: "/activated", element: <Activated /> },
   { path: "/home", element: <Home /> },
@@ -72,6 +75,9 @@ const App = () => (
             <Route path="/4weekchallenge" element={<Landing />} />
             <Route path="/install" element={<Install />} />
             <Route path="/welcome" element={<Welcome />} />
+            {/* Where Apple and Google return people. Deliberately outside the
+                auth gate: the session doesn't exist yet when it first loads. */}
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {PRIVATE_ROUTES.map((route) => (

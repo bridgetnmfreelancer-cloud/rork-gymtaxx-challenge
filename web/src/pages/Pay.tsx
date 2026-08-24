@@ -8,8 +8,10 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
-import { metaAttribution } from "@/lib/meta";
+import { metaAttribution, trackIntent } from "@/lib/meta";
 import { currencyFrom, formatMoney } from "@/lib/money";
+import { loadPlanChoice } from "@/lib/planChoice";
+import { formatFee } from "@/lib/plans";
 import { clearDepositSettling, markDepositSettling } from "@/lib/settlement";
 import { callFunction } from "@/lib/supabase";
 
@@ -19,8 +21,13 @@ type DepositResponse =
       status: "requires_payment";
       clientSecret: string;
       publishableKey: string;
+      /** The refundable commitment. The person's own money. */
+      depositMinor: number;
+      /** The GymTaxx access fee. Zero on a free first challenge. */
+      feeMinor: number;
       amountMinor: number;
       currency: string;
+      plan: string | null;
     };
 
 /**
@@ -52,7 +59,13 @@ export default function Pay() {
     // The Meta cookies ride along so the server can record who is paying while
     // the person is actually here. The Purchase event is sent later, server-side,
     // once Stripe confirms the money — never from this screen.
-    queryFn: () => callFunction<DepositResponse>("create-deposit-payment", metaAttribution()),
+    // The plan is a hint, not a price. The server validates it against the
+    // catalogue and works out the fee itself, so this cannot buy access cheaply.
+    queryFn: () =>
+      callFunction<DepositResponse>("create-deposit-payment", {
+        ...metaAttribution(),
+        plan: loadPlanChoice(),
+      }),
     // A payment intent is single-use state, not something to serve from cache.
     staleTime: 0,
     gcTime: 0,
@@ -77,7 +90,7 @@ export default function Pay() {
   if (isError || !data) {
     return (
       <Screen>
-        <StepProgress step={2} total={2} onBack={() => navigate(-1)} />
+        <StepProgress step={4} total={4} onBack={() => navigate(-1)} />
         <div className="pt-8">
           <ScreenTitle>We couldn't open the payment page.</ScreenTitle>
           <ScreenSubtitle>Your money hasn't moved. Check your connection and try again.</ScreenSubtitle>
@@ -98,18 +111,40 @@ export default function Pay() {
   }
 
   const currency = currencyFrom(data.currency);
+  const deposit = data.depositMinor / 100;
+  const fee = data.feeMinor / 100;
   const amount = data.amountMinor / 100;
 
   return (
     <Screen>
-      <StepProgress step={2} total={2} onBack={() => navigate(-1)} />
+      <StepProgress step={4} total={4} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Secure your commitment</ScreenTitle>
         <ScreenSubtitle className="animate-rise-in [animation-delay:60ms]">
-          {formatMoney(amount, currency)} held now, earned back {formatMoney(5, currency)} at a time.
+          {formatMoney(deposit, currency)} held now, earned back {formatMoney(5, currency)} at a time.
         </ScreenSubtitle>
       </div>
+
+      {/* Restated at the moment of payment, because this is where someone checks
+          the number against what they were promised. The deposit line says
+          refundable on the same row as the amount, not in a footnote. */}
+      <dl className="mt-6 divide-y divide-border overflow-hidden rounded-lg bg-card animate-rise-in [animation-delay:90ms]">
+        <div className="flex items-baseline justify-between px-5 py-3.5">
+          <dt className="text-sm text-muted-foreground">Deposit · refundable</dt>
+          <dd className="tabular text-sm font-semibold text-foreground">{formatFee(deposit, currency)}</dd>
+        </div>
+        <div className="flex items-baseline justify-between px-5 py-3.5">
+          <dt className="text-sm text-muted-foreground">GymTaxx access</dt>
+          <dd className="tabular text-sm font-semibold text-foreground">
+            {fee === 0 ? "Free" : formatFee(fee, currency)}
+          </dd>
+        </div>
+        <div className="flex items-baseline justify-between px-5 py-3.5">
+          <dt className="text-sm font-semibold text-foreground">Total today</dt>
+          <dd className="tabular text-base font-extrabold text-foreground">{formatFee(amount, currency)}</dd>
+        </div>
+      </dl>
 
       {stripePromise ? (
         <Elements
@@ -130,7 +165,7 @@ export default function Pay() {
             },
           }}
         >
-          <PaymentForm amountLabel={formatMoney(amount, currency)} />
+          <PaymentForm amountLabel={formatFee(amount, currency)} />
         </Elements>
       ) : null}
     </Screen>
@@ -151,6 +186,10 @@ function PaymentForm({ amountLabel }: { amountLabel: string }) {
 
     setError(null);
     setIsPaying(true);
+
+    // Intent only — no money has moved yet. Anything carrying a value is sent
+    // server-side once Stripe confirms it.
+    trackIntent("AddPaymentInfo");
 
     // Marked before confirming, not after. A 3-D Secure challenge redirects away
     // mid-call and may never return to this line, so setting it afterwards would

@@ -57,7 +57,9 @@ export default function Commit() {
         existing: participation ?? null,
       });
       await queryClient.invalidateQueries({ queryKey: queryKeys.participation(user.id) });
-      navigate("/pay");
+      // The access plan is chosen before any money is taken, so the fee is never
+      // a surprise on the payment sheet.
+      navigate("/plan");
     } catch (caught) {
       console.error("commit: could not create participation", caught);
       setError("We couldn't set up your challenge just then. Try again in a moment.");
@@ -68,7 +70,7 @@ export default function Commit() {
 
   return (
     <Screen>
-      <StepProgress step={2} total={2} onBack={() => navigate(-1)} />
+      <StepProgress step={2} total={4} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Now put something behind it.</ScreenTitle>
@@ -115,7 +117,7 @@ export default function Commit() {
       <ScreenActions>
         <Button size="xl" className="w-full" onClick={startPayment} disabled={isWorking}>
           {isWorking ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
-          Put {formatMoney(deposit, currency)} behind my goal
+          Continue
         </Button>
       </ScreenActions>
     </Screen>

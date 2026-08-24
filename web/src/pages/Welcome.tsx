@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
+import { AuthDivider, SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,7 +94,12 @@ export default function Welcome() {
         </ScreenSubtitle>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-4 animate-rise-in [animation-delay:80ms]">
+      <div className="mt-8 space-y-4 animate-rise-in [animation-delay:80ms]">
+        <SocialAuthButtons onError={setError} />
+        <AuthDivider />
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-4 space-y-4 animate-rise-in [animation-delay:140ms]">
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <Input
