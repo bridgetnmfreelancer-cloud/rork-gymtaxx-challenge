@@ -2,6 +2,7 @@ import { corsHeaders, createAdminClient, json } from "../_shared/auth.ts";
 import {
   createSubscription,
   ensureSubscriptionPrice,
+  subscriptionPeriodEnd,
   verifyWebhookSignature,
 } from "../_shared/stripe.ts";
 import { addWeeks, safeZone, weeklyStart, weeksBetween } from "../_shared/gymweek.ts";
@@ -9,23 +10,6 @@ import { minorToMajor, sendConversionEvent, type ConversionEventName } from "../
 import { isPlanId, planById, stripeInterval, type PlanId } from "../_shared/plans.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
-
-/**
- * When the current billing period ends, read from wherever Stripe puts it.
- *
- * Stripe removed `current_period_end` from the subscription in its 2025-03-31
- * API and moved it onto each subscription item. This endpoint receives events on
- * a later version than that, so the item is the real source — reading only the
- * old top-level field would silently yield nothing and leave every renewal date
- * empty. The legacy field stays as a fallback so an event replayed on an older
- * version still works.
- */
-function periodEndUnix(subscription: { current_period_end?: number; items?: { data?: { current_period_end?: number }[] } } | undefined): number {
-  const fromItem = subscription?.items?.data?.[0]?.current_period_end;
-  if (typeof fromItem === "number" && Number.isFinite(fromItem) && fromItem > 0) return fromItem;
-  const legacy = Number(subscription?.current_period_end ?? 0);
-  return Number.isFinite(legacy) && legacy > 0 ? legacy : 0;
-}
 
 /**
  * Which subscription an invoice belongs to.
@@ -298,7 +282,7 @@ async function grantAccess(
       if (trialEndUnix !== null) {
         profileUpdate.plan_renews_at = params.trialEndsAt.toISOString();
       } else {
-        const periodEnd = periodEndUnix(subscription);
+        const periodEnd = subscriptionPeriodEnd(subscription);
         if (periodEnd > 0) {
           profileUpdate.plan_renews_at = new Date(periodEnd * 1000).toISOString();
         }
@@ -421,7 +405,7 @@ async function handleSubscriptionChanged(
 
   const isDeleted = eventType === "customer.subscription.deleted";
   const status = String(subscription?.status ?? "canceled");
-  const periodEnd = periodEndUnix(subscription);
+  const periodEnd = subscriptionPeriodEnd(subscription);
 
   const update: Record<string, unknown> = {
     plan_status: isDeleted ? "canceled" : status,

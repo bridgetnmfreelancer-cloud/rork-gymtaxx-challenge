@@ -54,6 +54,35 @@ export interface Subscription {
   metadata?: Record<string, string>;
 }
 
+/**
+ * When the current billing period ends, read from wherever Stripe puts it.
+ *
+ * Stripe's 2025-03-31 API removed `current_period_end` from the subscription and
+ * moved it onto each subscription item. Both locations are checked, in that
+ * order, so this holds whichever version the data arrives on.
+ *
+ * That matters because the two callers do NOT share an API version: webhook
+ * deliveries use the version pinned on the endpoint, while the direct API calls
+ * in this file use the account default. Reading one location only would work in
+ * one place and silently return nothing in the other — and a zero here means a
+ * renewal date that never gets written, not a visible error.
+ *
+ * Takes `unknown` because one caller holds a parsed webhook payload and the
+ * other a typed response; narrowing here keeps casts out of both.
+ */
+export function subscriptionPeriodEnd(subscription: unknown): number {
+  const sub = subscription as
+    | { current_period_end?: unknown; items?: { data?: { current_period_end?: unknown }[] } }
+    | null
+    | undefined;
+
+  const fromItem = sub?.items?.data?.[0]?.current_period_end;
+  if (typeof fromItem === "number" && Number.isFinite(fromItem) && fromItem > 0) return fromItem;
+
+  const legacy = sub?.current_period_end;
+  return typeof legacy === "number" && Number.isFinite(legacy) && legacy > 0 ? legacy : 0;
+}
+
 interface StripeList<T> {
   data: T[];
 }

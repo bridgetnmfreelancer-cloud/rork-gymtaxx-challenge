@@ -5,7 +5,11 @@ import {
   json,
   requireAuth,
 } from "../_shared/auth.ts";
-import { cancelSubscriptionAtPeriodEnd, retrieveSubscription } from "../_shared/stripe.ts";
+import {
+  cancelSubscriptionAtPeriodEnd,
+  retrieveSubscription,
+  subscriptionPeriodEnd,
+} from "../_shared/stripe.ts";
 
 /**
  * Cancel or resume the signed-in user's plan.
@@ -56,9 +60,12 @@ Deno.serve(async (req) => {
       action === "cancel",
     );
 
-    const renewsAt = subscription.current_period_end
-      ? new Date(subscription.current_period_end * 1000).toISOString()
-      : null;
+    // Read through the shared helper because Stripe moved this field onto the
+    // subscription item. Losing it would blank the renewal date at exactly the
+    // moment someone cancels — when "you keep access until X" is the only
+    // reassurance that matters, and its absence reads as access ending today.
+    const periodEnd = subscriptionPeriodEnd(subscription);
+    const renewsAt = periodEnd > 0 ? new Date(periodEnd * 1000).toISOString() : null;
 
     // Written straight away rather than waiting for the webhook, so the screen
     // reflects the change the instant they come back to it.
