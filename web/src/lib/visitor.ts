@@ -22,6 +22,14 @@ const ATTRIBUTION_KEY = "gymtaxx.visitor.attribution";
 /** The stages an arrival passes through before an account exists. */
 export type VisitStep = "landing" | "join_tapped" | "install" | "signup_form" | "signed_up";
 
+/** This browser's anonymous id plus where it came from. */
+export type VisitorContext = {
+  visitorId: string | null;
+  source: string | null;
+  campaign: string | null;
+  referrerHost: string | null;
+};
+
 type Attribution = {
   source: string | null;
   campaign: string | null;
@@ -130,6 +138,20 @@ function attribution(): Attribution {
 
   writeStored(ATTRIBUTION_KEY, JSON.stringify(captured));
   return captured;
+}
+
+/**
+ * The same anonymous identity `recordVisit` uses, for forms that write their
+ * own row instead of going through `record_visit`.
+ *
+ * Lets a signup be traced back to the ad that produced it without storing
+ * anything more personal than the random per-browser tag already in use.
+ */
+export function visitorContext(): VisitorContext {
+  const { source, campaign, referrerHost } = attribution();
+  const id = visitorId();
+  // The column is a uuid, and an empty string is not one.
+  return { visitorId: id.length > 0 ? id : null, source, campaign, referrerHost };
 }
 
 /**

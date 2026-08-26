@@ -28,6 +28,7 @@ import Reminders from "./pages/Reminders";
 import Review from "./pages/Review";
 import Stats from "./pages/Stats";
 import Verify from "./pages/Verify";
+import Waitlist from "./pages/Waitlist";
 import Welcome from "./pages/Welcome";
 
 const queryClient = new QueryClient({
@@ -73,6 +74,9 @@ const App = () => (
             {/* The paid-traffic landing page. Currency-neutral slug, because the
                 deposit is charged in pounds or dollars depending on the reader. */}
             <Route path="/4weekchallenge" element={<Landing />} />
+            {/* Interest list for a challenge that doesn't exist yet. Public and
+                outside the auth gate: most of the point is cold traffic. */}
+            <Route path="/75daychallenge" element={<Waitlist />} />
             <Route path="/install" element={<Install />} />
             <Route path="/welcome" element={<Welcome />} />
             {/* Where Apple and Google return people. Deliberately outside the
