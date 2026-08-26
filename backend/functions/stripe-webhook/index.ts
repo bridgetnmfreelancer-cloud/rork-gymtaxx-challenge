@@ -11,6 +11,39 @@ import { isPlanId, planById, stripeInterval, type PlanId } from "../_shared/plan
 type Admin = ReturnType<typeof createAdminClient>;
 
 /**
+ * When the current billing period ends, read from wherever Stripe puts it.
+ *
+ * Stripe removed `current_period_end` from the subscription in its 2025-03-31
+ * API and moved it onto each subscription item. This endpoint receives events on
+ * a later version than that, so the item is the real source — reading only the
+ * old top-level field would silently yield nothing and leave every renewal date
+ * empty. The legacy field stays as a fallback so an event replayed on an older
+ * version still works.
+ */
+function periodEndUnix(subscription: { current_period_end?: number; items?: { data?: { current_period_end?: number }[] } } | undefined): number {
+  const fromItem = subscription?.items?.data?.[0]?.current_period_end;
+  if (typeof fromItem === "number" && Number.isFinite(fromItem) && fromItem > 0) return fromItem;
+  const legacy = Number(subscription?.current_period_end ?? 0);
+  return Number.isFinite(legacy) && legacy > 0 ? legacy : 0;
+}
+
+/**
+ * Which subscription an invoice belongs to.
+ *
+ * Also relocated in 2025-03-31: invoices now describe what generated them under
+ * `parent` instead of a top-level `subscription`. This is what repairs a
+ * subscription id that failed to save when the subscription was first created,
+ * so losing it would strand an account with no way back to its own billing.
+ */
+function invoiceSubscriptionId(invoice: Record<string, unknown> | undefined): string | null {
+  const parent = invoice?.parent as { subscription_details?: { subscription?: unknown } } | undefined;
+  const fromParent = parent?.subscription_details?.subscription;
+  if (typeof fromParent === "string") return fromParent;
+  const legacy = (invoice as { subscription?: unknown } | undefined)?.subscription;
+  return typeof legacy === "string" ? legacy : null;
+}
+
+/**
  * Stripe webhook: the only thing allowed to mark a deposit as paid, grant a
  * plan, or report money to Meta.
  *
@@ -264,8 +297,11 @@ async function grantAccess(
       profileUpdate.plan_status = subscription.status === "trialing" ? "trialing" : subscription.status;
       if (trialEndUnix !== null) {
         profileUpdate.plan_renews_at = params.trialEndsAt.toISOString();
-      } else if (subscription.current_period_end) {
-        profileUpdate.plan_renews_at = new Date(subscription.current_period_end * 1000).toISOString();
+      } else {
+        const periodEnd = periodEndUnix(subscription);
+        if (periodEnd > 0) {
+          profileUpdate.plan_renews_at = new Date(periodEnd * 1000).toISOString();
+        }
       }
     } catch (err) {
       // Logged loudly: this is the one failure here worth a human looking at,
@@ -298,7 +334,7 @@ async function handleInvoicePaid(admin: Admin, invoice: Record<string, unknown> 
   const customerId = typeof invoice?.customer === "string" ? invoice.customer : null;
   const amountPaid = Number(invoice?.amount_paid ?? 0);
   const currency = String(invoice?.currency ?? "gbp");
-  const subscriptionId = typeof invoice?.subscription === "string" ? invoice.subscription : null;
+  const subscriptionId = invoiceSubscriptionId(invoice);
   if (!customerId) return json({ received: true });
 
   const { data: profile } = await admin
@@ -385,13 +421,13 @@ async function handleSubscriptionChanged(
 
   const isDeleted = eventType === "customer.subscription.deleted";
   const status = String(subscription?.status ?? "canceled");
-  const periodEnd = Number(subscription?.current_period_end ?? 0);
+  const periodEnd = periodEndUnix(subscription);
 
   const update: Record<string, unknown> = {
     plan_status: isDeleted ? "canceled" : status,
     plan_cancel_at_period_end: subscription?.cancel_at_period_end === true,
   };
-  if (!isDeleted && Number.isFinite(periodEnd) && periodEnd > 0) {
+  if (!isDeleted && periodEnd > 0) {
     update.plan_renews_at = new Date(periodEnd * 1000).toISOString();
   }
 

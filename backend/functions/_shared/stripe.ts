@@ -41,7 +41,13 @@ export interface Price {
 export interface Subscription {
   id: string;
   status: string;
+  /**
+   * Removed from the subscription itself in Stripe's 2025-03-31 API and moved
+   * onto each item. Kept declared because an older replayed event can still
+   * carry it, but `items` below is the location that matters now.
+   */
   current_period_end?: number;
+  items?: { data?: { current_period_end?: number }[] };
   trial_end?: number | null;
   cancel_at_period_end?: boolean;
   customer?: string;
