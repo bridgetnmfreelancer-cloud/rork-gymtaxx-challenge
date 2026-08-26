@@ -8,6 +8,26 @@
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
+/**
+ * The Stripe API version every request in this file is made against.
+ *
+ * Deliberately pinned, and deliberately equal to the version the webhook
+ * endpoint delivers events on. Without this header Stripe uses the account
+ * default, which moves when the version is upgraded in the dashboard — so the
+ * two halves of the billing system could start speaking different dialects of
+ * the same object while nobody touched this repository.
+ *
+ * That specific failure mode is the reason for pinning. A version change raises
+ * no error: Stripe's 2025-03-31 release moved `current_period_end` off the
+ * subscription and `subscription` off the invoice, and code reading the old
+ * locations simply received `undefined` — a renewal date that never gets
+ * written, found by a customer rather than by a log line.
+ *
+ * Upgrading is now a decision made here, in a diff, after reading what moved.
+ * Change this string and the webhook endpoint's version together.
+ */
+const STRIPE_API_VERSION = "2026-04-22.dahlia";
+
 export function stripeSecretKey(): string {
   const key = Deno.env.get("STRIPE_SECRET_KEY");
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
@@ -103,6 +123,7 @@ async function stripeRequest<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${stripeSecretKey()}`,
+    "Stripe-Version": STRIPE_API_VERSION,
   };
   if (init.form) headers["Content-Type"] = "application/x-www-form-urlencoded";
   if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;
