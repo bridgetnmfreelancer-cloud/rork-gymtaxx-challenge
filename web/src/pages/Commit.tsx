@@ -1,33 +1,29 @@
-import { ArrowDownRight, ArrowUpRight, Loader2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/context/AuthProvider";
 import { currencyFrom, currencyForRegion, depositFor, formatMoney, isWeeklyGoal, totalWorkouts } from "@/lib/money";
 import { loadAnswers } from "@/lib/onboarding";
-import { ensureParticipation } from "@/lib/participation";
-import { queryKeys, useCurrentChallenge, useParticipation } from "@/lib/queries";
+import { useCurrentChallenge, useParticipation } from "@/lib/queries";
 import { CHALLENGE_WEEKS, REWARD_PER_WORKOUT } from "@/lib/money";
-import { useQueryClient } from "@tanstack/react-query";
 
 /**
- * Step 10: the deposit, stated plainly.
+ * The deposit, stated plainly.
  *
  * Both outcomes are spelled out here rather than buried — someone should not be
  * able to reach the payment sheet without having read what happens if they miss.
+ *
+ * Reached before anyone has an account, so nothing is written from this screen.
+ * The goal is already saved on the phone; the participation row it implies gets
+ * created at sign-up, a few screens later.
  */
 export default function Commit() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { data: challenge } = useCurrentChallenge();
   const { data: participation } = useParticipation();
-
-  const [isWorking, setIsWorking] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
 
   const saved = useMemo(() => loadAnswers(), []);
   const goal = saved.goal && isWeeklyGoal(saved.goal) ? saved.goal : 4;
@@ -39,38 +35,9 @@ export default function Commit() {
   const workouts = totalWorkouts(goal, weeks);
   const deposit = depositFor(goal, weeks);
 
-  async function startPayment(): Promise<void> {
-    if (isWorking) return;
-    if (!user || !challenge) {
-      setError("We couldn't load your challenge. Pull down to refresh and try again.");
-      return;
-    }
-
-    setError(null);
-    setIsWorking(true);
-    try {
-      await ensureParticipation({
-        userId: user.id,
-        challengeId: challenge.id,
-        goal,
-        weeks,
-        existing: participation ?? null,
-      });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.participation(user.id) });
-      // The access plan is chosen before any money is taken, so the fee is never
-      // a surprise on the payment sheet.
-      navigate("/plan");
-    } catch (caught) {
-      console.error("commit: could not create participation", caught);
-      setError("We couldn't set up your challenge just then. Try again in a moment.");
-    } finally {
-      setIsWorking(false);
-    }
-  }
-
   return (
     <Screen>
-      <StepProgress step={2} total={4} onBack={() => navigate(-1)} />
+      <StepProgress step={2} total={5} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Now put something behind it.</ScreenTitle>
@@ -108,15 +75,8 @@ export default function Commit() {
         lose is what you put in, and the most you can get back is the same {formatMoney(deposit, currency)}.
       </p>
 
-      {error ? (
-        <p role="alert" className="mt-4 rounded-md bg-destructive/15 px-4 py-3 text-sm font-medium text-danger-ink">
-          {error}
-        </p>
-      ) : null}
-
       <ScreenActions>
-        <Button size="xl" className="w-full" onClick={startPayment} disabled={isWorking}>
-          {isWorking ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
+        <Button size="xl" className="w-full" onClick={() => navigate("/ready")}>
           Continue
         </Button>
       </ScreenActions>

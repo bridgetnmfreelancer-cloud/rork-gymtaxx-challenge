@@ -261,7 +261,7 @@ export default function Install() {
         <button
           type="button"
           className="w-full py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
-          onClick={() => navigate("/welcome?browser=1")}
+          onClick={() => navigate("/onboarding?browser=1")}
         >
           Continue in browser
         </button>

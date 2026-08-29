@@ -22,10 +22,14 @@ import { useCurrentChallenge } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 /**
- * Step 8: the challenge laid out as a thing they're entering, not a purchase.
+ * The challenge laid out as a thing they're entering, not a purchase.
  *
  * Every number here is derived from the same rule the server uses to price the
  * deposit (goal x weeks x reward), so what they read is what they're charged.
+ *
+ * Runs before sign-up, so the challenge row is read anonymously and falls back
+ * to the shared constants if that read isn't permitted — the terms are identical
+ * for everyone, and a blank screen here would cost a sale.
  */
 export default function BuildChallenge() {
   const navigate = useNavigate();
@@ -66,7 +70,7 @@ export default function BuildChallenge() {
 
   return (
     <Screen>
-      <StepProgress step={1} total={4} onBack={() => navigate(-1)} />
+      <StepProgress step={1} total={5} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Build a challenge</ScreenTitle>

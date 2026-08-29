@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
+import { enrolQuietly } from "@/lib/enrol";
 import { supabase } from "@/lib/supabase";
 import { recordVisit } from "@/lib/visitor";
 
@@ -53,7 +54,11 @@ export default function AuthCallback() {
           // Joins this arrival up with the anonymous part of the funnel, exactly
           // as the email sign-up path does.
           void recordVisit("signed_up");
-          navigate("/reminders", { replace: true });
+          // Everything they chose anonymously becomes theirs here, then straight
+          // on to the plans — they have already built the challenge and read the
+          // deposit, so there is nothing left to explain.
+          await enrolQuietly(userId);
+          navigate("/plan", { replace: true });
           return;
         }
 

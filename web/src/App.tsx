@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import Onboarding from "./pages/Onboarding";
 import Pay from "./pages/Pay";
 import PlanPicker from "./pages/PlanPicker";
+import Ready from "./pages/Ready";
 import Reminders from "./pages/Reminders";
 import Review from "./pages/Review";
 import Stats from "./pages/Stats";
@@ -43,12 +44,23 @@ const queryClient = new QueryClient({
   },
 });
 
-/** Every screen past the account gate, kept in one place. */
-const PRIVATE_ROUTES = [
-  { path: "/reminders", element: <Reminders /> },
+/**
+ * The persuasion run, before anyone is asked to create an account.
+ *
+ * All of it happens inside the installed app rather than in Safari, because an
+ * installed iPhone app gets its own private storage — answers given in the
+ * browser would not survive the install.
+ */
+const PUBLIC_FLOW_ROUTES = [
   { path: "/onboarding", element: <Onboarding /> },
+  { path: "/reminders", element: <Reminders /> },
   { path: "/challenge", element: <BuildChallenge /> },
   { path: "/commit", element: <Commit /> },
+  { path: "/ready", element: <Ready /> },
+];
+
+/** Every screen past the account gate, kept in one place. */
+const PRIVATE_ROUTES = [
   { path: "/plan", element: <PlanPicker /> },
   { path: "/pay", element: <Pay /> },
   { path: "/activated", element: <Activated /> },
@@ -79,6 +91,10 @@ const App = () => (
             <Route path="/75daychallenge" element={<Waitlist />} />
             <Route path="/install" element={<Install />} />
             <Route path="/welcome" element={<Welcome />} />
+
+            {PUBLIC_FLOW_ROUTES.map((route) => (
+              <Route key={route.path} path={route.path} element={route.element} />
+            ))}
             {/* Where Apple and Google return people. Deliberately outside the
                 auth gate: the session doesn't exist yet when it first loads. */}
             <Route path="/auth/callback" element={<AuthCallback />} />

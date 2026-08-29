@@ -1,47 +1,50 @@
-import { Banknote, Camera, Target, Trophy } from "lucide-react";
-import { useCallback, useState } from "react";
+import { Banknote, Camera, Trophy } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ChoiceButton } from "@/components/ChoiceButton";
+import { FourWeekCalendar } from "@/components/FourWeekCalendar";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
-import {
-  CHALLENGE_WEEKS,
-  currencyForRegion,
-  currencySymbol,
-  REWARD_PER_WORKOUT,
-  WEEKLY_GOALS,
-  type WeeklyGoal,
-} from "@/lib/money";
+import { CHALLENGE_WEEKS, WEEKLY_GOALS, type WeeklyGoal } from "@/lib/money";
 import {
   BLOCKER_OPTIONS,
   HABIT_OPTIONS,
+  MOTIVATION_OPTIONS,
+  STRUGGLING_OPTIONS,
+  habitPerWeek,
   loadAnswers,
   saveAnswers,
   type BlockerId,
   type HabitId,
+  type MotivationId,
   type OnboardingAnswers,
+  type StrugglingId,
 } from "@/lib/onboarding";
-import { recordQuestionsAnswered } from "@/lib/telemetry";
 
-type Stage = "habit" | "goal" | "blocker" | "agitate" | "how";
+type Stage = "problem" | "mechanism" | "habit" | "goal" | "blocker" | "motivation" | "struggling" | "summary";
 
-const ORDER: Stage[] = ["habit", "goal", "blocker", "agitate", "how"];
+const ORDER: Stage[] = ["problem", "mechanism", "habit", "goal", "blocker", "motivation", "struggling", "summary"];
 
 /**
- * Steps 5 to 7 of the funnel: three questions, the choice in front of them, and
- * how GymTaxx works.
+ * The whole persuasion run, before anyone is asked for an account.
  *
- * Held in one component because moving between them should feel like one
- * continuous flow rather than five page loads.
+ * Deliberately anonymous. Account creation used to sit at the top of this, which
+ * asked strangers to hand over an email before they had any reason to want one;
+ * it now sits at the far end, after they have named their goal, seen the gap
+ * they're living with, and chosen what to put behind closing it.
+ *
+ * Held in one component because moving between these should feel like a single
+ * continuous conversation rather than eight page loads. The answers are written
+ * to local storage as they go, so a phone that gets locked half way through
+ * comes back to the same place.
  */
 export default function Onboarding() {
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<OnboardingAnswers>(() => loadAnswers());
-  const [stage, setStage] = useState<Stage>("habit");
+  const [stage, setStage] = useState<Stage>("problem");
 
-  const symbol = currencySymbol(currencyForRegion());
   const index = ORDER.indexOf(stage);
 
   const update = useCallback((patch: Partial<OnboardingAnswers>): void => {
@@ -75,9 +78,71 @@ export default function Onboarding() {
     [update, goNext],
   );
 
+  const currentPerWeek = useMemo(() => habitPerWeek(answers.habit), [answers.habit]);
+  const goalPerWeek = answers.goal ?? 4;
+
   return (
     <Screen>
       <StepProgress step={index + 1} total={ORDER.length} onBack={index === 0 ? null : goBack} />
+
+      {stage === "problem" ? (
+        // The whole panel is the control. There is nothing to decide here, and a
+        // button would imply there was.
+        <button
+          type="button"
+          onClick={goNext}
+          className="flex flex-1 flex-col text-left active:opacity-70 transition-opacity"
+        >
+          <div className="pt-10">
+            <p className="text-display leading-[1.1] text-foreground animate-rise-in">
+              You know how you've been telling yourself you'll be consistent with the gym, but somehow it never happens?
+            </p>
+            <p className="mt-8 text-2xl font-semibold leading-snug text-foreground animate-rise-in [animation-delay:700ms]">
+              You're not alone.
+            </p>
+            <p className="mt-3 text-2xl font-semibold leading-snug text-muted-foreground animate-rise-in [animation-delay:1100ms]">
+              90% of people stop going to the gym consistently after only 3 months.
+            </p>
+          </div>
+
+          <span className="mt-auto py-8 text-center text-sm font-medium text-muted-foreground animate-rise-in [animation-delay:1900ms]">
+            Tap to continue
+          </span>
+        </button>
+      ) : null}
+
+      {stage === "mechanism" ? (
+        <div className="flex flex-1 flex-col">
+          <div className="pt-8">
+            <ScreenTitle className="animate-rise-in">GymTaxx makes sure you stay consistent with the gym</ScreenTitle>
+            <ScreenSubtitle className="animate-rise-in [animation-delay:80ms]">It's simple.</ScreenSubtitle>
+          </div>
+
+          <ol className="mt-8 space-y-3">
+            <MechanismStep
+              icon={Banknote}
+              title="Put money on your workouts"
+              delayMs={160}
+            />
+            <MechanismStep
+              icon={Camera}
+              title="Prove you went to the gym with a photo"
+              delayMs={260}
+            />
+            <MechanismStep
+              icon={Trophy}
+              title="Get all your money back, one workout at a time"
+              delayMs={360}
+            />
+          </ol>
+
+          <ScreenActions className="animate-rise-in [animation-delay:500ms]">
+            <Button size="xl" className="w-full" onClick={goNext}>
+              Continue
+            </Button>
+          </ScreenActions>
+        </div>
+      ) : null}
 
       {stage === "habit" ? (
         <Question
@@ -92,9 +157,12 @@ export default function Onboarding() {
       {stage === "goal" ? (
         <Question
           key="goal"
-          title="How often would you like to go?"
+          title="How many times would you like to go to the gym?"
           subtitle="This becomes your weekly goal. You can change it before you commit."
-          options={WEEKLY_GOALS.map((goal) => ({ id: String(goal), label: `${goal} times per week` }))}
+          options={WEEKLY_GOALS.map((goal) => ({
+            id: String(goal),
+            label: goal === 5 ? "5 or more times per week" : `${goal} times per week`,
+          }))}
           selected={answers.goal === null ? null : String(answers.goal)}
           onSelect={(id) => chooseAndAdvance({ goal: Number(id) as WeeklyGoal })}
         />
@@ -103,81 +171,53 @@ export default function Onboarding() {
       {stage === "blocker" ? (
         <Question
           key="blocker"
-          title="What is stopping you from achieving your goals?"
-          subtitle="Whatever it is, it's beaten you before now."
+          title="What's stopping you from reaching your goals?"
           options={BLOCKER_OPTIONS.map((option) => ({ id: option.id, label: option.label, detail: option.detail }))}
           selected={answers.blocker}
-          onSelect={(id) => {
-            // The last of the three questions, so this is the point the funnel
-            // can tell "gave up at the questions" from "gave up at the price".
-            void recordQuestionsAnswered();
-            chooseAndAdvance({ blocker: id as BlockerId });
-          }}
+          onSelect={(id) => chooseAndAdvance({ blocker: id as BlockerId })}
         />
       ) : null}
 
-      {stage === "agitate" ? (
-        <div className="flex flex-1 flex-col">
-          <div className="pt-10">
-            <p className="text-display leading-[1.1] text-foreground animate-rise-in">
-              Four weeks from now, things could look very different.
-            </p>
-            {/* One sentence, two futures. The colour split does the work of
-                pointing at which half is worth having. */}
-            <p className="mt-8 text-2xl font-semibold leading-snug animate-rise-in [animation-delay:600ms]">
-              <span className="text-muted-foreground">You could still be waiting for motivation or </span>
-              <span className="text-foreground">already four weeks closer to your goals.</span>
-            </p>
-          </div>
-
-          <ScreenActions className="animate-rise-in [animation-delay:1100ms]">
-            <Button size="xl" className="w-full" onClick={goNext}>
-              Let's do this
-            </Button>
-          </ScreenActions>
-        </div>
+      {stage === "motivation" ? (
+        <Question
+          key="motivation"
+          title="Why does being consistent with the gym matter to you?"
+          options={MOTIVATION_OPTIONS.map((option) => ({ id: option.id, label: option.label }))}
+          selected={answers.motivation}
+          onSelect={(id) => chooseAndAdvance({ motivation: id as MotivationId })}
+        />
       ) : null}
 
-      {stage === "how" ? (
+      {stage === "struggling" ? (
+        <Question
+          key="struggling"
+          title="How long have you been trying to be consistent?"
+          options={STRUGGLING_OPTIONS.map((option) => ({
+            id: option.id,
+            label: option.label,
+            detail: option.detail,
+          }))}
+          selected={answers.struggling}
+          onSelect={(id) => chooseAndAdvance({ struggling: id as StrugglingId })}
+        />
+      ) : null}
+
+      {stage === "summary" ? (
         <div className="flex flex-1 flex-col">
           <div className="pt-8">
-            <ScreenTitle className="animate-rise-in">A quick reminder on how GymTaxx works</ScreenTitle>
+            <ScreenTitle className="animate-rise-in">This can change today.</ScreenTitle>
+            <ScreenSubtitle className="animate-rise-in [animation-delay:60ms]">
+              Your next {CHALLENGE_WEEKS} weeks could look like this.
+            </ScreenSubtitle>
           </div>
 
-          <ol className="mt-8 space-y-3">
-            <HowStep
-              icon={Target}
-              index={1}
-              title="Choose your weekly goal"
-              detail={`3, 4 or 5 workouts a week for ${CHALLENGE_WEEKS} weeks.`}
-              delayMs={120}
-            />
-            <HowStep
-              icon={Banknote}
-              index={2}
-              title={`Put ${symbol}${REWARD_PER_WORKOUT} behind each workout`}
-              detail="Your own money, held up front. That's what makes it real."
-              delayMs={200}
-            />
-            <HowStep
-              icon={Camera}
-              index={3}
-              title="Verify each workout"
-              detail="A quick photo from the gym, stamped with the time and place."
-              delayMs={280}
-            />
-            <HowStep
-              icon={Trophy}
-              index={4}
-              title="Complete your goal, earn your deposit back"
-              detail={`Every workout you prove earns ${symbol}${REWARD_PER_WORKOUT} of your money back.`}
-              delayMs={360}
-            />
-          </ol>
+          <div className="mt-8">
+            <FourWeekCalendar currentPerWeek={currentPerWeek} goalPerWeek={goalPerWeek} />
+          </div>
 
-          <ScreenActions>
-            <Button size="xl" className="w-full" onClick={() => navigate("/challenge")}>
-              Ready for my challenge
+          <ScreenActions className="animate-rise-in [animation-delay:420ms]">
+            <Button size="xl" className="w-full" onClick={() => navigate("/reminders")}>
+              Continue
             </Button>
           </ScreenActions>
         </div>
@@ -225,31 +265,24 @@ function Question({
   );
 }
 
-function HowStep({
+function MechanismStep({
   icon: Icon,
-  index,
   title,
-  detail,
   delayMs,
 }: {
-  icon: typeof Target;
-  index: number;
+  icon: typeof Banknote;
   title: string;
-  detail: string;
   delayMs: number;
 }) {
   return (
-    <li className="flex items-start gap-4 rounded-lg bg-card p-4 animate-rise-in" style={{ animationDelay: `${delayMs}ms` }}>
+    <li
+      className="flex items-center gap-4 rounded-lg bg-card p-4 animate-rise-in"
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary">
         <Icon className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
       </div>
-      <div className="min-w-0">
-        <p className="font-semibold leading-tight text-foreground">
-          <span className="tabular text-muted-foreground">{index}. </span>
-          {title}
-        </p>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{detail}</p>
-      </div>
+      <p className="min-w-0 text-base font-semibold leading-snug text-foreground">{title}</p>
     </li>
   );
 }

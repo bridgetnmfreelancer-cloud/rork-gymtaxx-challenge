@@ -1,6 +1,10 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+
+import { useAuth } from "@/context/AuthProvider";
+import { enrolQuietly } from "@/lib/enrol";
 
 import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
@@ -20,7 +24,7 @@ import {
   type Plan,
   type PlanId,
 } from "@/lib/plans";
-import { useCurrentChallenge, useParticipation, useProfile } from "@/lib/queries";
+import { queryKeys, useCurrentChallenge, useParticipation, useProfile } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,9 +42,14 @@ import { cn } from "@/lib/utils";
  */
 export default function PlanPicker() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: challenge } = useCurrentChallenge();
   const { data: participation } = useParticipation();
   const { data: profile, isLoading: isProfileLoading } = useProfile();
+
+  const [isStarting, setIsStarting] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const saved = useMemo(() => loadAnswers(), []);
   const goal = saved.goal && isWeeklyGoal(saved.goal) ? saved.goal : 4;
@@ -68,8 +77,32 @@ export default function PlanPicker() {
   const fee = feeDueNow(selectedPlan, freeChallengeUsed);
   const dueToday = deposit + fee;
 
-  function proceed(): void {
+  /**
+   * The safety net for enrolment.
+   *
+   * The deposit is priced from the participation row, so nobody can be allowed
+   * to reach payment without one. It is normally created the instant they sign
+   * up; if that failed — lost signal at exactly the wrong moment — this is the
+   * last chance to put it right, and the only place a failure can still be said
+   * out loud rather than surfacing as a broken payment screen.
+   */
+  async function proceed(): Promise<void> {
+    if (isStarting) return;
     savePlanChoice(selected);
+
+    if (!participation && user) {
+      setError(null);
+      setIsStarting(true);
+      const enrolled = await enrolQuietly(user.id);
+      setIsStarting(false);
+
+      if (!enrolled) {
+        setError("We couldn't set up your challenge just then. Check your connection and try again.");
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.participation(user.id) });
+    }
+
     navigate("/pay");
   }
 
@@ -92,7 +125,7 @@ export default function PlanPicker() {
 
   return (
     <Screen>
-      <StepProgress step={3} total={4} onBack={() => navigate(-1)} />
+      <StepProgress step={4} total={5} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Choose how you continue</ScreenTitle>
@@ -173,8 +206,15 @@ export default function PlanPicker() {
         </p>
       ) : null}
 
+      {error ? (
+        <p role="alert" className="mt-4 rounded-md bg-destructive/15 px-4 py-3 text-sm font-medium text-danger-ink">
+          {error}
+        </p>
+      ) : null}
+
       <ScreenActions>
-        <Button size="xl" className="w-full" onClick={proceed}>
+        <Button size="xl" className="w-full" onClick={() => void proceed()} disabled={isStarting}>
+          {isStarting ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
           Continue
         </Button>
       </ScreenActions>

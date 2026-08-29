@@ -19,7 +19,17 @@ function readPermission(): PermissionState {
 }
 
 /**
- * Step 4 of the funnel: our own ask, before the browser's.
+ * The reminder ask, sitting immediately after the four-week comparison.
+ *
+ * Position is deliberate. It lands on the seam where the questions finish and
+ * the commitment begins, so it interrupts nothing: everything from here to the
+ * paywall is one unbroken run at the decision. Asking at install would spend
+ * the prompt on people who hadn't yet seen what they'd be reminded about;
+ * asking later would drop a system dialog into the middle of the sell.
+ *
+ * The permission is granted before an account exists, so the device cannot be
+ * registered here. It gets attached at sign-up a few screens later, and
+ * PushSync re-attaches it on every launch after that, so nothing is lost.
  *
  * Asking in plain words first means a reflexive "no" hits our screen rather
  * than the permission prompt — the browser only ever asks once, so spending
@@ -43,7 +53,7 @@ export default function Reminders() {
   const browserOnly = isIOS() && !isStandalone();
 
   const goOn = useCallback((): void => {
-    navigate("/onboarding", { replace: true });
+    navigate("/challenge", { replace: true });
   }, [navigate]);
 
   /**

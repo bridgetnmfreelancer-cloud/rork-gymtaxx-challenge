@@ -10,13 +10,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthProvider";
 import { suggestEmailFix } from "@/lib/email";
+import { enrolQuietly } from "@/lib/enrol";
+import { isIOS, isStandalone } from "@/lib/pwa";
+import { supabase } from "@/lib/supabase";
 import { recordVisit } from "@/lib/visitor";
 
 type Mode = "signUp" | "logIn";
 
 /**
- * Step 3 of the funnel. Kept deliberately short — they arrived from an ad and
- * an install screen, so this is a gate, not a pitch.
+ * The account gate, now sitting at the *end* of the flow rather than the start.
+ *
+ * By the time anyone reaches this they have answered five questions, seen the
+ * four-week comparison, chosen a weekly goal and read what the deposit costs.
+ * Asking for an email before any of that was asking strangers to identify
+ * themselves for nothing; asking here trades on everything they've just put in.
+ *
+ * Kept deliberately short for the same reason — this is a gate, not a pitch. The
+ * pitch already happened.
  */
 export default function Welcome() {
   const navigate = useNavigate();
@@ -31,7 +41,10 @@ export default function Welcome() {
   /** The exact address they've insisted is right, so we stop asking about it. */
   const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null);
 
-  const skippedInstall = params.get("browser") === "1";
+  // Read from the device as well as the link. The flow now runs over several
+  // screens before reaching this one, so the query parameter set back on the
+  // install page is long gone by the time it matters.
+  const skippedInstall = params.get("browser") === "1" || (isIOS() && !isStandalone());
 
   // The last anonymous step. Reaching this form but not submitting it is a
   // different failure from never getting here.
@@ -64,9 +77,19 @@ export default function Welcome() {
         // Closes the loop: the account now exists, so this arrival stops being
         // anonymous and joins up with the rest of the funnel.
         void recordVisit("signed_up");
-        // A brand new account has seen nothing yet, so it starts at the top of
-        // the funnel: the reminder ask, then the questions.
-        navigate("/reminders", { replace: true });
+
+        // Everything they chose anonymously becomes theirs here — the answers
+        // are marked as given and the challenge they configured is created at
+        // the goal they picked. Best-effort on purpose: someone who has just
+        // handed over an email must not be dead-ended by a network blip, and the
+        // paywall retries this before letting anyone through to payment.
+        const { data: created } = await supabase.auth.getSession();
+        const userId = created.session?.user.id;
+        if (userId) await enrolQuietly(userId);
+
+        // Straight to the plans. They have already built the challenge and read
+        // the deposit, so there is nothing left to explain.
+        navigate("/plan", { replace: true });
       } else {
         await signIn(email, password);
         // Someone logging back in has already been through all of that. Home

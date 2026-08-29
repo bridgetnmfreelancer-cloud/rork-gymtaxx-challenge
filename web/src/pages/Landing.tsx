@@ -107,7 +107,7 @@ export default function Landing() {
     void recordVisit("join_tapped");
 
     if (session) navigate("/home");
-    else if (isStandalone()) navigate("/welcome");
+    else if (isStandalone()) navigate("/onboarding");
     else navigate("/install");
   }, [navigate, session]);
 
