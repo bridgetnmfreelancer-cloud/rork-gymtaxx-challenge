@@ -1,9 +1,10 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
+import { StepProgress } from "@/components/StepProgress";
 import { AuthDivider, SocialAuthButtons } from "@/components/SocialAuthButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthProvider";
 import { suggestEmailFix } from "@/lib/email";
 import { enrolQuietly } from "@/lib/enrol";
+import { flowProgress } from "@/lib/flow";
 import { isIOS, isStandalone } from "@/lib/pwa";
 import { supabase } from "@/lib/supabase";
 import { recordVisit } from "@/lib/visitor";
@@ -30,8 +32,16 @@ type Mode = "signUp" | "logIn";
  */
 export default function Welcome() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [params] = useSearchParams();
   const { signIn, signUp } = useAuth();
+
+  // Only the people who walked the flow to get here see the progress bar and
+  // the back arrow. This screen is also where a logged-out session and an
+  // expired link land, and on those a bar reading "step 14 of 15" would be a
+  // lie about where they are.
+  const state = location.state as { fromFlow?: boolean } | null;
+  const isInFlow = state?.fromFlow === true;
 
   const [mode, setMode] = useState<Mode>("signUp");
   const [email, setEmail] = useState<string>("");
@@ -107,7 +117,9 @@ export default function Welcome() {
 
   return (
     <Screen>
-      <div className="pt-10 animate-rise-in">
+      {isInFlow ? <StepProgress {...flowProgress("account")} onBack={() => navigate(-1)} /> : null}
+
+      <div className={isInFlow ? "pt-6 animate-rise-in" : "pt-10 animate-rise-in"}>
         <Logo size={56} />
         <ScreenTitle className="mt-8">Let's get you consistent.</ScreenTitle>
         <ScreenSubtitle>

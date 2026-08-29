@@ -16,6 +16,7 @@ import {
   totalWorkouts,
   type WeeklyGoal,
 } from "@/lib/money";
+import { flowProgress } from "@/lib/flow";
 import { currentZone, formatStartDate, weeklyStart } from "@/lib/gymweek";
 import { loadAnswers, saveAnswers } from "@/lib/onboarding";
 import { useCurrentChallenge } from "@/lib/queries";
@@ -70,7 +71,7 @@ export default function BuildChallenge() {
 
   return (
     <Screen>
-      <StepProgress step={1} total={5} onBack={() => navigate(-1)} />
+      <StepProgress {...flowProgress("challenge")} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Build a challenge</ScreenTitle>

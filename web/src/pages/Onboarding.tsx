@@ -7,6 +7,7 @@ import { FourWeekCalendar } from "@/components/FourWeekCalendar";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
+import { flowProgress } from "@/lib/flow";
 import { CHALLENGE_WEEKS, WEEKLY_GOALS, type WeeklyGoal } from "@/lib/money";
 import {
   BLOCKER_OPTIONS,
@@ -28,6 +29,24 @@ type Stage = "problem" | "mechanism" | "habit" | "goal" | "blocker" | "motivatio
 const ORDER: Stage[] = ["problem", "mechanism", "habit", "goal", "blocker", "motivation", "struggling", "summary"];
 
 /**
+ * Where to pick the conversation back up.
+ *
+ * Someone who reaches the reminder ask and then taps back has already answered
+ * everything; dropping them at the opening screen would make the back button
+ * read as "start again". The saved answers already say how far they got, so the
+ * resume point is derived from those rather than stored separately — which also
+ * covers a phone that was locked half way through and reopened later.
+ */
+function resumeStage(answers: OnboardingAnswers): Stage {
+  if (answers.struggling !== null) return "summary";
+  if (answers.motivation !== null) return "struggling";
+  if (answers.blocker !== null) return "motivation";
+  if (answers.goal !== null) return "blocker";
+  if (answers.habit !== null) return "goal";
+  return "problem";
+}
+
+/**
  * The whole persuasion run, before anyone is asked for an account.
  *
  * Deliberately anonymous. Account creation used to sit at the top of this, which
@@ -43,7 +62,7 @@ const ORDER: Stage[] = ["problem", "mechanism", "habit", "goal", "blocker", "mot
 export default function Onboarding() {
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<OnboardingAnswers>(() => loadAnswers());
-  const [stage, setStage] = useState<Stage>("problem");
+  const [stage, setStage] = useState<Stage>(() => resumeStage(loadAnswers()));
 
   const index = ORDER.indexOf(stage);
 
@@ -83,7 +102,7 @@ export default function Onboarding() {
 
   return (
     <Screen>
-      <StepProgress step={index + 1} total={ORDER.length} onBack={index === 0 ? null : goBack} />
+      <StepProgress {...flowProgress(stage)} onBack={index === 0 ? null : goBack} />
 
       {stage === "problem" ? (
         // The whole panel is the control. There is nothing to decide here, and a

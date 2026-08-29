@@ -5,6 +5,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/context/AuthProvider";
 import { enrolQuietly } from "@/lib/enrol";
+import { flowProgress } from "@/lib/flow";
 
 import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
@@ -125,7 +126,7 @@ export default function PlanPicker() {
 
   return (
     <Screen>
-      <StepProgress step={4} total={5} onBack={() => navigate(-1)} />
+      <StepProgress {...flowProgress("plan")} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Choose how you continue</ScreenTitle>

@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
+import { flowProgress } from "@/lib/flow";
 import { currencyFrom, currencyForRegion, depositFor, formatMoney, isWeeklyGoal, totalWorkouts } from "@/lib/money";
 import { loadAnswers } from "@/lib/onboarding";
 import { useCurrentChallenge, useParticipation } from "@/lib/queries";
@@ -37,7 +38,7 @@ export default function Commit() {
 
   return (
     <Screen>
-      <StepProgress step={2} total={5} onBack={() => navigate(-1)} />
+      <StepProgress {...flowProgress("commit")} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Now put something behind it.</ScreenTitle>

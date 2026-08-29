@@ -8,6 +8,7 @@ import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
 import { enrolQuietly } from "@/lib/enrol";
+import { flowProgress } from "@/lib/flow";
 import { COMMITMENT_OPTIONS, loadAnswers, saveAnswers, type CommitmentId } from "@/lib/onboarding";
 
 type Stage = "commitment" | "proof";
@@ -43,7 +44,9 @@ export default function Ready() {
   const start = useCallback(async (): Promise<void> => {
     const userId = session?.user.id;
     if (!userId) {
-      navigate("/welcome");
+      // Flagged as part of the run, so the account screen knows to keep the
+      // progress bar and the back arrow rather than looking like a dead stop.
+      navigate("/welcome", { state: { fromFlow: true } });
       return;
     }
 
@@ -56,8 +59,7 @@ export default function Ready() {
   return (
     <Screen>
       <StepProgress
-        step={3}
-        total={5}
+        {...flowProgress(stage === "commitment" ? "commitment" : "proof")}
         onBack={stage === "commitment" ? () => navigate(-1) : () => setStage("commitment")}
       />
 

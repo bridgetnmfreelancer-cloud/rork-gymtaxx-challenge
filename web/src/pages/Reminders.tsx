@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
+import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
+import { flowProgress } from "@/lib/flow";
 import { registerForReminders } from "@/lib/push";
 import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
 
@@ -52,8 +54,12 @@ export default function Reminders() {
 
   const browserOnly = isIOS() && !isStandalone();
 
+  // Left in the history rather than replacing it, so the back button on the
+  // challenge builder returns here instead of skipping the screen. Coming back
+  // is harmless: the ask below reads the permission it can see and says
+  // something true about it, including "already on".
   const goOn = useCallback((): void => {
-    navigate("/challenge", { replace: true });
+    navigate("/challenge");
   }, [navigate]);
 
   /**
@@ -126,7 +132,9 @@ export default function Reminders() {
 
   return (
     <Screen>
-      <div className="pt-16 animate-rise-in">
+      <StepProgress {...flowProgress("reminders")} onBack={() => navigate(-1)} />
+
+      <div className="pt-10 animate-rise-in">
         <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-accent">
           <Bell className="h-8 w-8 text-success-ink" aria-hidden="true" />
         </div>
