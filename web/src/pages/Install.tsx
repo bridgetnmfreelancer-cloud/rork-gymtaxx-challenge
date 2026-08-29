@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useNavigate } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
-import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
+import { Screen, ScreenActions } from "@/components/Screen";
 import { browserName, detectBrowser } from "@/lib/pwa";
 import { recordVisit } from "@/lib/visitor";
 
@@ -235,10 +235,15 @@ export default function Install() {
   return (
     <Screen>
       {/* The mark sits above the heading, drawn inline so it renders on the
-          first paint — this is often the first thing a paid visitor sees. */}
-      <div className="mt-6 animate-rise-in">
-        <Logo size={56} />
-        <ScreenTitle className="mt-5">Install the GymTaxx app</ScreenTitle>
+          first paint — this is often the first thing a paid visitor sees.
+          The heading is centred, and set larger and heavier than anything below
+          it, so the page reads at a glance as one instruction rather than a
+          wall of steps. */}
+      <div className="mt-6 flex animate-rise-in flex-col items-center text-center">
+        <Logo size={64} />
+        <h1 className="mt-5 text-[2.75rem] font-black leading-[1.05] tracking-tight text-foreground">
+          Install the GymTaxx app
+        </h1>
       </div>
 
       <ol className="mt-8 space-y-7">
