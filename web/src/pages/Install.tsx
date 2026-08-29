@@ -2,6 +2,7 @@ import { Check, Copy, MoreHorizontal, Share, SquarePlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { browserName, detectBrowser } from "@/lib/pwa";
 import { recordVisit } from "@/lib/visitor";
@@ -233,8 +234,11 @@ export default function Install() {
 
   return (
     <Screen>
+      {/* The mark sits above the heading, drawn inline so it renders on the
+          first paint — this is often the first thing a paid visitor sees. */}
       <div className="mt-6 animate-rise-in">
-        <ScreenTitle>Install the app</ScreenTitle>
+        <Logo size={56} />
+        <ScreenTitle className="mt-5">Install the GymTaxx app</ScreenTitle>
       </div>
 
       <ol className="mt-8 space-y-7">
