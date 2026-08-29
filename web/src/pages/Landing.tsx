@@ -26,13 +26,12 @@ const EXAMPLE_GOAL = WEEKLY_GOALS[0];
 
 /**
  * Where Android arrivals go instead of the install flow — the manual,
- * WhatsApp-verified signup runs through an external form.
+ * WhatsApp-verified signup run through Tally.
  *
- * Empty until the real link is set. While empty an Android join falls back to
- * the iPhone flow rather than dead-ending, which is the wrong destination but
- * never a broken page.
+ * Opens in a new tab so the landing page — and its funnel tracking — stays
+ * right where the person left it when they come back.
  */
-const ANDROID_SIGNUP_URL = "";
+const ANDROID_SIGNUP_URL = "https://tally.so/r/dW4alV";
 
 type Testimonial = {
   quote: string;
