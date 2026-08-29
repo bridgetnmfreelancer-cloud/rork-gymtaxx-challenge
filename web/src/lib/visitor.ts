@@ -169,8 +169,13 @@ const sentThisLoad = new Set<VisitStep>();
  * Fire-and-forget, like the rest of the telemetry. Someone arriving from an ad
  * must never see an error because a measurement call failed, and must never
  * wait on one either.
+ *
+ * `sourceOverride` relabels the step for exits that leave the funnel entirely —
+ * an Android arrival tapping join heads to an external form, not the install
+ * steps. Kept in the same step so the tap is still counted, but tagged apart
+ * from the iPhone flow rather than silently inflating its drop-off.
  */
-export async function recordVisit(step: VisitStep): Promise<void> {
+export async function recordVisit(step: VisitStep, sourceOverride?: string): Promise<void> {
   if (typeof window === "undefined") return;
   if (sentThisLoad.has(step)) return;
   sentThisLoad.add(step);
@@ -180,7 +185,7 @@ export async function recordVisit(step: VisitStep): Promise<void> {
     const { error } = await supabase.rpc("record_visit", {
       p_visitor: visitorId(),
       p_step: step,
-      p_source: source,
+      p_source: sourceOverride ?? source,
       p_campaign: campaign,
       p_referrer: referrerHost,
       p_standalone: isStandalone(),

@@ -15,7 +15,7 @@ import {
   formatMoney,
   totalWorkouts,
 } from "@/lib/money";
-import { isStandalone } from "@/lib/pwa";
+import { isAndroid, isStandalone } from "@/lib/pwa";
 import { recordVisit } from "@/lib/visitor";
 
 /**
@@ -23,6 +23,16 @@ import { recordVisit } from "@/lib/visitor";
  * marketing site quotes.
  */
 const EXAMPLE_GOAL = WEEKLY_GOALS[0];
+
+/**
+ * Where Android arrivals go instead of the install flow — the manual,
+ * WhatsApp-verified signup runs through an external form.
+ *
+ * Empty until the real link is set. While empty an Android join falls back to
+ * the iPhone flow rather than dead-ending, which is the wrong destination but
+ * never a broken page.
+ */
+const ANDROID_SIGNUP_URL = "";
 
 type Testimonial = {
   quote: string;
@@ -81,6 +91,10 @@ export default function Landing() {
     void recordVisit("landing");
   }, []);
 
+  // Detected once. The only decisions this drives are which button a tap on
+  // "join" leads to and whether the Android alternative is worth showing.
+  const onAndroid = useMemo(() => isAndroid(), []);
+
   /**
    * Send them wherever they actually need to go.
    *
@@ -97,6 +111,21 @@ export default function Landing() {
     else if (isStandalone()) navigate("/welcome");
     else navigate("/install");
   }, [navigate, session]);
+
+  /**
+   * The Android version of the same tap.
+   *
+   * There is no Android app yet, so the destination is the external signup
+   * form. Tagged with its own source so these taps stay visible in the funnel
+   * without reading as iPhone install progress they will never become.
+   */
+  const joinAndroid = useCallback((): void => {
+    void recordVisit("join_tapped", "android_tally");
+    if (ANDROID_SIGNUP_URL.length > 0) window.open(ANDROID_SIGNUP_URL, "_blank", "noopener,noreferrer");
+    else start();
+  }, [start]);
+
+  const join = onAndroid ? joinAndroid : start;
 
   return (
     <div className="min-h-full bg-background">
@@ -122,7 +151,7 @@ export default function Landing() {
             </a>
 
             <Button
-              onClick={start}
+              onClick={join}
               className="h-11 rounded-full bg-accent px-5 text-base font-semibold text-success-ink hover:bg-accent/90 sm:px-6"
             >
               Join Now
@@ -150,12 +179,25 @@ export default function Landing() {
           <div className="mt-10 w-full animate-rise-in [animation-delay:160ms]">
             <Button
               size="xl"
-              onClick={start}
+              onClick={join}
               className="w-full rounded-full bg-accent text-success-ink hover:bg-accent/90 lg:w-auto lg:px-14"
             >
-              Download the app
+              {onAndroid ? "Get GymTaxx on Android" : "Download the app"}
               <ArrowRight className="h-5 w-5" aria-hidden="true" />
             </Button>
+
+            {/* Desktop traffic could be either platform, and the hero button
+                assumes the iPhone flow — this is the quiet way out for anyone
+                on an Android machine sitting next to their phone. */}
+            {!onAndroid ? (
+              <button
+                type="button"
+                onClick={joinAndroid}
+                className="mt-4 text-sm text-primary-foreground/60 underline-offset-4 transition-colors hover:text-primary-foreground hover:underline"
+              >
+                On Android? Join here instead
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
@@ -239,7 +281,7 @@ export default function Landing() {
 
           <Button
             size="xl"
-            onClick={start}
+            onClick={join}
             className="mt-10 w-full rounded-full bg-accent uppercase tracking-wide text-success-ink hover:bg-accent/90 lg:w-auto lg:px-14"
           >
             Join the challenge

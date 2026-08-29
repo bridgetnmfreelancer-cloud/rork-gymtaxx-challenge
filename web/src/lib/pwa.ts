@@ -14,6 +14,15 @@ export function isStandalone(): boolean {
   return iosStandalone || window.matchMedia("(display-mode: standalone)").matches;
 }
 
+/**
+ * True on Android, phones and tablets alike — the only platform that cannot run
+ * the installed web app today, and so the only one routed away from it.
+ */
+export function isAndroid(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Android/.test(navigator.userAgent);
+}
+
 export function isIOS(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
