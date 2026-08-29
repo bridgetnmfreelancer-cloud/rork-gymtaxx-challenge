@@ -236,17 +236,18 @@ export default function Install() {
     <Screen>
       {/* The mark sits above the heading, drawn inline so it renders on the
           first paint — this is often the first thing a paid visitor sees.
-          The heading is centred, and set larger and heavier than anything below
-          it, so the page reads at a glance as one instruction rather than a
-          wall of steps. */}
+          Centred, with a quiet supporting line underneath: the heading stays
+          clearly the largest thing on the page without having to shout, and
+          the generous gap below it keeps the steps from crowding it. */}
       <div className="mt-6 flex animate-rise-in flex-col items-center text-center">
         <Logo size={64} />
-        <h1 className="mt-5 text-[2.75rem] font-black leading-[1.05] tracking-tight text-foreground">
+        <h1 className="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-foreground">
           Install the GymTaxx app
         </h1>
+        <p className="mt-3 text-base leading-relaxed text-muted-foreground">Four steps, about a minute.</p>
       </div>
 
-      <ol className="mt-8 space-y-7">
+      <ol className="mt-12 space-y-7">
         {steps.map((step, index) => (
           <li key={index} className="flex gap-3 animate-rise-in" style={{ animationDelay: `${80 + index * 70}ms` }}>
             <span className="tabular shrink-0 text-base font-bold text-muted-foreground">{index + 1}.</span>
