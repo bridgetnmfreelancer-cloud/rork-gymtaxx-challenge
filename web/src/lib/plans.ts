@@ -45,7 +45,7 @@ export const PLANS: readonly Plan[] = [
     interval: "month",
     offersFreeChallenge: true,
     detail: "First challenge free, then £7.99 a month. Cancel any time.",
-    badge: "Most popular",
+    // No badge: it is pre-selected by default, and Annual carries the steer.
   },
   {
     id: "annual",

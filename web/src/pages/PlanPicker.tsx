@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
@@ -21,6 +21,7 @@ import {
   feeDueNow,
   formatFee,
   intervalSuffix,
+  planById,
   startsFree,
   type Plan,
   type PlanId,
@@ -32,14 +33,13 @@ import { cn } from "@/lib/utils";
  * The access plan, chosen after the challenge is configured and before any money
  * is taken.
  *
- * Placed here on purpose: the fee is a separate thing from the deposit, and
- * someone should meet it while they can still change their mind, not discover it
- * on the payment sheet. Both amounts are shown together at the bottom for the
- * same reason.
+ * Two subscription plans lead and everything else is collapsed behind one line —
+ * four visible choices was a decision people put off, two is one they make. The
+ * annual card is priced per month on purpose: £59.99 reads as a bill, £5 a month
+ * next to £7.99 reads as the obvious one.
  *
- * Monthly and Annual lead because for most people they cost nothing today — the
- * first challenge is free. That turns the question from "how much" into "how do
- * you want to carry on", which is a far easier one to answer at this point.
+ * Monthly is selected by default so the first-time decision is confirm-or-switch,
+ * not pick-from-scratch.
  */
 export default function PlanPicker() {
   const navigate = useNavigate();
@@ -63,7 +63,16 @@ export default function PlanPicker() {
 
   const freeChallengeUsed = profile?.free_challenge_used ?? false;
 
-  const [selected, setSelected] = useState<PlanId>(() => loadPlanChoice() ?? "monthly");
+  const savedPlanChoice = useMemo(() => loadPlanChoice(), []);
+  const [selected, setSelected] = useState<PlanId>(() => savedPlanChoice ?? "monthly");
+  /**
+   * One-time plans start collapsed — they're the escape hatch, not the offer.
+   * Only someone who already chose one sees them open, so a returning visitor
+   * isn't shown their own selection as hidden.
+   */
+  const [showOneTime, setShowOneTime] = useState<boolean>(
+    () => savedPlanChoice === "one_challenge" || savedPlanChoice === "lifetime",
+  );
 
   // Reaching the paywall is the intent signal. No money is involved, so this one
   // is safe to fire from the browser; anything carrying value is sent server-side.
@@ -129,11 +138,13 @@ export default function PlanPicker() {
       <StepProgress {...flowProgress("plan")} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
-        <ScreenTitle className="animate-rise-in">Choose how you continue</ScreenTitle>
+        <ScreenTitle className="animate-rise-in">
+          {freeChallengeUsed ? "Choose your plan" : "Start your first challenge free."}
+        </ScreenTitle>
         <p className="mt-3 text-base leading-relaxed text-muted-foreground animate-rise-in [animation-delay:60ms]">
           {freeChallengeUsed
             ? "Your free challenge has already been used, so a plan starts today."
-            : "Your first challenge is free on either plan. Nothing extra is charged today."}
+            : "Your first challenge is free on either plan. Only your fully refundable commitment deposit will be charged today."}
         </p>
       </div>
 
@@ -152,22 +163,29 @@ export default function PlanPicker() {
         ))}
       </div>
 
-      <p className="mt-6 text-sm font-semibold text-foreground animate-rise-in [animation-delay:260ms]">
-        Rather not subscribe?
-      </p>
-      <div className="mt-3 space-y-3">
-        {secondary.map((plan, index) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            currency={currency}
-            freeChallengeUsed={freeChallengeUsed}
-            isSelected={selected === plan.id}
-            onSelect={() => setSelected(plan.id)}
-            delayMs={300 + index * 60}
-          />
-        ))}
-      </div>
+      <button
+        type="button"
+        onClick={() => setShowOneTime((current) => !current)}
+        className="mt-6 flex w-full items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground animate-rise-in [animation-delay:260ms]"
+      >
+        {showOneTime ? "Hide one-time options" : "Don't want another subscription? See one-time options."}
+        <ChevronDown className={cn("h-4 w-4 transition-transform", showOneTime ? "rotate-180" : "")} aria-hidden="true" />
+      </button>
+      {showOneTime ? (
+        <div className="mt-3 space-y-3">
+          {secondary.map((plan, index) => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              currency={currency}
+              freeChallengeUsed={freeChallengeUsed}
+              isSelected={selected === plan.id}
+              onSelect={() => setSelected(plan.id)}
+              delayMs={0}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {/* The two kinds of money, side by side. The deposit is theirs and comes
           back; the fee is what GymTaxx charges. Conflating them is the single
@@ -242,6 +260,17 @@ function PlanCard({
 }) {
   const isFreeStart = startsFree(plan, freeChallengeUsed);
 
+  /**
+   * The annual card is anchored monthly on purpose: £59.99 reads as a bill,
+   * £5 a month next to the £7.99 above it reads as the obvious choice. The
+   * saving is derived from the two plan prices so the two can never drift.
+   */
+  const isAnnual = plan.interval === "year";
+  const perMonth = isAnnual ? plan.price / 12 : null;
+  const savingsPercent = isAnnual
+    ? Math.round((1 - plan.price / (planById("monthly").price * 12)) * 100)
+    : null;
+
   return (
     <button
       type="button"
@@ -273,21 +302,44 @@ function PlanCard({
               {plan.badge}
             </span>
           ) : null}
+          {savingsPercent !== null ? (
+            <span className="rounded-full border border-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-success-ink">
+              Save {savingsPercent}%
+            </span>
+          ) : null}
         </span>
         <span className="mt-1 block text-sm leading-snug text-muted-foreground">
-          {isFreeStart
-            ? `Then ${formatFee(plan.price, currency)} ${intervalSuffix(plan.interval)}. Cancel any time.`
-            : plan.detail.replace(/£[\d.]+/g, (match) => (currency === "usd" ? match.replace("£", "$") : match))}
+          {isAnnual
+            ? isFreeStart
+              ? "First challenge free. Cancel any time."
+              : "Cancel any time."
+            : isFreeStart
+              ? `Then ${formatFee(plan.price, currency)} a month. Cancel any time.`
+              : "Cancel any time."}
         </span>
       </span>
 
       <span className="shrink-0 text-right">
-        <span className={cn("tabular block font-extrabold text-foreground", prominent ? "text-xl" : "text-lg")}>
-          {isFreeStart ? "Free" : formatFee(plan.price, currency)}
-        </span>
-        <span className="mt-0.5 block text-[11px] text-muted-foreground">
-          {isFreeStart ? "today" : intervalSuffix(plan.interval)}
-        </span>
+        {isAnnual && perMonth !== null ? (
+          <>
+            <span className="tabular block text-xl font-extrabold text-foreground">
+              {formatFee(perMonth, currency)}
+              <span className="text-xs font-semibold text-muted-foreground">/month</span>
+            </span>
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              {formatFee(plan.price, currency)} billed annually
+            </span>
+          </>
+        ) : (
+          <>
+            <span className={cn("tabular block font-extrabold text-foreground", prominent ? "text-xl" : "text-lg")}>
+              {isFreeStart ? "Free" : formatFee(plan.price, currency)}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              {isFreeStart ? "today" : intervalSuffix(plan.interval)}
+            </span>
+          </>
+        )}
       </span>
     </button>
   );
