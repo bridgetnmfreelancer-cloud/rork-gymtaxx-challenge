@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ChoiceButton } from "@/components/ChoiceButton";
-import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
+import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
@@ -21,8 +21,9 @@ type Stage = "commitment" | "proof";
  * far stronger thing to have said than agreeing in the abstract, and it's the
  * last thing in their head when the price appears.
  *
- * The result that follows is real — two cohorts, 90% and 100% — and is worded as
- * cohorts rather than a bare percentage so it stays defensible.
+ * The result stat is the hero of the proof screen — set in display type like
+ * the opening problem statement, with the follow-up line deliberately smaller
+ * so the eye reads the number first and the reassurance second.
  */
 export default function Ready() {
   const navigate = useNavigate();
@@ -87,10 +88,10 @@ export default function Ready() {
         <div className="flex flex-1 flex-col">
           <div className="pt-10">
             <ScreenTitle className="animate-rise-in">You're in the right place.</ScreenTitle>
-            <ScreenSubtitle className="animate-rise-in [animation-delay:400ms]">
-              Across our first two cohorts, over 90% of GymTaxx members hit their gym goal in their first month.
-            </ScreenSubtitle>
-            <p className="mt-6 text-2xl font-semibold leading-snug text-foreground animate-rise-in [animation-delay:900ms]">
+            <p className="mt-8 text-display leading-[1.1] text-foreground animate-rise-in [animation-delay:300ms]">
+              90% of GymTaxx members become consistent with the gym in their month.
+            </p>
+            <p className="mt-6 text-xl font-semibold leading-snug text-muted-foreground animate-rise-in [animation-delay:800ms]">
               Most of them had never been consistent in their lives.
             </p>
           </div>
