@@ -44,21 +44,33 @@ export default function Commit() {
         <ScreenTitle className="animate-rise-in">Now put something behind your goal to motivate you.</ScreenTitle>
       </div>
 
-      {/* The maths, shown as arithmetic rather than a table of labels — the
-          deposit is the one number that matters, and the sum is how you get
-          there in two lines instead of four rows. */}
-      <div className="mt-8 space-y-1 animate-rise-in [animation-delay:80ms]">
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {goal} workouts/week × {weeks} weeks
-        </p>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {workouts} × {formatMoney(reward, currency)} = {formatMoney(deposit, currency)}
-        </p>
-      </div>
+      {/* The maths is the hero here, the way the goal number was the hero of
+          the screen before: each step of the sum gets a card, the workings sit
+          small above the result, and the result is the biggest thing on the
+          page. Reading the two cards top to bottom IS understanding the price. */}
+      <div className="mt-8 space-y-3">
+        <div className="rounded-lg bg-card p-5 animate-rise-in [animation-delay:80ms]">
+          <p className="text-sm text-muted-foreground">
+            {goal} workouts/week × {weeks} weeks
+          </p>
+          <p className="mt-1 leading-none">
+            <span className="tabular text-4xl font-extrabold text-foreground">{workouts}</span>
+            <span className="ml-2 text-base font-semibold text-foreground">workouts for the month</span>
+          </p>
+        </div>
 
-      <div className="mt-4 flex items-baseline justify-between rounded-lg bg-primary px-5 py-5 animate-rise-in [animation-delay:140ms]">
-        <p className="text-sm font-medium text-primary-foreground/70">Your refundable commitment</p>
-        <p className="tabular text-4xl font-extrabold text-accent">{formatMoney(deposit, currency)}</p>
+        <div className="rounded-lg bg-primary px-5 py-6 animate-rise-in [animation-delay:140ms]">
+          <p className="text-sm text-primary-foreground/70">
+            {workouts} workouts × {formatMoney(reward, currency)}
+          </p>
+          <p
+            key={deposit}
+            className="tabular mt-1 text-5xl font-extrabold leading-none text-accent animate-pop-in"
+          >
+            {formatMoney(deposit, currency)}
+          </p>
+          <p className="mt-2 text-sm text-primary-foreground/70">Your refundable commitment</p>
+        </div>
       </div>
 
       <div className="mt-6 space-y-3 animate-rise-in [animation-delay:200ms]">
