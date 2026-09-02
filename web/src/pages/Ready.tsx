@@ -89,7 +89,7 @@ export default function Ready() {
           <div className="pt-10">
             <ScreenTitle className="animate-rise-in">You're in the right place.</ScreenTitle>
             <p className="mt-8 text-display leading-[1.1] text-foreground animate-rise-in [animation-delay:300ms]">
-              90% of GymTaxx members become consistent with the gym in their month.
+              90% of GymTaxx members become consistent in their first month.
             </p>
             <p className="mt-6 text-xl font-semibold leading-snug text-muted-foreground animate-rise-in [animation-delay:800ms]">
               Most of them had never been consistent in their lives.
