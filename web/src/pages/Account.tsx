@@ -74,6 +74,13 @@ type TestState =
   | { kind: "sent"; message: string }
   | { kind: "error"; message: string };
 
+/**
+ * The two conversion events a new challenge can produce. Testable separately
+ * because only StartTrial carries a value of zero, which is the difference under
+ * investigation.
+ */
+type CapiTestEvent = "Purchase" | "StartTrial";
+
 export default function Account() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -88,6 +95,8 @@ export default function Account() {
   const [testState, setTestState] = useState<TestState>({ kind: "idle" });
   const [isTestActivating, setIsTestActivating] = useState<boolean>(false);
   const [capiState, setCapiState] = useState<TestState>({ kind: "idle" });
+  /** Which conversion test is in flight, so only that button shows a spinner. */
+  const [capiSending, setCapiSending] = useState<CapiTestEvent | null>(null);
 
   /**
    * Operator check. The endpoint 404s for everyone else, so a failed query
@@ -231,14 +240,22 @@ export default function Account() {
    * real charge and a manual refund. This sends one event through the same server
    * code the Stripe webhook uses, without touching any payment or challenge.
    */
-  async function runCapiTest(): Promise<void> {
+  async function runCapiTest(event: CapiTestEvent): Promise<void> {
+    setCapiSending(event);
     setCapiState({ kind: "sending" });
     try {
       const result = await callFunction<{
-        result: { sent: boolean; reason?: string; detail?: string };
+        eventName: string;
+        result: {
+          sent: boolean;
+          reason?: string;
+          detail?: string;
+          eventsReceived?: number;
+          messages?: string[];
+        };
         mode: string;
         tokenConfigured: boolean;
-      }>("test-capi-purchase");
+      }>("test-capi-purchase", { event });
 
       if (!result.tokenConfigured) {
         setCapiState({ kind: "error", message: "No access token on the server yet." });
@@ -247,20 +264,33 @@ export default function Account() {
       if (!result.result.sent) {
         setCapiState({
           kind: "error",
-          message: `Meta rejected it: ${result.result.reason ?? "unknown"}. ${result.result.detail ?? ""}`.trim(),
+          message: `Meta rejected ${event}: ${result.result.reason ?? "unknown"}. ${result.result.detail ?? ""}`.trim(),
         });
         return;
       }
+
+      // Meta answers 200 even for an event it has taken but won't report on, so
+      // its own count and warnings are the only trustworthy confirmation.
+      const accepted = result.result.eventsReceived;
+      const warnings = result.result.messages ?? [];
+      const countNote =
+        typeof accepted === "number" ? ` Meta counted ${accepted} event(s).` : "";
+      const warningNote =
+        warnings.length > 0 ? ` Meta warned: ${warnings.join(" | ")}` : "";
+      const placeNote =
+        result.mode === "test_events"
+          ? "Look in Events Manager, Test events."
+          : "It went to live reporting, not Test events.";
+
       setCapiState({
-        kind: "sent",
-        message:
-          result.mode === "test_events"
-            ? "Meta accepted it. Look in Events Manager, Test Events."
-            : "Meta accepted it, but it went to live reporting, not Test Events.",
+        kind: accepted === 0 || warnings.length > 0 ? "error" : "sent",
+        message: `${event} accepted.${countNote}${warningNote} ${placeNote}`.trim(),
       });
     } catch (caught) {
       console.error("account: capi test failed", caught);
       setCapiState({ kind: "error", message: "Couldn't reach the server just then." });
+    } finally {
+      setCapiSending(null);
     }
   }
 
@@ -433,13 +463,24 @@ export default function Account() {
           <Button
             variant="outline"
             className="mt-3 w-full"
-            disabled={capiState.kind === "sending"}
-            onClick={() => void runCapiTest()}
+            disabled={capiSending !== null}
+            onClick={() => void runCapiTest("Purchase")}
           >
-            {capiState.kind === "sending" ? (
+            {capiSending === "Purchase" ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : null}
             Test Meta purchase tracking
+          </Button>
+          <Button
+            variant="outline"
+            className="mt-2 w-full"
+            disabled={capiSending !== null}
+            onClick={() => void runCapiTest("StartTrial")}
+          >
+            {capiSending === "StartTrial" ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : null}
+            Test Meta trial tracking
           </Button>
           {capiState.kind === "sent" || capiState.kind === "error" ? (
             <p

@@ -65,7 +65,19 @@ export interface PurchaseEvent extends PurchaseAttribution {
 }
 
 export type PurchaseResult =
-  | { sent: true }
+  | {
+      sent: true;
+      /**
+       * Meta's own count of what it accepted. A 200 carrying `events_received: 0`,
+       * or warnings in `messages`, is how Meta reports an event it took but will
+       * not actually report on — indistinguishable from success unless read.
+       */
+      eventsReceived?: number;
+      /** Identifies the exact request to Meta support. */
+      fbTraceId?: string;
+      /** Warnings Meta attached to an otherwise-accepted event. */
+      messages?: string[];
+    }
   | { sent: false; reason: string; detail?: string };
 
 function toHex(buffer: ArrayBuffer): string {
@@ -176,17 +188,55 @@ export async function sendConversionEvent(
       },
     );
 
+    // Read the body on success as well as on failure. Meta answers 200 both when
+    // it will report an event and when it has quietly discarded one, and the only
+    // things separating those cases are `events_received` and `messages`.
+    const rawBody = await response.text().catch(() => "");
+
     if (!response.ok) {
-      // Read the body for the reason, but never let a parse failure escape.
-      const detail = await response.text().catch(() => "");
       return {
         sent: false,
         reason: `http_${response.status}`,
-        detail: detail.slice(0, 500),
+        detail: rawBody.slice(0, 500),
       };
     }
 
-    return { sent: true };
+    let eventsReceived: number | undefined;
+    let fbTraceId: string | undefined;
+    let messages: string[] | undefined;
+    try {
+      const parsed = JSON.parse(rawBody) as {
+        events_received?: number;
+        fbtrace_id?: string;
+        messages?: unknown[];
+      };
+      if (typeof parsed.events_received === "number") eventsReceived = parsed.events_received;
+      if (typeof parsed.fbtrace_id === "string") fbTraceId = parsed.fbtrace_id;
+      if (Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+        messages = parsed.messages.map((entry) =>
+          typeof entry === "string" ? entry : JSON.stringify(entry),
+        );
+      }
+    } catch {
+      // An unparseable body doesn't change the outcome: Meta still answered 200.
+    }
+
+    // Logged on success too. Previously only failures were recorded, so an event
+    // Meta accepted but never reported left nothing behind to investigate.
+    console.log(
+      `meta: ${eventName} accepted`,
+      JSON.stringify({
+        eventId: event.eventId,
+        value: event.value,
+        currency: event.currency.toUpperCase(),
+        eventsReceived,
+        fbTraceId,
+        messages,
+        mode: testEventCode ? "test_events" : "live",
+      }),
+    );
+
+    return { sent: true, eventsReceived, fbTraceId, messages };
   } catch (err) {
     return {
       sent: false,
