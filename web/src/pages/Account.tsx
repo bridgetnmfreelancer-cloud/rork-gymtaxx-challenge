@@ -252,6 +252,7 @@ export default function Account() {
           detail?: string;
           eventsReceived?: number;
           messages?: string[];
+          fbTraceId?: string;
         };
         mode: string;
         configuredTestCode: string | null;
@@ -285,9 +286,15 @@ export default function Account() {
           ? `Sent to Test events using code ${result.configuredTestCode ?? "none"} - check that matches the code shown in Events Manager.`
           : "Sent to LIVE reporting, exactly as the Stripe webhook sends it. Check the Overview event list, not Test events.";
 
+      // Meta's own request id. It is the only handle their support team can
+      // trace, so it belongs on screen rather than buried in server logs.
+      const traceNote = result.result.fbTraceId
+        ? ` Meta trace id: ${result.result.fbTraceId}`
+        : "";
+
       setCapiState({
         kind: accepted === 0 || warnings.length > 0 ? "error" : "sent",
-        message: `${event} accepted.${countNote}${warningNote} ${placeNote}`.trim(),
+        message: `${event} accepted.${countNote}${warningNote} ${placeNote}${traceNote}`.trim(),
       });
     } catch (caught) {
       console.error("account: capi test failed", caught);
