@@ -12,25 +12,17 @@ import {
 } from "../_shared/meta.ts";
 
 /**
- * TEMPORARY — verifies Meta Conversions API wiring without a real charge.
+ * TEMPORARY - verifies Meta Conversions API wiring without a real charge.
  *
- * Stripe is on live keys, so confirming the integration through a genuine deposit
- * would mean a real £60–100 charge and a manual refund. This fires one event
- * through the exact same `sendConversionEvent` path the Stripe webhook uses, so a
- * success here proves the access token, hashing, payload shape and endpoint are
- * all correct.
+ * Stripe is on live keys, so confirming this through a genuine deposit would mean
+ * a real charge and a manual refund. This fires one event through the exact same
+ * `sendConversionEvent` path the Stripe webhook uses, so the access token,
+ * hashing, payload shape and endpoint are all genuinely exercised.
  *
  * It does NOT touch the database, Stripe, or any real participation.
  *
- * `StartTrial` is testable separately because it is the one event that carries a
- * value of zero, and a zero-value event is the most likely thing for Meta to
- * accept with a 200 and then decline to report. Testing it with the same shape
- * the webhook sends is the only way to see Meta's own verdict on it.
- *
- * This is also the only place the Events Manager test code is applied, which is
- * what keeps real deposits reporting live regardless of what is left in the
- * environment. Admin-gated, and the amounts are fixed rather than caller-supplied
- * so it can't be used to push arbitrary revenue into reporting.
+ * Admin-gated, and the amounts are fixed rather than caller-supplied so this
+ * cannot be used to push arbitrary revenue into reporting.
  */
 
 /** Emails allowed to run this, comma-separated. Empty means nobody. */
@@ -44,7 +36,7 @@ function adminEmails(): string[] {
 /** Deliberately not a real deposit figure, so it is obvious in reporting. */
 const TEST_AMOUNT_MINOR = 100;
 
-/** Only the two events the webhook can send for a new challenge are testable. */
+/** Only the two events a new challenge can produce are testable here. */
 function requestedEvent(raw: unknown): ConversionEventName {
   return raw === "StartTrial" ? "StartTrial" : "Purchase";
 }
@@ -64,31 +56,48 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const eventName = requestedEvent((body as { event?: unknown }).event);
 
-    const testEventCode = Deno.env.get("META_CAPI_TEST_EVENT_CODE");
+    /**
+     * Purchase is verified in Test Events, because a fake sale must never reach
+     * live reporting and be optimised against as real revenue.
+     *
+     * StartTrial is verified LIVE, with no test code, deliberately. The question
+     * being answered is why a real StartTrial never appears in the live event
+     * list, and the Stripe webhook never sends a test code - so a Test Events run
+     * exercises a different path to the one that is failing and proves nothing.
+     * A trial carries a value of zero, so no false revenue can enter reporting.
+     */
+    const sendsLive = eventName === "StartTrial";
+    const configuredTestCode = Deno.env.get("META_CAPI_TEST_EVENT_CODE") ?? null;
+    const testEventCode = sendsLive ? null : configuredTestCode;
+
     const { clientIp, clientUserAgent } = attributionFromRequest(req);
 
     const result = await sendConversionEvent(eventName, {
       // Unique per run so repeated tests aren't collapsed as duplicates by Meta.
       eventId: `capi-test-${crypto.randomUUID()}`,
       eventTime: Math.floor(Date.now() / 1000),
-      // Zero for a trial, matching the webhook exactly. Sending a token amount
-      // here instead would test a payload we never actually use in production.
+      // Zero for a trial, matching the webhook exactly. A token amount here
+      // would test a payload we never actually send in production.
       value: eventName === "StartTrial" ? 0 : minorToMajor(TEST_AMOUNT_MINOR),
       currency: "gbp",
       email: user.email ?? null,
       userId: user.id,
       clientIp,
       clientUserAgent,
-      // Without this the £1 would be counted as real revenue against your ads.
       testEventCode,
     });
 
     return json({
       eventName,
       result,
-      // Without a test code the event lands in LIVE reporting, which is worth
-      // knowing before wondering why Test Events looks empty.
       mode: testEventCode ? "test_events" : "live_reporting",
+      /**
+       * Returned so a stale code is visible rather than inferred. Test codes in
+       * Events Manager rotate, and an out-of-date one sends the event to a test
+       * session nobody is watching - indistinguishable, on screen, from the
+       * event never having been sent at all.
+       */
+      configuredTestCode,
       tokenConfigured: Boolean(Deno.env.get("META_CAPI_ACCESS_TOKEN")),
     });
   } catch (err) {

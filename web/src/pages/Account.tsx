@@ -254,6 +254,7 @@ export default function Account() {
           messages?: string[];
         };
         mode: string;
+        configuredTestCode: string | null;
         tokenConfigured: boolean;
       }>("test-capi-purchase", { event });
 
@@ -277,10 +278,12 @@ export default function Account() {
         typeof accepted === "number" ? ` Meta counted ${accepted} event(s).` : "";
       const warningNote =
         warnings.length > 0 ? ` Meta warned: ${warnings.join(" | ")}` : "";
+      // Test codes rotate. Showing the one actually used turns a stale code from
+      // an invisible failure into something you can spot at a glance.
       const placeNote =
         result.mode === "test_events"
-          ? "Look in Events Manager, Test events."
-          : "It went to live reporting, not Test events.";
+          ? `Sent to Test events using code ${result.configuredTestCode ?? "none"} - check that matches the code shown in Events Manager.`
+          : "Sent to LIVE reporting, exactly as the Stripe webhook sends it. Check the Overview event list, not Test events.";
 
       setCapiState({
         kind: accepted === 0 || warnings.length > 0 ? "error" : "sent",
