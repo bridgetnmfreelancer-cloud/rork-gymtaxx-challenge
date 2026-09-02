@@ -187,43 +187,23 @@ export default function PlanPicker() {
         </div>
       ) : null}
 
-      {/* The two kinds of money, side by side. The deposit is theirs and comes
-          back; the fee is what GymTaxx charges. Conflating them is the single
-          easiest way to lose someone's trust at this exact moment. */}
-      <dl className="mt-6 divide-y divide-border overflow-hidden rounded-lg bg-card animate-rise-in [animation-delay:420ms]">
-        <div className="flex items-baseline justify-between px-5 py-4">
-          <div>
-            <dt className="text-sm font-medium text-foreground">Your deposit</dt>
-            <dd className="mt-0.5 text-xs text-muted-foreground">Refundable — earned back {formatMoney(5, currency)} at a time</dd>
-          </div>
-          <span className="tabular text-base font-semibold text-foreground">{formatMoney(deposit, currency)}</span>
+      {/* The two kinds of money, in plain text rather than cards — these are
+          line items, not choices, and must not read as a third and fourth plan.
+          The deposit is theirs and comes back; the fee is what GymTaxx charges. */}
+      <div className="mt-8 border-t border-border pt-5 animate-rise-in [animation-delay:420ms]">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>Deposit</span>
+          <span className="tabular font-medium text-foreground">{formatMoney(deposit, currency)}</span>
         </div>
-        <div className="flex items-baseline justify-between px-5 py-4">
-          <div>
-            <dt className="text-sm font-medium text-foreground">GymTaxx {selectedPlan.name.toLowerCase()}</dt>
-            <dd className="mt-0.5 text-xs text-muted-foreground">
-              {startsFree(selectedPlan, freeChallengeUsed)
-                ? `Free this challenge, then ${formatFee(selectedPlan.price, currency)} ${intervalSuffix(selectedPlan.interval)}`
-                : "Charged today"}
-            </dd>
-          </div>
-          <span className="tabular text-base font-semibold text-foreground">
-            {fee === 0 ? "Free" : formatFee(fee, currency)}
-          </span>
+        <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
+          <span>{selectedPlan.name}</span>
+          <span className="tabular font-medium text-foreground">{fee === 0 ? "Free" : formatFee(fee, currency)}</span>
         </div>
-        <div className="flex items-baseline justify-between bg-primary px-5 py-4">
-          <dt className="text-sm font-medium text-primary-foreground/70">Due today</dt>
-          <dd className="tabular text-2xl font-extrabold text-accent">{formatFee(dueToday, currency)}</dd>
+        <div className="mt-4 flex items-baseline justify-between">
+          <span className="text-sm font-semibold text-foreground">Due today</span>
+          <span className="tabular text-3xl font-extrabold text-foreground">{formatFee(dueToday, currency)}</span>
         </div>
-      </dl>
-
-      {startsFree(selectedPlan, freeChallengeUsed) ? (
-        <p className="mt-4 text-xs leading-relaxed text-muted-foreground animate-rise-in [animation-delay:460ms]">
-          Your card is saved but not charged for the plan. The first{" "}
-          {formatFee(selectedPlan.price, currency)} is taken when this challenge ends, and we'll remind you before it
-          is. Cancel any time from your account.
-        </p>
-      ) : null}
+      </div>
 
       {error ? (
         <p role="alert" className="mt-4 rounded-md bg-destructive/15 px-4 py-3 text-sm font-medium text-danger-ink">
@@ -261,7 +241,7 @@ function PlanCard({
   const isFreeStart = startsFree(plan, freeChallengeUsed);
 
   /**
-   * The annual card is anchored monthly on purpose: £59.99 reads as a bill,
+   * Annual is anchored monthly in its detail line: £59.99 reads as a bill,
    * £5 a month next to the £7.99 above it reads as the obvious choice. The
    * saving is derived from the two plan prices so the two can never drift.
    */
@@ -270,6 +250,9 @@ function PlanCard({
   const savingsPercent = isAnnual
     ? Math.round((1 - plan.price / (planById("monthly").price * 12)) * 100)
     : null;
+
+  /** Whole amounts lose their ".00" so the anchor reads £5, not £5.00. */
+  const shortFee = (amount: number): string => formatFee(amount, currency).replace(/\.00$/, "");
 
   return (
     <button
@@ -309,10 +292,10 @@ function PlanCard({
           ) : null}
         </span>
         <span className="mt-1 block text-sm leading-snug text-muted-foreground">
-          {isAnnual
+          {isAnnual && perMonth !== null
             ? isFreeStart
-              ? "First challenge free. Cancel any time."
-              : "Cancel any time."
+              ? `Then ${shortFee(plan.price)} per year = ${shortFee(perMonth)} per month.`
+              : `${shortFee(plan.price)} per year = ${shortFee(perMonth)} per month.`
             : isFreeStart
               ? `Then ${formatFee(plan.price, currency)} a month. Cancel any time.`
               : "Cancel any time."}
@@ -320,26 +303,12 @@ function PlanCard({
       </span>
 
       <span className="shrink-0 text-right">
-        {isAnnual && perMonth !== null ? (
-          <>
-            <span className="tabular block text-xl font-extrabold text-foreground">
-              {formatFee(perMonth, currency)}
-              <span className="text-xs font-semibold text-muted-foreground">/month</span>
-            </span>
-            <span className="mt-0.5 block text-[11px] text-muted-foreground">
-              {formatFee(plan.price, currency)} billed annually
-            </span>
-          </>
-        ) : (
-          <>
-            <span className={cn("tabular block font-extrabold text-foreground", prominent ? "text-xl" : "text-lg")}>
-              {isFreeStart ? "Free" : formatFee(plan.price, currency)}
-            </span>
-            <span className="mt-0.5 block text-[11px] text-muted-foreground">
-              {isFreeStart ? "today" : intervalSuffix(plan.interval)}
-            </span>
-          </>
-        )}
+        <span className={cn("tabular block font-extrabold text-foreground", prominent ? "text-xl" : "text-lg")}>
+          {isFreeStart ? "Free" : formatFee(plan.price, currency)}
+        </span>
+        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+          {isFreeStart ? "today" : intervalSuffix(plan.interval)}
+        </span>
       </span>
     </button>
   );
