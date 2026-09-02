@@ -1,4 +1,4 @@
-import { Banknote, Camera, Trophy } from "lucide-react";
+import { Banknote, Camera, Target, XCircle } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -8,7 +8,14 @@ import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
 import { flowProgress } from "@/lib/flow";
-import { CHALLENGE_WEEKS, WEEKLY_GOALS, type WeeklyGoal } from "@/lib/money";
+import {
+  CHALLENGE_WEEKS,
+  currencyForRegion,
+  formatMoney,
+  REWARD_PER_WORKOUT,
+  WEEKLY_GOALS,
+  type WeeklyGoal,
+} from "@/lib/money";
 import {
   BLOCKER_OPTIONS,
   HABIT_OPTIONS,
@@ -100,6 +107,13 @@ export default function Onboarding() {
   const currentPerWeek = useMemo(() => habitPerWeek(answers.habit), [answers.habit]);
   const goalPerWeek = answers.goal ?? 4;
 
+  /**
+   * Priced from the browser's region, the same way the participation record is
+   * priced when they join — so the amount shown here can never contradict what
+   * they are later charged.
+   */
+  const currency = useMemo(() => currencyForRegion(), []);
+
   return (
     <Screen>
       <StepProgress {...flowProgress(stage)} onBack={index === 0 ? null : goBack} />
@@ -133,29 +147,36 @@ export default function Onboarding() {
       {stage === "mechanism" ? (
         <div className="flex flex-1 flex-col">
           <div className="pt-8">
-            <ScreenTitle className="animate-rise-in">GymTaxx makes sure you stay consistent with the gym</ScreenTitle>
-            <ScreenSubtitle className="animate-rise-in [animation-delay:80ms]">It's simple.</ScreenSubtitle>
+            <ScreenTitle className="animate-rise-in">GymTaxx makes sure you never skip a workout</ScreenTitle>
+            <ScreenSubtitle className="animate-rise-in [animation-delay:80ms]">How it works</ScreenSubtitle>
           </div>
 
           <ol className="mt-8 space-y-3">
             <MechanismStep
-              icon={Banknote}
-              title="Put money on your workouts"
+              icon={Target}
+              title="Set a gym goal"
+              detail="3, 4 or 5 workouts a week for a month"
               delayMs={160}
             />
             <MechanismStep
-              icon={Camera}
-              title="Prove you went to the gym with a photo"
+              icon={Banknote}
+              title="Put money behind it"
+              detail={`${formatMoney(REWARD_PER_WORKOUT, currency)} a workout`}
               delayMs={260}
             />
             <MechanismStep
-              icon={Trophy}
-              title="Get all your money back, one workout at a time"
+              icon={Camera}
+              title={`Log a workout, get ${formatMoney(REWARD_PER_WORKOUT, currency)} back`}
               delayMs={360}
+            />
+            <MechanismStep
+              icon={XCircle}
+              title={`Skip a workout, lose ${formatMoney(REWARD_PER_WORKOUT, currency)}`}
+              delayMs={460}
             />
           </ol>
 
-          <ScreenActions className="animate-rise-in [animation-delay:500ms]">
+          <ScreenActions className="animate-rise-in [animation-delay:600ms]">
             <Button size="xl" className="w-full" onClick={goNext}>
               Continue
             </Button>
@@ -287,10 +308,13 @@ function Question({
 function MechanismStep({
   icon: Icon,
   title,
+  detail,
   delayMs,
 }: {
   icon: typeof Banknote;
   title: string;
+  /** Optional second line — the concrete detail behind the step. */
+  detail?: string;
   delayMs: number;
 }) {
   return (
@@ -301,7 +325,10 @@ function MechanismStep({
       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary">
         <Icon className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
       </div>
-      <p className="min-w-0 text-base font-semibold leading-snug text-foreground">{title}</p>
+      <div className="min-w-0">
+        <p className="text-base font-semibold leading-snug text-foreground">{title}</p>
+        {detail ? <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{detail}</p> : null}
+      </div>
     </li>
   );
 }
