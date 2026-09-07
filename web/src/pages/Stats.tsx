@@ -119,6 +119,38 @@ const EMPTY_MONEY: Money = {
   planMix: [],
 };
 
+/**
+ * The last week of the pre-challenge reminder sequence, mirroring `send-reminders`.
+ *
+ * Someone who never pays hears from us for four weeks and then never again, so
+ * "has a device registered" and "can still be reached" are different questions.
+ * Counting only the first would overstate the audience by every account that
+ * has already gone quiet.
+ */
+const FINAL_REMINDER_WEEK = 4;
+const DAY_MS = 86_400_000;
+
+/** Which week of that sequence an account is in, counting from 1. */
+function preChallengeWeek(signedUpAt: string, now: Date): number {
+  const signedUp = new Date(signedUpAt);
+  if (Number.isNaN(signedUp.getTime())) return 1;
+
+  const dayNumber = (at: Date): number =>
+    Math.round(Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) / DAY_MS);
+
+  const signUpDay = dayNumber(signedUp);
+  const weekday = signedUp.getDay();
+
+  // Week one runs to the first Monday *after* signing up — the last day a
+  // challenge can still start in the week they joined.
+  const daysToMonday = weekday === 1 ? 7 : (8 - weekday) % 7;
+  const closingMonday = signUpDay + daysToMonday;
+
+  const today = dayNumber(now);
+  if (today <= closingMonday) return 1;
+  return 1 + Math.ceil((today - closingMonday) / 7);
+}
+
 /** Minor units to a readable amount. Both supported currencies have two decimals. */
 function money(minor: number, symbol: string): string {
   return `${symbol}${(minor / 100).toFixed(2)}`;
@@ -323,6 +355,32 @@ export default function Stats() {
   const data = useMemo(() => normalise(raw), [raw]);
 
   const people = useMemo(() => data?.people ?? [], [data]);
+
+  /**
+   * Who a notification sent right now could actually land on.
+   *
+   * Three groups behave differently and the total alone hides that: people on a
+   * live challenge get progress nudges indefinitely, people still inside their
+   * first four weeks get the joining sequence, and everyone past it is on a
+   * device we own but never speak to.
+   */
+  const reach = useMemo(() => {
+    const now = new Date();
+    const withDevice = people.filter((person) => person.hasDevice);
+    const paying = withDevice.filter((person) => person.paymentStatus === "paid");
+    const rest = withDevice.filter((person) => person.paymentStatus !== "paid");
+    const inSequence = rest.filter(
+      (person) => preChallengeWeek(person.signedUpAt, now) <= FINAL_REMINDER_WEEK,
+    );
+
+    return {
+      devices: withDevice.length,
+      paying: paying.length,
+      inSequence: inSequence.length,
+      lapsed: rest.length - inSequence.length,
+      reachable: paying.length + inSequence.length,
+    };
+  }, [people]);
 
   const emails = useMemo<string[]>(
     () => people.map((person) => person.email).filter((email): email is string => Boolean(email)),
@@ -670,6 +728,30 @@ export default function Stats() {
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
           Anyone who installed but declined reminders before install tracking started is counted as not installed, so
           this figure is a floor rather than an exact count.
+        </p>
+      </Card>
+
+      <Card title="Who reminders can reach">
+        <p className="tabular text-4xl font-extrabold text-foreground">{reach.reachable}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          could receive a notification today, of {people.length} accounts in this range.
+        </p>
+
+        <div className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
+          <Line label="Have a phone registered" value={reach.devices} />
+          <Line label="On a paid challenge" value={reach.paying} muted />
+          <Line label="Still in their first four weeks" value={reach.inSequence} muted />
+          <Line label="Registered but past four weeks" value={reach.lapsed} muted />
+        </div>
+
+        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+          The joining sequence stops after four weeks, so a registered phone is not the same as a reachable person.
+          Those {reach.lapsed} still have the app installed and notifications switched on — nothing is scheduled to go
+          to them.
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          Counts phones, not people: a second iPhone or an iPad shows once here per account. Reinstalling the app wipes
+          the registration, and it only comes back the next time that person opens GymTaxx.
         </p>
       </Card>
 
