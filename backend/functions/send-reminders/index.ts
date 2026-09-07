@@ -13,10 +13,8 @@ import { MAX_FAILURES } from "../_shared/push.ts";
  *   never after the week has closed. A reminder that arrives too late to act
  *   on just tells someone they've lost money.
  * - **Not in a challenge.** A four-week sequence pointing back at the one thing
- *   left to do, then silence. The wording never assumes how far they got, so the
- *   same messages fit someone who never built a challenge and someone who built
- *   one and never paid — those two behave identically from here, and guessing
- *   wrong means congratulating people for something they haven't done.
+ *   left to do, then silence. Thursday and Sunday in week one; Monday at 6pm and
+ *   Sunday after that, with different words every week.
  *
  * Meant to be called hourly by a scheduler. Each run only sends to people
  * whose *local* time is in the evening window, which is how one hourly job
@@ -34,41 +32,61 @@ const MONDAY = 1;
 const WEDNESDAY = 3;
 const DAY_MS = 86_400_000;
 
-type Message = { title: string; body: string };
+type Message = { title: string; body: string; atHour?: number };
 
 /**
- * Their first week, keyed by local weekday (0 = Sunday). Friday closes the week
- * off, Sunday looks at the next one, and Monday is the last day a challenge can
- * still start inside it.
+ * The pre-challenge sequence, one entry per week, each keyed by local weekday
+ * (0 = Sunday). Every message is written for someone who has never paid — the
+ * wording never assumes how far they got, so the same words fit someone who
+ * never built a challenge and someone who built one and never paid.
+ *
+ * The week has its own shape: `atHour` pins a message to a specific local hour
+ * (the Monday messages are written for 6pm) while everything else rides the
+ * general evening window.
  */
-const WEEK_ONE_SCHEDULE: Record<number, Message | undefined> = {
-  5: {
-    title: "Be honest. How did this week go?",
-    body: "Are you being consistent with the gym? We are still here for you if you need a little extra motivation.",
-  },
-  0: {
-    title: "Who will you be next week?",
-    body: "Set your gym goal and stick with it. Prove to yourself you can do it.",
-  },
+const PRE_CHALLENGE_SEQUENCE: Record<number, Record<number, Message | undefined>> = {
   1: {
-    title: "It starts today",
-    body: "Last chance to join a challenge and actually stick to your routine this week.",
+    4: {
+      title: "Be honest. How did this week go?",
+      body: "Are you being consistent with the gym? We are still here for you if you need a little extra accountability.",
+    },
+    0: {
+      title: "Picture yourself 4 weeks from now",
+      body: "Wouldn't it be nice to say you actually stuck to it?",
+    },
   },
-};
-
-/**
- * Weeks two, three and four: twice a week, Friday and Sunday. The urgency of
- * week one has passed, so this reads as an open door rather than a deadline —
- * the same pair each week, quiet enough to repeat without grating.
- */
-const LATER_WEEKS_SCHEDULE: Record<number, Message | undefined> = {
-  5: {
-    title: "Did you keep your promise this week?",
-    body: "You said you wanted to be more consistent. We are still here for you whenever you are ready!",
+  2: {
+    1: {
+      title: "2 choices today",
+      body: "Keep promising you'll find the motivation to go to the gym OR actually go to the gym with GymTaxx accountability. Take your pick! \u{1F937}\u{200D}\u{2640}\u{FE0F}",
+      atHour: 18,
+    },
+    0: {
+      title: "So did you actually go to the gym this week?",
+      body: "If not, maybe it's time for you to try something different.",
+    },
   },
-  0: {
-    title: "Same goals. Different week?",
-    body: "Last chance to be consistent next week. Join a challenge and let's get you closer to your goals.",
+  3: {
+    1: {
+      title: "Don't want another subscription?",
+      body: "You can start today with just one GymTaxx challenge. No commitment. No pressure.",
+      atHour: 18,
+    },
+    0: {
+      title: "Planning to go to the gym next week?",
+      body: "How many times have you told yourself that before? \u{1FAE4} With us, you won't have any doubts whether you'll stick to it.",
+    },
+  },
+  4: {
+    1: {
+      title: "Still relying on motivation?",
+      body: "To go to the gym this week? You already know how that turns out. We are still here if you want to try having an accountability partner.",
+      atHour: 18,
+    },
+    0: {
+      title: "It's been almost a month \u{1F440}",
+      body: "Are you going to the gym consistently without us? If not, what do you have to lose by giving us a chance. First challenge free.",
+    },
   },
 };
 
@@ -77,8 +95,8 @@ const FINAL_WEEK = 4;
 
 /** The one-off nudge a few hours after signing up. */
 const WELCOME: Message = {
-  title: "You're almost there",
-  body: "Next step is setting up your challenge and you will be one step closer to reaching your gym goals.",
+  title: "You're almost there \u{1F440}",
+  body: "This could be the month you finally stick with your goals. Finish setting up your challenge now.",
 };
 
 /**
@@ -279,17 +297,20 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          const scheduled =
-            week === 1 ? WEEK_ONE_SCHEDULE[weekday] : LATER_WEEKS_SCHEDULE[weekday];
-          if (!scheduled || hour < SEND_HOUR_START || hour > SEND_HOUR_END) {
+          const scheduled = PRE_CHALLENGE_SEQUENCE[week]?.[weekday];
+
+          // Each message can pin its own earliest hour — the Monday ones are
+          // written for 6pm — and otherwise rides the general evening window.
+          const earliestHour = scheduled?.atHour ?? SEND_HOUR_START;
+          if (!scheduled || hour < earliestHour || hour > SEND_HOUR_END) {
             skipped += 1;
             continue;
           }
 
           // Two evenings running reads as pestering, which is exactly what a
-          // Saturday sign-up would otherwise get. Monday is the exception: it's
-          // the last day a challenge can still start this week, so it goes out
-          // even to someone who heard from us on Sunday.
+          // Saturday sign-up would otherwise get. Monday is the exception: the
+          // Sunday-then-Monday pair is written to land back to back, so it goes
+          // out even to someone who heard from us the night before.
           if (weekday !== MONDAY && sub.last_sent_on === previousLocalDate(now, zone)) {
             skipped += 1;
             continue;
