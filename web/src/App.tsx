@@ -14,6 +14,7 @@ import Activated from "./pages/Activated";
 import AuthCallback from "./pages/AuthCallback";
 import BuildChallenge from "./pages/BuildChallenge";
 import Commit from "./pages/Commit";
+import CreatorDemo from "./pages/CreatorDemo";
 import Entry from "./pages/Entry";
 import ForgotPassword from "./pages/ForgotPassword";
 import History from "./pages/History";
@@ -99,6 +100,12 @@ const App = () => (
                 auth gate: the session doesn't exist yet when it first loads. */}
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+
+            {/* Creator demo: an unlisted walkthrough for UGC creators to film.
+                No account, no payment, no database — every screen is local
+                demo state, so the link can be handed out freely and anyone who
+                finds it gets a thing that gives nothing away. */}
+            <Route path="/demo" element={<CreatorDemo />} />
 
             {PRIVATE_ROUTES.map((route) => (
               <Route key={route.path} path={route.path} element={<RequireAuth>{route.element}</RequireAuth>} />
