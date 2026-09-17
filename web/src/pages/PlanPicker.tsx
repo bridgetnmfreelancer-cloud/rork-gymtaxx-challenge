@@ -134,30 +134,42 @@ export default function PlanPicker() {
       <Screen>
         <StepProgress {...flowProgress("plan")} onBack={() => navigate(-1)} />
 
-        {/* Cal AI's proportions: headline at the top, the product filling the
-            middle, reassurance and button anchored at the bottom. The screenshot
-            is what makes the offer concrete — it shows the thing being given
-            away, and it earns the vertical space the old empty version wasted. */}
-        <h1 className="mt-4 text-center text-[2.5rem] font-extrabold leading-[1.1] tracking-tight text-foreground animate-rise-in">
+        {/* Cal AI's proportions, measured off the reference: headline in the top
+            eighth, the product filling about half the screen, reassurance and
+            button anchored at the bottom — with a clear band of nothing between
+            each. The emptiness is the design. Crowding these three elements is
+            what made the page read as cheap.
+
+            The headline is bold, not extra-bold: at this size the heavier weight
+            turned the words into a slab. Cal AI's headline is lighter than
+            instinct suggests, and the air around it does the shouting. */}
+        <h1 className="mx-auto mt-10 max-w-[18ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
           Your first GymTaxx challenge is on us.
         </h1>
 
-        <div className="flex min-h-0 flex-1 items-center justify-center py-6">
+        <div className="relative flex min-h-0 flex-1 items-center justify-center py-10">
+          {/* A soft mint bloom behind the phone. Without it a white mockup floats
+              on a white page with nothing holding it; with it the screen gains
+              depth and the brand colour appears without drawing a single box. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/30 blur-[64px]"
+          />
           <img
             src="/free-challenge-preview.webp"
-            alt="A verified GymTaxx workout showing $5 earned back"
+            alt="A verified GymTaxx workout showing five dollars earned back"
             width={700}
             height={1520}
             /* Height-led so the phone shrinks on short screens instead of
                pushing the button below the fold. */
-            className="h-full max-h-[52vh] w-auto object-contain animate-rise-in [animation-delay:120ms]"
+            className="relative h-full max-h-[44vh] w-auto object-contain [filter:drop-shadow(0_26px_44px_rgba(15,23,42,0.18))] animate-rise-in [animation-delay:120ms]"
           />
         </div>
 
         {/* Directly above the button, Cal-AI style — the last thing read before
             the tap is what makes the tap feel safe. */}
-        <div className="flex items-center justify-center gap-2 pb-3 animate-rise-in [animation-delay:200ms]">
-          <Check className="h-5 w-5 shrink-0 text-foreground" strokeWidth={3} aria-hidden="true" />
+        <div className="flex items-center justify-center gap-2 pb-6 animate-rise-in [animation-delay:200ms]">
+          <Check className="h-[18px] w-[18px] shrink-0 text-foreground" strokeWidth={2.75} aria-hidden="true" />
           <p className="text-[15px] font-semibold text-foreground">
             Only your refundable deposit is due today
           </p>
