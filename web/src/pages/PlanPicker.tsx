@@ -134,23 +134,36 @@ export default function PlanPicker() {
       <Screen>
         <StepProgress {...flowProgress("plan")} onBack={() => navigate(-1)} />
 
-        <div className="flex flex-1 flex-col justify-center pb-10">
-          <h1 className="text-center text-[2.75rem] font-extrabold leading-[1.08] tracking-tight text-foreground animate-rise-in">
-            Your first GymTaxx challenge is on us.
-          </h1>
+        {/* Cal AI's proportions: headline at the top, the product filling the
+            middle, reassurance and button anchored at the bottom. The screenshot
+            is what makes the offer concrete — it shows the thing being given
+            away, and it earns the vertical space the old empty version wasted. */}
+        <h1 className="mt-4 text-center text-[2.5rem] font-extrabold leading-[1.1] tracking-tight text-foreground animate-rise-in">
+          Your first GymTaxx challenge is on us.
+        </h1>
+
+        <div className="flex min-h-0 flex-1 items-center justify-center py-6">
+          <img
+            src="/free-challenge-preview.webp"
+            alt="A verified GymTaxx workout showing $5 earned back"
+            width={700}
+            height={1520}
+            /* Height-led so the phone shrinks on short screens instead of
+               pushing the button below the fold. */
+            className="h-full max-h-[52vh] w-auto object-contain animate-rise-in [animation-delay:120ms]"
+          />
         </div>
 
-        {/* The reassurance sits directly above the button, Cal-AI style — it is
-            the last thing read before the tap, which is what makes the tap feel
-            safe. It left the headline's side for the same reason. */}
-        <div className="flex items-center justify-center gap-2 pb-2 animate-rise-in [animation-delay:80ms]">
-          <Check className="h-5 w-5 shrink-0 text-primary" strokeWidth={3} aria-hidden="true" />
-          <p className="text-base font-semibold text-foreground">
-            Only your refundable commitment deposit is due today
+        {/* Directly above the button, Cal-AI style — the last thing read before
+            the tap is what makes the tap feel safe. */}
+        <div className="flex items-center justify-center gap-2 pb-3 animate-rise-in [animation-delay:200ms]">
+          <Check className="h-5 w-5 shrink-0 text-foreground" strokeWidth={3} aria-hidden="true" />
+          <p className="text-[15px] font-semibold text-foreground">
+            Only your refundable deposit is due today
           </p>
         </div>
 
-        <ScreenActions>
+        <ScreenActions className="pt-0">
           <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={() => setIntroDone(true)}>
             Start my free challenge
           </Button>
