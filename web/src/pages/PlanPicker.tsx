@@ -195,16 +195,17 @@ export default function PlanPicker() {
         }
       />
 
-      <div className="pt-6">
-        <h1 className="text-center text-[2.75rem] font-extrabold leading-[1.08] tracking-tight text-foreground animate-rise-in">
-          Make this the last time you quit the gym.
-        </h1>
-        <p className="mt-3 text-center text-lg text-muted-foreground animate-rise-in [animation-delay:60ms]">
-          Choose a plan
-        </p>
-      </div>
+      {/* Same system as the screen before it: headline in the top band, bold
+          not extra-bold, a clear band of nothing between each element — two
+          screens that read as one product. */}
+      <h1 className="mx-auto mt-10 max-w-[18ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
+        Make this the last time you quit the gym.
+      </h1>
+      <p className="mt-4 text-center text-lg text-muted-foreground animate-rise-in [animation-delay:60ms]">
+        Choose a plan
+      </p>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-10 space-y-3.5">
         {headline.map((plan, index) => (
           <PlanCard
             key={plan.id}
@@ -222,13 +223,13 @@ export default function PlanPicker() {
       <button
         type="button"
         onClick={() => setShowOneTime((current) => !current)}
-        className="mt-6 flex w-full items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground animate-rise-in [animation-delay:260ms]"
+        className="mt-8 flex w-full items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground animate-rise-in [animation-delay:260ms]"
       >
         {showOneTime ? "Hide one time options" : "Don't want a subscription? See one time options"}
         <ChevronDown className={cn("h-4 w-4 transition-transform", showOneTime ? "rotate-180" : "")} aria-hidden="true" />
       </button>
       {showOneTime ? (
-        <div className="mt-3 space-y-3">
+        <div className="mt-4 space-y-3">
           {secondary.map((plan, index) => (
             <PlanCard
               key={plan.id}
@@ -299,7 +300,7 @@ function PlanCard({
       style={{ animationDelay: `${delayMs}ms` }}
       className={cn(
         "flex w-full items-center gap-4 rounded-lg border-2 px-5 text-left transition-all active:scale-[0.99] animate-rise-in",
-        prominent ? "py-5" : "py-4",
+        prominent ? "py-6" : "py-5",
         isSelected ? "border-primary bg-card" : "border-transparent bg-card hover:border-border",
       )}
     >
