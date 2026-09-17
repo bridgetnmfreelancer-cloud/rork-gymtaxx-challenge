@@ -64,9 +64,41 @@ function nowLabel(): { day: string; time: string } {
   };
 }
 
+/**
+ * Point the page at the demo's own home-screen manifest while it's open.
+ *
+ * Without this, installing from the demo produces an icon that launches the
+ * real app: iPhone reads the manifest of whatever page you install from, and
+ * the app-wide one starts at "/", which is the sign-up funnel. A creator who
+ * installed the demo to film it full screen would be asked to log in.
+ *
+ * The swap is undone on the way out, so installing from any other screen still
+ * lands on the real app.
+ */
+function useDemoManifest(): void {
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    const title = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    const previousManifest = link?.getAttribute("href") ?? null;
+    const previousTitle = title?.getAttribute("content") ?? null;
+
+    link?.setAttribute("href", "/demo.webmanifest");
+    title?.setAttribute("content", "GymTaxx Demo");
+    document.title = "GymTaxx Demo";
+
+    return () => {
+      if (previousManifest) link?.setAttribute("href", previousManifest);
+      if (previousTitle) title?.setAttribute("content", previousTitle);
+      document.title = "GymTaxx";
+    };
+  }, []);
+}
+
 export default function CreatorDemo() {
   const currency = useMemo(() => currencyForRegion(), []);
   const deposit = depositFor(DEMO_GOAL, CHALLENGE_WEEKS);
+
+  useDemoManifest();
 
   const [step, setStep] = useState<DemoStep>("intro");
   const [verified, setVerified] = useState<number>(2);

@@ -1,0 +1,31 @@
+{
+  "name": "GymTaxx Demo",
+  "short_name": "GymTaxx Demo",
+  "description": "A walkthrough of GymTaxx for filming. Nothing here is real.",
+  "start_url": "/demo",
+  "scope": "/demo",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0F172A",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
