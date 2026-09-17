@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthProvider";
 import { enrolQuietly } from "@/lib/enrol";
 import { flowProgress } from "@/lib/flow";
 
-import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
+import { Screen, ScreenActions } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
 import { trackIntent } from "@/lib/meta";
@@ -135,16 +135,23 @@ export default function PlanPicker() {
         <StepProgress {...flowProgress("plan")} onBack={() => navigate(-1)} />
 
         <div className="flex flex-1 flex-col justify-center pb-10">
-          <ScreenTitle className="animate-rise-in">
+          <h1 className="text-center text-[2.75rem] font-extrabold leading-[1.08] tracking-tight text-foreground animate-rise-in">
             Your first GymTaxx challenge is on us.
-          </ScreenTitle>
-          <p className="mt-4 text-lg leading-relaxed text-muted-foreground animate-rise-in [animation-delay:60ms]">
-            Only your refundable commitment deposit is due today.
+          </h1>
+        </div>
+
+        {/* The reassurance sits directly above the button, Cal-AI style — it is
+            the last thing read before the tap, which is what makes the tap feel
+            safe. It left the headline's side for the same reason. */}
+        <div className="flex items-center justify-center gap-2 pb-2 animate-rise-in [animation-delay:80ms]">
+          <Check className="h-5 w-5 shrink-0 text-primary" strokeWidth={3} aria-hidden="true" />
+          <p className="text-base font-semibold text-foreground">
+            Only your refundable commitment deposit is due today
           </p>
         </div>
 
         <ScreenActions>
-          <Button size="xl" className="w-full" onClick={() => setIntroDone(true)}>
+          <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={() => setIntroDone(true)}>
             Start my free challenge
           </Button>
         </ScreenActions>
@@ -164,10 +171,10 @@ export default function PlanPicker() {
       />
 
       <div className="pt-6">
-        <ScreenTitle className="animate-rise-in">
+        <h1 className="text-center text-[2.75rem] font-extrabold leading-[1.08] tracking-tight text-foreground animate-rise-in">
           Make this the last time you quit the gym.
-        </ScreenTitle>
-        <p className="mt-3 text-base text-muted-foreground animate-rise-in [animation-delay:60ms]">
+        </h1>
+        <p className="mt-3 text-center text-lg text-muted-foreground animate-rise-in [animation-delay:60ms]">
           Choose a plan
         </p>
       </div>
@@ -218,7 +225,7 @@ export default function PlanPicker() {
       ) : null}
 
       <ScreenActions>
-        <Button size="xl" className="w-full" onClick={() => void proceed()} disabled={isStarting}>
+        <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={() => void proceed()} disabled={isStarting}>
           {isStarting ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
           Continue
         </Button>
