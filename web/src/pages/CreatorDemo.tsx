@@ -1,15 +1,17 @@
 import {
   Camera,
   Check,
+  ChevronLeft,
   ChevronRight,
   Clock,
+  Flame,
   Loader2,
   Minus,
   MoreHorizontal,
   Plus,
   RotateCcw,
+  ScanFace,
   Share,
-  ShieldCheck,
   Sparkles,
   SquarePlus,
   X,
@@ -25,7 +27,7 @@ import {
   CHALLENGE_WEEKS,
   WEEKLY_GOALS,
   currencyForRegion,
-  depositFor,
+  currencySymbol,
   formatMoney,
   REWARD_PER_WORKOUT,
   type CurrencyCode,
@@ -50,16 +52,34 @@ import { cn } from "@/lib/utils";
  * Nothing on screen announces itself as a mock-up either: anyone watching a
  * video can see that it is one, and the disclaimers were landing in shot.
  *
+ * It also runs slightly AHEAD of the product. Choosing what each workout is
+ * worth is a feature planned for later this year; it is here now because the
+ * footage shot today has to still be true when it ships. Same for the Apple Pay
+ * sheet: the real one is Stripe's hosted page, which can't be filmed safely.
+ *
  * Kept to one file on purpose: the demo deliberately drifts from the product
- * (simulated payment, instant approval) and that difference should be easy to
- * find rather than sprinkled through the real screens behind a flag.
+ * (a chosen stake, a simulated payment, instant approval) and that difference
+ * should be easy to find rather than sprinkled through the real screens.
  */
-type DemoStep = "intro" | "install" | "goal" | "deposit" | "commit" | "confirming" | "home" | "end";
+type DemoStep = "intro" | "install" | "goal" | "stake" | "commit" | "allin" | "home" | "end";
 
 type DemoWorkout = { id: string; day: string; time: string };
 
 /** Where the goal picker opens — the goal most people choose. */
 const DEFAULT_GOAL: WeeklyGoal = 4;
+
+/**
+ * What one workout can be worth, in whole pounds or dollars.
+ *
+ * Capped at the product's own £5: the stake is what the deposit is built from,
+ * and footage of someone staking £10 a session would be selling a challenge
+ * that costs twice what GymTaxx actually charges.
+ */
+const MIN_STAKE = 1;
+const MAX_STAKE = REWARD_PER_WORKOUT;
+
+/** The steps a creator can walk back through, in order. */
+const BACKABLE: DemoStep[] = ["install", "goal", "stake", "commit"];
 
 /** Two workouts already banked, so the dashboard opens with money on it. */
 function seedWorkouts(): DemoWorkout[] {
@@ -114,19 +134,29 @@ export default function CreatorDemo() {
 
   const [step, setStep] = useState<DemoStep>("intro");
   const [goal, setGoal] = useState<WeeklyGoal>(DEFAULT_GOAL);
+  const [stake, setStake] = useState<number>(MAX_STAKE);
   const [didVerify, setDidVerify] = useState<boolean>(false);
   const [workouts, setWorkouts] = useState<DemoWorkout[]>(seedWorkouts);
 
-  const deposit = depositFor(goal, CHALLENGE_WEEKS);
+  // The same sum the server does, with the stake chosen rather than fixed.
+  const deposit = goal * CHALLENGE_WEEKS * stake;
   // Two banked before filming starts, three once the camera moment lands.
   const verified = didVerify ? 3 : 2;
 
   /** Restarts the whole story — the fastest way to film a second take. */
   function restart(): void {
     setGoal(DEFAULT_GOAL);
+    setStake(MAX_STAKE);
     setDidVerify(false);
     setWorkouts(seedWorkouts());
     setStep("intro");
+  }
+
+  /** One step back, for re-filming a single screen without starting over. */
+  function back(): void {
+    const index = BACKABLE.indexOf(step);
+    if (index <= 0) return;
+    setStep(BACKABLE[index - 1]);
   }
 
   function handleVerified(): void {
@@ -138,10 +168,23 @@ export default function CreatorDemo() {
   return (
     <div className="min-h-full bg-background">
       <div className="mx-auto flex min-h-full w-full max-w-md flex-col px-5 pt-safe pb-safe">
-        {/* The restart affordance, kept deliberately small — discreet enough to
-            crop out of a recording, present enough to find on take three. */}
+        {/* The filming controls, kept deliberately small — discreet enough to
+            crop out of a recording, present enough to find on take three.
+            Back re-films one screen; restart re-films the whole story. */}
         {step !== "intro" && step !== "end" ? (
-          <div className="flex items-center justify-end pt-2">
+          <div className="flex items-center justify-between pt-2">
+            {BACKABLE.indexOf(step) > 0 ? (
+              <button
+                type="button"
+                onClick={back}
+                aria-label="Back a step"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-transform active:scale-90"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+            ) : (
+              <span />
+            )}
             <button
               type="button"
               onClick={restart}
@@ -156,25 +199,27 @@ export default function CreatorDemo() {
         {step === "intro" ? <Intro onStart={() => setStep("install")} /> : null}
         {step === "install" ? <InstallSteps onNext={() => setStep("goal")} /> : null}
         {step === "goal" ? (
-          <GoalPicker goal={goal} onChange={setGoal} onNext={() => setStep("deposit")} />
+          <GoalPicker goal={goal} onChange={setGoal} onNext={() => setStep("stake")} />
         ) : null}
-        {step === "deposit" ? (
-          <DepositStepper
-            goal={goal}
-            currency={currency}
-            onChange={setGoal}
-            onNext={() => setStep("commit")}
-          />
+        {step === "stake" ? (
+          <StakePicker stake={stake} currency={currency} onChange={setStake} onNext={() => setStep("commit")} />
         ) : null}
         {step === "commit" ? (
-          <Commit goal={goal} currency={currency} deposit={deposit} onNext={() => setStep("confirming")} />
+          <Commit
+            goal={goal}
+            stake={stake}
+            currency={currency}
+            deposit={deposit}
+            onPaid={() => setStep("allin")}
+          />
         ) : null}
-        {step === "confirming" ? <Confirming onDone={() => setStep("home")} /> : null}
+        {step === "allin" ? <AllIn onNext={() => setStep("home")} /> : null}
         {step === "home" ? (
           <Dashboard
             currency={currency}
             deposit={deposit}
             goal={goal}
+            stake={stake}
             verified={verified}
             didVerify={didVerify}
             workouts={workouts}
@@ -405,64 +450,62 @@ function GoalPicker({
 }
 
 /**
- * The same number again, but as a stepper — and this time the money moves with
- * it. A grid of three options is one tap and gone; nudging a dial up to five
- * and watching the deposit climb is a shot. It exists for the footage.
+ * What one workout is worth — the stake.
+ *
+ * This runs ahead of the product: today every workout is worth a flat £5 and
+ * the deposit follows from the goal. Choosing it is planned for later this
+ * year, and it's in the demo now so footage shot today is still true when it
+ * ships. Capped at £5 so nobody films a challenge dearer than the real one.
+ *
+ * A dial rather than a grid on purpose: three tiles are one tap and gone,
+ * while thumbing a number up and watching money appear is a shot.
  */
-function DepositStepper({
-  goal,
+function StakePicker({
+  stake,
   currency,
   onChange,
   onNext,
 }: {
-  goal: WeeklyGoal;
+  stake: number;
   currency: CurrencyCode;
-  onChange: (goal: WeeklyGoal) => void;
+  onChange: (stake: number) => void;
   onNext: () => void;
 }) {
-  const min = WEEKLY_GOALS[0];
-  const max = WEEKLY_GOALS[WEEKLY_GOALS.length - 1];
-  const deposit = depositFor(goal, CHALLENGE_WEEKS);
-
   function nudge(by: number): void {
-    const next = goal + by;
-    if (next < min || next > max) return;
-    onChange(next as WeeklyGoal);
+    const next = stake + by;
+    if (next < MIN_STAKE || next > MAX_STAKE) return;
+    onChange(next);
   }
 
   return (
     <Screen className="flex-1">
-      <h1 className="mx-auto mt-10 max-w-[18ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
-        Workouts a week
-      </h1>
+      <div className="mt-6 flex flex-col items-center animate-rise-in">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent">
+          <span className="text-2xl font-bold text-success-ink">{currencySymbol(currency)}</span>
+        </div>
+        <h1 className="mx-auto mt-6 max-w-[20ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+          Choose what each workout is worth.
+        </h1>
+      </div>
 
-      <div className="flex flex-1 flex-col justify-center pb-6">
-        <div className="flex items-center justify-center gap-8 animate-rise-in [animation-delay:80ms]">
-          <StepperButton
-            label="One fewer workout a week"
-            onClick={() => nudge(-1)}
-            disabled={goal <= min}
-            icon={Minus}
-          />
-          <span className="tabular w-[3ch] text-center text-[5.5rem] font-extrabold leading-none text-foreground">
-            {goal}
-          </span>
-          <StepperButton label="One more workout a week" onClick={() => nudge(1)} disabled={goal >= max} icon={Plus} />
+      <div className="flex flex-1 flex-col justify-center pb-10">
+        <div className="flex items-center justify-center gap-7 animate-rise-in [animation-delay:80ms]">
+          <StepperButton label="Lower the stake" onClick={() => nudge(-1)} disabled={stake <= MIN_STAKE} icon={Minus} />
+          <div className="flex w-[5.5ch] flex-col items-center">
+            <span className="tabular text-[4.5rem] font-extrabold leading-none tracking-tight text-foreground">
+              {currencySymbol(currency)}
+              {stake}
+            </span>
+            <span className="mt-2 text-sm text-muted-foreground">per workout</span>
+          </div>
+          <StepperButton label="Raise the stake" onClick={() => nudge(1)} disabled={stake >= MAX_STAKE} icon={Plus} />
         </div>
 
-        <div className="mt-12 rounded-xl bg-card p-6 text-center animate-rise-in [animation-delay:140ms]">
-          <p className="text-sm font-medium text-muted-foreground">Your refundable deposit</p>
-          <CountUpMoney
-            value={deposit}
-            currency={currency}
-            className="mt-1 block text-5xl font-extrabold leading-none text-foreground"
-            durationMs={520}
-          />
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            {goal * CHALLENGE_WEEKS} workouts over {CHALLENGE_WEEKS} weeks, {formatMoney(REWARD_PER_WORKOUT, currency)}{" "}
-            earned back for each one.
-          </p>
-        </div>
+        <p className="mx-auto mt-10 max-w-[30ch] text-center text-sm leading-relaxed text-muted-foreground animate-rise-in [animation-delay:160ms]">
+          {stake >= MAX_STAKE
+            ? "The most you can stake on a single session."
+            : "Go to the gym, earn it back. Skip, and it's gone."}
+        </p>
       </div>
 
       <ScreenActions>
@@ -498,70 +541,192 @@ function StepperButton({
   );
 }
 
-/** The commitment, with the real maths — but the button charges nothing. */
+/**
+ * The total, and the payment.
+ *
+ * One hero number with the sum that produced it underneath, because the whole
+ * point of the two screens before this was watching that figure get built. The
+ * Apple Pay sheet is a reproduction: the real payment leaves for Stripe's
+ * hosted page, which can't be filmed without real card details, and a creator
+ * cannot be walked up to a screen that takes actual money.
+ */
 function Commit({
   goal,
+  stake,
   currency,
   deposit,
-  onNext,
+  onPaid,
 }: {
   goal: WeeklyGoal;
+  stake: number;
   currency: CurrencyCode;
   deposit: number;
-  onNext: () => void;
+  onPaid: () => void;
 }) {
-  const total = goal * CHALLENGE_WEEKS;
+  const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
 
   return (
-    <Screen className="flex-1">
-      <h1 className="mx-auto mt-10 max-w-[18ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
-        Now put something behind it.
-      </h1>
+    <>
+      <Screen className="flex-1">
+        <div className="flex flex-1 flex-col justify-center pb-6 text-center">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground animate-rise-in">
+            Your total stake
+          </p>
+          <CountUpMoney
+            value={deposit}
+            currency={currency}
+            className="mt-3 block text-[4.5rem] font-extrabold leading-none tracking-tight text-foreground animate-rise-in [animation-delay:60ms]"
+          />
 
-      <div className="mt-10 animate-rise-in [animation-delay:80ms]">
-        <dl className="divide-y divide-border overflow-hidden rounded-xl bg-card">
-          <Row label="Your goal" value={`${goal} workouts a week`} />
-          <Row label="For" value={`${CHALLENGE_WEEKS} weeks`} />
-          <Row label="Total" value={`${total} workouts`} />
-          <Row label="Each worth" value={formatMoney(REWARD_PER_WORKOUT, currency)} />
-        </dl>
+          <div className="mx-auto mt-8 w-full rounded-xl bg-card px-5 py-5 animate-rise-in [animation-delay:140ms]">
+            <p className="tabular text-xl font-semibold text-foreground">
+              {goal} × {CHALLENGE_WEEKS} weeks × {formatMoney(stake, currency)}
+            </p>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              workouts per week × challenge length × what each one is worth
+            </p>
+          </div>
 
-        <div className="mt-4 rounded-xl border-2 border-accent/40 bg-accent/25 p-5">
-          <p className="text-sm font-medium text-success-ink">Your commitment</p>
-          <p className="tabular mt-1 text-4xl font-extrabold text-foreground">{formatMoney(deposit, currency)}</p>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Complete a workout and {formatMoney(REWARD_PER_WORKOUT, currency)} is earned back. Miss one and it's
-            forfeited. Finish all four weeks and every penny comes home.
+          <p className="mx-auto mt-8 max-w-[32ch] text-sm leading-relaxed text-muted-foreground animate-rise-in [animation-delay:200ms]">
+            Every workout you prove earns {formatMoney(stake, currency)} back. Finish all four weeks and the whole
+            {" "}
+            {formatMoney(deposit, currency)} comes home.
           </p>
         </div>
+
+        <ScreenActions>
+          <Button
+            size="xl"
+            className="h-16 w-full rounded-full text-lg font-bold"
+            onClick={() => setIsSheetOpen(true)}
+          >
+            Pay {formatMoney(deposit, currency)} with Apple Pay
+          </Button>
+        </ScreenActions>
+      </Screen>
+
+      {isSheetOpen ? (
+        <ApplePaySheet
+          amount={deposit}
+          currency={currency}
+          onCancel={() => setIsSheetOpen(false)}
+          onDone={onPaid}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * A reproduction of the Apple Pay sheet, in its three beats: double-click to
+ * pay, Face ID, confirmed. Each one advances on a timer once started, so a
+ * creator holds the phone naturally through the payment rather than tapping
+ * through a mock-up.
+ */
+type PayPhase = "confirm" | "faceid" | "done";
+
+function ApplePaySheet({
+  amount,
+  currency,
+  onCancel,
+  onDone,
+}: {
+  amount: number;
+  currency: CurrencyCode;
+  onCancel: () => void;
+  onDone: () => void;
+}) {
+  const [phase, setPhase] = useState<PayPhase>("confirm");
+
+  useEffect(() => {
+    if (phase === "faceid") {
+      const timer = setTimeout(() => setPhase("done"), 1500);
+      return () => clearTimeout(timer);
+    }
+    if (phase === "done") {
+      const timer = setTimeout(onDone, 1600);
+      return () => clearTimeout(timer);
+    }
+  }, [phase, onDone]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/30">
+      <div className="rounded-t-[1.75rem] bg-background px-6 pb-safe pt-3 animate-sheet-up">
+        <div className="mx-auto h-1 w-9 rounded-full bg-border" aria-hidden="true" />
+
+        {phase === "confirm" ? (
+          <div className="pb-6 pt-7 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Apple Pay</p>
+            <p className="tabular mt-2 text-[2.75rem] font-extrabold leading-none text-foreground">
+              {formatMoney(amount, currency)}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">GymTaxx · Refundable deposit</p>
+
+            <Button
+              size="xl"
+              className="mt-7 h-14 w-full rounded-full text-base font-bold"
+              onClick={() => setPhase("faceid")}
+            >
+              Double-click to Pay {formatMoney(amount, currency)}
+            </Button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="mt-3 w-full py-3 text-sm font-medium text-muted-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : null}
+
+        {phase === "faceid" ? (
+          <div className="flex flex-col items-center py-14 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-border animate-pop-in">
+              <ScanFace className="h-10 w-10 text-foreground" strokeWidth={1.75} aria-hidden="true" />
+            </div>
+            <p className="mt-6 text-lg font-semibold text-foreground">Authenticate with Face ID</p>
+            <p className="mt-1 text-sm text-muted-foreground">Look at your iPhone</p>
+          </div>
+        ) : null}
+
+        {phase === "done" ? (
+          <div className="flex flex-col items-center py-14 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent animate-pop-in">
+              <Check className="h-10 w-10 text-success-ink" strokeWidth={3} aria-hidden="true" />
+            </div>
+            <p className="mt-6 text-lg font-semibold text-foreground">Payment confirmed</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatMoney(amount, currency)} staked on your challenge
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** The beat after paying: they're committed, and there's one thing to do. */
+function AllIn({ onNext }: { onNext: () => void }) {
+  return (
+    <Screen className="flex-1">
+      <div className="flex flex-1 flex-col items-center justify-center pb-10 text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent animate-pop-in">
+          <Flame className="h-10 w-10 text-success-ink" aria-hidden="true" />
+        </div>
+        <h1 className="mt-7 text-[2.5rem] font-extrabold leading-[1.1] tracking-tight text-foreground animate-rise-in">
+          You're all in.
+        </h1>
+        <p className="mx-auto mt-3 max-w-[30ch] text-base leading-relaxed text-muted-foreground animate-rise-in [animation-delay:60ms]">
+          Prove a workout to start earning it back. Every session brings more of it home.
+        </p>
       </div>
 
       <ScreenActions>
         <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={onNext}>
-          Pay {formatMoney(deposit, currency)} deposit
+          Log a workout
         </Button>
       </ScreenActions>
     </Screen>
-  );
-}
-
-/** A beat of confirmation between paying and the dashboard, like the real app. */
-function Confirming({ onDone }: { onDone: () => void }) {
-  useEffect(() => {
-    const timer = setTimeout(onDone, 1800);
-    return () => clearTimeout(timer);
-  }, [onDone]);
-
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
-      <div className="relative flex h-24 w-24 items-center justify-center">
-        <Loader2 className="absolute h-24 w-24 animate-spin text-accent" strokeWidth={1.5} aria-hidden="true" />
-        <ShieldCheck className="h-10 w-10 text-foreground" aria-hidden="true" />
-      </div>
-      <h1 className="mt-8 text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
-        Confirming your deposit.
-      </h1>
-    </div>
   );
 }
 
@@ -574,6 +739,7 @@ function Dashboard({
   currency,
   deposit,
   goal,
+  stake,
   verified,
   didVerify,
   workouts,
@@ -583,6 +749,7 @@ function Dashboard({
   currency: CurrencyCode;
   deposit: number;
   goal: WeeklyGoal;
+  stake: number;
   verified: number;
   didVerify: boolean;
   workouts: DemoWorkout[];
@@ -592,7 +759,7 @@ function Dashboard({
   const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
   const [showPayoff, setShowPayoff] = useState<boolean>(false);
 
-  const earned = verified * REWARD_PER_WORKOUT;
+  const earned = verified * stake;
   const remaining = deposit - earned;
 
   // The payoff overlay clears itself; the count-up happens underneath it, in
@@ -692,7 +859,7 @@ function Dashboard({
       </Screen>
 
       {isCameraOpen ? (
-        <CameraCapture
+        <DemoCameraCapture
           onClose={() => setIsCameraOpen(false)}
           onUse={() => {
             setIsCameraOpen(false);
@@ -702,7 +869,7 @@ function Dashboard({
         />
       ) : null}
 
-      {showPayoff ? <VerifiedPayoff currency={currency} /> : null}
+      {showPayoff ? <VerifiedPayoff currency={currency} stake={stake} /> : null}
     </>
   );
 }
@@ -712,7 +879,7 @@ function Dashboard({
  * app this waits on review; here it is instant because it is the thing being
  * filmed. The dashboard behind it animates the money up on its own.
  */
-function VerifiedPayoff({ currency }: { currency: CurrencyCode }) {
+function VerifiedPayoff({ currency, stake }: { currency: CurrencyCode; stake: number }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background px-8 text-center">
       <div className="flex h-24 w-24 items-center justify-center rounded-full bg-accent animate-pop-in">
@@ -722,7 +889,7 @@ function VerifiedPayoff({ currency }: { currency: CurrencyCode }) {
         Workout verified
       </h2>
       <p className="tabular mt-2 text-3xl font-extrabold text-success-ink animate-rise-in [animation-delay:120ms]">
-        +{formatMoney(REWARD_PER_WORKOUT, currency)} earned back
+        +{formatMoney(stake, currency)} earned back
       </p>
     </div>
   );
@@ -733,7 +900,7 @@ function VerifiedPayoff({ currency }: { currency: CurrencyCode }) {
  * when no camera exists (desktop preview, denied permission) so the demo can
  * never dead-end mid-filming.
  */
-function CameraCapture({ onUse, onClose }: { onUse: () => void; onClose: () => void }) {
+function DemoCameraCapture({ onUse, onClose }: { onUse: () => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [shot, setShot] = useState<string | null>(null);
@@ -872,8 +1039,8 @@ function CameraCapture({ onUse, onClose }: { onUse: () => void; onClose: () => v
 function End({ onRestart }: { onRestart: () => void }) {
   const moments = [
     "The install — it goes on the home screen",
-    "The goal — the deposit climbing with it",
-    "The commitment — money on the line",
+    "The stake — thumbing it up to £5 a session",
+    "The payment — Face ID, and the money is on the line",
     "The payoff — verified, and the money counting up",
   ];
 

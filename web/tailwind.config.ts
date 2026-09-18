@@ -78,12 +78,19 @@ export default {
           "60%": { opacity: "1", transform: "scale(1.06)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
+        /* A payment sheet rising from the bottom of the screen, the way iOS
+           presents its own. */
+        "sheet-up": {
+          from: { transform: "translateY(100%)" },
+          to: { transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "rise-in": "rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
         "pop-in": "pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both",
+        "sheet-up": "sheet-up 0.42s cubic-bezier(0.32, 0.72, 0, 1) both",
       },
     },
   },
