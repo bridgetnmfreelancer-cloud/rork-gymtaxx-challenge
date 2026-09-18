@@ -479,32 +479,33 @@ function StakePicker({
 
   return (
     <Screen className="flex-1">
-      <div className="mt-6 flex flex-col items-center animate-rise-in">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent">
-          <span className="text-2xl font-bold text-success-ink">{currencySymbol(currency)}</span>
-        </div>
-        <h1 className="mx-auto mt-6 max-w-[20ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-          Choose what each workout is worth.
-        </h1>
-      </div>
+      {/* Three things on this screen, each with a clear band of air around it:
+          the question, the amount, the action. An earlier version stacked a
+          coin badge, a heading, the dial and a caption into the same space and
+          read as cramped. */}
+      <h1 className="mx-auto mt-14 max-w-[20ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
+        Choose your consequence when you skip the gym.
+      </h1>
 
-      <div className="flex flex-1 flex-col justify-center pb-10">
-        <div className="flex items-center justify-center gap-7 animate-rise-in [animation-delay:80ms]">
+      <div className="relative flex flex-1 flex-col items-center justify-center py-14">
+        {/* A soft mint bloom behind the figure, so the number sits on something
+            rather than floating in white. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_55%_40%_at_50%_45%,rgba(134,239,172,0.22),transparent_70%)]"
+        />
+
+        <div className="relative flex items-center justify-center gap-8 animate-rise-in [animation-delay:80ms]">
           <StepperButton label="Lower the stake" onClick={() => nudge(-1)} disabled={stake <= MIN_STAKE} icon={Minus} />
-          <div className="flex w-[5.5ch] flex-col items-center">
-            <span className="tabular text-[4.5rem] font-extrabold leading-none tracking-tight text-foreground">
-              {currencySymbol(currency)}
-              {stake}
-            </span>
-            <span className="mt-2 text-sm text-muted-foreground">per workout</span>
-          </div>
+          <span className="tabular flex w-[3.5ch] items-start justify-center text-[5rem] font-extrabold leading-none tracking-[-0.03em] text-foreground">
+            <span className="mt-2 text-[2.5rem] font-bold">{currencySymbol(currency)}</span>
+            {stake}
+          </span>
           <StepperButton label="Raise the stake" onClick={() => nudge(1)} disabled={stake >= MAX_STAKE} icon={Plus} />
         </div>
 
-        <p className="mx-auto mt-10 max-w-[30ch] text-center text-sm leading-relaxed text-muted-foreground animate-rise-in [animation-delay:160ms]">
-          {stake >= MAX_STAKE
-            ? "The most you can stake on a single session."
-            : "Go to the gym, earn it back. Skip, and it's gone."}
+        <p className="relative mt-8 text-base font-medium text-muted-foreground animate-rise-in [animation-delay:160ms]">
+          per skipped session
         </p>
       </div>
 
@@ -534,9 +535,9 @@ function StepperButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="flex h-16 w-16 items-center justify-center rounded-full bg-card text-foreground transition-all active:scale-[0.94] disabled:opacity-30"
+      className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-background text-foreground transition-all active:scale-[0.94] disabled:opacity-25"
     >
-      <Icon className="h-7 w-7" strokeWidth={2.5} aria-hidden="true" />
+      <Icon className="h-6 w-6" strokeWidth={2.5} aria-hidden="true" />
     </button>
   );
 }

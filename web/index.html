@@ -12,7 +12,8 @@
     <meta property="og:description" content="Put money behind your weekly gym goal. Prove each workout, earn it back." />
     <meta property="og:type" content="website" />
 
-    <link rel="manifest" href="/manifest.webmanifest" id="app-manifest" />
+    <!-- The manifest link is written by the script below rather than sitting
+         here, so iPhone only ever sees one. See the comment there. -->
     <meta name="theme-color" content="#FFFFFF" />
 
     <!-- iOS reads these rather than the manifest for full-screen behaviour. -->
@@ -27,20 +28,35 @@
     <link rel="apple-touch-icon" href="/icon.png" />
 
     <script>
-      /* The creator demo installs as its own home screen app.
+      /* The creator demo installs as its own home screen app, with its own name
+         and its own starting screen. Without this, installing from /demo hands
+         the creator an icon that opens the real sign-up funnel.
 
-         iPhone reads the manifest of the page you install from, so pointing at
-         the demo's manifest has to happen here, at parse time, rather than once
-         React has mounted: Safari keeps hold of the manifest it saw in the
-         original HTML, which is why installing from /demo was handing creators
-         an icon that opened the real sign-up funnel. */
-      if (window.location.pathname.indexOf('/demo') === 0) {
-        var manifestLink = document.getElementById('app-manifest');
+         The manifest link is CREATED here instead of being declared in the HTML
+         and then repointed. Repointing it — even at parse time — kept installing
+         the real app: Safari binds the first manifest it sees while parsing, and
+         changing the href afterwards is too late. So the document ships without
+         a manifest link and this writes the only one, which means there is never
+         a wrong manifest to be held onto.
+
+         Runs synchronously during head parsing, so the link exists before the
+         browser looks for it. */
+      (function () {
+        var isDemo = window.location.pathname.indexOf('/demo') === 0;
+
+        var link = document.createElement('link');
+        link.rel = 'manifest';
+        link.id = 'app-manifest';
+        link.href = isDemo ? '/demo.webmanifest' : '/manifest.webmanifest';
+        document.head.appendChild(link);
+
+        if (!isDemo) return;
+
+        /* iOS reads these rather than the manifest for the icon's label. */
         var appTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-        if (manifestLink) manifestLink.setAttribute('href', '/demo.webmanifest');
         if (appTitle) appTitle.setAttribute('content', 'GymTaxx Demo');
         document.title = 'GymTaxx Demo';
-      }
+      })();
     </script>
 
     <!-- Meta Pixel Code -->
