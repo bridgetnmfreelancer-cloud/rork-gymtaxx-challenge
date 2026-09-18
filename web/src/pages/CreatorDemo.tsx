@@ -4,25 +4,32 @@ import {
   ChevronRight,
   Clock,
   Loader2,
+  Minus,
+  MoreHorizontal,
+  Plus,
   RotateCcw,
+  Share,
   ShieldCheck,
   Sparkles,
+  SquarePlus,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { CountUpMoney } from "@/components/CountUp";
-import { FourWeekCalendar } from "@/components/FourWeekCalendar";
+import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions } from "@/components/Screen";
 import { WeekDots } from "@/components/WeekDots";
 import { Button } from "@/components/ui/button";
 import {
   CHALLENGE_WEEKS,
+  WEEKLY_GOALS,
   currencyForRegion,
   depositFor,
   formatMoney,
   REWARD_PER_WORKOUT,
   type CurrencyCode,
+  type WeeklyGoal,
 } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -36,17 +43,23 @@ import { cn } from "@/lib/utils";
  * (footage has to look right) and verification pays out instantly rather than
  * going to review, because the payoff moment is the point being filmed.
  *
+ * It is deliberately NOT the funnel. The persuasion run — the problem, how it
+ * works, the questions, the four-week comparison — is there to convince a
+ * stranger, and a creator filming the product doesn't need convincing. So the
+ * demo goes install, set up the challenge, put money behind it, earn it back.
+ * Nothing on screen announces itself as a mock-up either: anyone watching a
+ * video can see that it is one, and the disclaimers were landing in shot.
+ *
  * Kept to one file on purpose: the demo deliberately drifts from the product
  * (simulated payment, instant approval) and that difference should be easy to
  * find rather than sprinkled through the real screens behind a flag.
  */
-type DemoStep = "intro" | "problem" | "how" | "comparison" | "commit" | "confirming" | "home" | "end";
+type DemoStep = "intro" | "install" | "goal" | "deposit" | "commit" | "confirming" | "home" | "end";
 
 type DemoWorkout = { id: string; day: string; time: string };
 
-/** The story a creator tells on camera: currently 2 a week, wants 4. */
-const DEMO_GOAL = 4;
-const DEMO_NOW = 2;
+/** Where the goal picker opens — the goal most people choose. */
+const DEFAULT_GOAL: WeeklyGoal = 4;
 
 /** Two workouts already banked, so the dashboard opens with money on it. */
 function seedWorkouts(): DemoWorkout[] {
@@ -96,28 +109,30 @@ function useDemoManifest(): void {
 
 export default function CreatorDemo() {
   const currency = useMemo(() => currencyForRegion(), []);
-  const deposit = depositFor(DEMO_GOAL, CHALLENGE_WEEKS);
 
   useDemoManifest();
 
   const [step, setStep] = useState<DemoStep>("intro");
-  const [verified, setVerified] = useState<number>(2);
+  const [goal, setGoal] = useState<WeeklyGoal>(DEFAULT_GOAL);
+  const [didVerify, setDidVerify] = useState<boolean>(false);
   const [workouts, setWorkouts] = useState<DemoWorkout[]>(seedWorkouts);
+
+  const deposit = depositFor(goal, CHALLENGE_WEEKS);
+  // Two banked before filming starts, three once the camera moment lands.
+  const verified = didVerify ? 3 : 2;
 
   /** Restarts the whole story — the fastest way to film a second take. */
   function restart(): void {
-    setVerified(2);
+    setGoal(DEFAULT_GOAL);
+    setDidVerify(false);
     setWorkouts(seedWorkouts());
     setStep("intro");
   }
 
   function handleVerified(): void {
-    setVerified(3);
+    setDidVerify(true);
     const { day, time } = nowLabel();
-    setWorkouts((current) => [
-      { id: `demo-now-${Date.now()}`, day, time },
-      ...current,
-    ]);
+    setWorkouts((current) => [{ id: `demo-now-${Date.now()}`, day, time }, ...current]);
   }
 
   return (
@@ -138,19 +153,33 @@ export default function CreatorDemo() {
           </div>
         ) : null}
 
-        {step === "intro" ? <Intro onStart={() => setStep("problem")} /> : null}
-        {step === "problem" ? <Problem onNext={() => setStep("how")} /> : null}
-        {step === "how" ? <HowItWorks onNext={() => setStep("comparison")} /> : null}
-        {step === "comparison" ? <Comparison onNext={() => setStep("commit")} /> : null}
-        {step === "commit" ? <Commit currency={currency} deposit={deposit} onNext={() => setStep("confirming")} /> : null}
+        {step === "intro" ? <Intro onStart={() => setStep("install")} /> : null}
+        {step === "install" ? <InstallSteps onNext={() => setStep("goal")} /> : null}
+        {step === "goal" ? (
+          <GoalPicker goal={goal} onChange={setGoal} onNext={() => setStep("deposit")} />
+        ) : null}
+        {step === "deposit" ? (
+          <DepositStepper
+            goal={goal}
+            currency={currency}
+            onChange={setGoal}
+            onNext={() => setStep("commit")}
+          />
+        ) : null}
+        {step === "commit" ? (
+          <Commit goal={goal} currency={currency} deposit={deposit} onNext={() => setStep("confirming")} />
+        ) : null}
         {step === "confirming" ? <Confirming onDone={() => setStep("home")} /> : null}
         {step === "home" ? (
           <Dashboard
             currency={currency}
             deposit={deposit}
+            goal={goal}
             verified={verified}
+            didVerify={didVerify}
             workouts={workouts}
             onVerified={handleVerified}
+            onFinish={() => setStep("end")}
           />
         ) : null}
         {step === "end" ? <End onRestart={restart} /> : null}
@@ -173,21 +202,6 @@ function Intro({ onStart }: { onStart: () => void }) {
           A full walkthrough of GymTaxx for filming. Nothing here is real — no account, no payment, nothing saved. The
           camera is your real camera; the money is pretend.
         </p>
-
-        <ul className="mt-8 space-y-3 text-sm text-muted-foreground animate-rise-in [animation-delay:120ms]">
-          <li className="flex gap-2.5">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" aria-hidden="true" />
-            Film in order, or jump around with Restart demo
-          </li>
-          <li className="flex gap-2.5">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" aria-hidden="true" />
-            The money counts up on camera when a workout verifies
-          </li>
-          <li className="flex gap-2.5">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" aria-hidden="true" />
-            No account, no payment, nothing stored
-          </li>
-        </ul>
       </div>
 
       <ScreenActions>
@@ -199,52 +213,186 @@ function Intro({ onStart }: { onStart: () => void }) {
   );
 }
 
-/** Tap anywhere to carry on, exactly like the real onboarding. */
-function Problem({ onNext }: { onNext: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onNext}
-      className="flex flex-1 cursor-default flex-col items-center justify-center py-16 text-center"
-    >
-      <h1 className="max-w-[19ch] text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
-        You know how you've been telling yourself you'll be consistent with the gym, but somehow it never happens?
-      </h1>
-      <p className="mt-8 max-w-[30ch] text-base leading-relaxed text-muted-foreground animate-rise-in [animation-delay:400ms]">
-        You're not alone. 90% of people stop going consistently after only three months.
-      </p>
-      <p className="mt-16 animate-pulse text-xs font-medium uppercase tracking-widest text-muted-foreground animate-rise-in [animation-delay:700ms]">
-        Tap anywhere to carry on
-      </p>
-    </button>
-  );
-}
-
-function HowItWorks({ onNext }: { onNext: () => void }) {
-  const steps = [
-    { title: "Put money on your workouts", body: "A refundable deposit, held — not taken." },
-    { title: "Prove you went with a photo", body: "Time-stamped and location-stamped." },
-    { title: "Earn it back, one workout at a time", body: "Complete a workout, get £5 back. Miss one, £5 is forfeited." },
+/**
+ * The install steps, filmable.
+ *
+ * Word for word the real install screen, minus the browser detection: that
+ * exists to catch someone who arrived from a TikTok link, and a red "you can't
+ * install from Chrome" warning appearing mid-shoot would be noise. Creators
+ * film on iPhone Safari, so this is the Safari path.
+ */
+function InstallSteps({ onNext }: { onNext: () => void }) {
+  const steps: { title: ReactNode; detail?: ReactNode }[] = [
+    {
+      title: "Open this page in Safari",
+      detail: (
+        <p className="mt-1.5 text-base leading-relaxed text-muted-foreground">
+          GymTaxx can only be installed from Safari on iPhone.
+        </p>
+      ),
+    },
+    {
+      title: (
+        <>
+          Tap the <span className="font-semibold">Share</span> button
+        </>
+      ),
+      detail: (
+        <>
+          <span className="mt-2.5 block">
+            <ControlBox icon={Share} />
+          </span>
+          <p className="mt-2.5 text-base leading-loose text-muted-foreground">
+            Don't see it? Tap <RoundChip icon={MoreHorizontal} label="Browser menu" /> to reveal it.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: (
+        <>
+          Tap <span className="font-semibold">View more</span>
+        </>
+      ),
+      detail: (
+        <span className="mt-2.5 block">
+          <Chip label="View more" />
+        </span>
+      ),
+    },
+    {
+      title: (
+        <>
+          Tap <span className="font-semibold">Add to Home Screen</span>
+        </>
+      ),
+      detail: (
+        <span className="mt-2.5 block">
+          <ControlBox icon={SquarePlus} label="Add to Home Screen" />
+        </span>
+      ),
+    },
   ];
 
   return (
     <Screen className="flex-1">
-      <h1 className="mt-10 text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
-        How it works
-      </h1>
+      <div className="mt-6 flex animate-rise-in flex-col items-center text-center">
+        <Logo size={64} />
+        <h1 className="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-foreground">
+          Install the GymTaxx app
+        </h1>
+      </div>
 
-      <div className="mt-10 space-y-4">
+      <ol className="mt-12 space-y-7">
         {steps.map((step, index) => (
-          <div
-            key={step.title}
-            className="rounded-xl bg-card p-5 animate-rise-in"
-            style={{ animationDelay: `${index * 90}ms` }}
-          >
-            <p className="tabular text-sm font-bold text-success-ink">{index + 1}</p>
-            <p className="mt-1 text-lg font-bold text-foreground">{step.title}</p>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-          </div>
+          <li key={index} className="flex gap-3 animate-rise-in" style={{ animationDelay: `${80 + index * 70}ms` }}>
+            <span className="tabular shrink-0 text-base font-bold text-muted-foreground">{index + 1}.</span>
+            <div className="min-w-0">
+              <p className="text-base leading-snug text-foreground">{step.title}</p>
+              {step.detail}
+            </div>
+          </li>
         ))}
+      </ol>
+
+      <ScreenActions>
+        <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={onNext}>
+          Continue
+        </Button>
+      </ScreenActions>
+    </Screen>
+  );
+}
+
+/** An inline reproduction of a real browser button, as on the install screen. */
+function Chip({ label }: { label: string }) {
+  return (
+    <span className="mx-0.5 inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-card px-2 py-1 align-middle text-[0.9375rem] font-semibold leading-none text-foreground">
+      {label}
+    </span>
+  );
+}
+
+/** A round chip, matching how a browser renders its overflow menu button. */
+function RoundChip({ icon: Icon, label }: { icon: typeof Share; label: string }) {
+  return (
+    <span
+      className="mx-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card align-middle text-foreground"
+      role="img"
+      aria-label={label}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </span>
+  );
+}
+
+/** A standalone swatch of the control, shown under its step. */
+function ControlBox({ icon: Icon, label }: { icon: typeof Share; label?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-2.5 rounded-lg border border-border",
+        label ? "px-3.5 py-2.5" : "h-12 w-12 justify-center",
+      )}
+      role="img"
+      aria-label={label ?? "Share"}
+    >
+      <Icon className="h-5 w-5 shrink-0 text-foreground" aria-hidden="true" />
+      {label ? <span className="text-base font-semibold text-foreground">{label}</span> : null}
+    </span>
+  );
+}
+
+/** Choosing the weekly commitment — the real screen's copy and grid. */
+function GoalPicker({
+  goal,
+  onChange,
+  onNext,
+}: {
+  goal: WeeklyGoal;
+  onChange: (goal: WeeklyGoal) => void;
+  onNext: () => void;
+}) {
+  return (
+    <Screen className="flex-1">
+      <h1 className="mx-auto mt-10 max-w-[18ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
+        Choose your weekly commitment
+      </h1>
+      <p className="mx-auto mt-3 max-w-[32ch] text-center text-base leading-relaxed text-muted-foreground animate-rise-in [animation-delay:80ms]">
+        How many workouts will you complete each week during your GymTaxx monthly challenge?
+      </p>
+
+      <div className="mt-10 animate-rise-in [animation-delay:160ms]">
+        <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Workouts per week">
+          {WEEKLY_GOALS.map((option) => {
+            const isSelected = option === goal;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={isSelected}
+                onClick={() => onChange(option)}
+                className={cn(
+                  "flex h-24 flex-col items-center justify-center rounded-lg border-2 transition-all active:scale-[0.97]",
+                  isSelected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-transparent bg-card text-foreground hover:border-border",
+                )}
+              >
+                <span className="tabular text-3xl font-extrabold leading-none">{option}</span>
+                <span
+                  className={cn(
+                    "mt-1 text-xs font-medium",
+                    isSelected ? "text-primary-foreground/70" : "text-muted-foreground",
+                  )}
+                >
+                  a week
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <ScreenActions>
@@ -256,16 +404,65 @@ function HowItWorks({ onNext }: { onNext: () => void }) {
   );
 }
 
-/** The pivot of the real flow, reused outright: the gap, made visible. */
-function Comparison({ onNext }: { onNext: () => void }) {
+/**
+ * The same number again, but as a stepper — and this time the money moves with
+ * it. A grid of three options is one tap and gone; nudging a dial up to five
+ * and watching the deposit climb is a shot. It exists for the footage.
+ */
+function DepositStepper({
+  goal,
+  currency,
+  onChange,
+  onNext,
+}: {
+  goal: WeeklyGoal;
+  currency: CurrencyCode;
+  onChange: (goal: WeeklyGoal) => void;
+  onNext: () => void;
+}) {
+  const min = WEEKLY_GOALS[0];
+  const max = WEEKLY_GOALS[WEEKLY_GOALS.length - 1];
+  const deposit = depositFor(goal, CHALLENGE_WEEKS);
+
+  function nudge(by: number): void {
+    const next = goal + by;
+    if (next < min || next > max) return;
+    onChange(next as WeeklyGoal);
+  }
+
   return (
     <Screen className="flex-1">
       <h1 className="mx-auto mt-10 max-w-[18ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
-        Here's the next four weeks. Twice.
+        Workouts a week
       </h1>
 
-      <div className="mt-10 flex flex-1 flex-col justify-center pb-10">
-        <FourWeekCalendar currentPerWeek={DEMO_NOW} goalPerWeek={DEMO_GOAL} />
+      <div className="flex flex-1 flex-col justify-center pb-6">
+        <div className="flex items-center justify-center gap-8 animate-rise-in [animation-delay:80ms]">
+          <StepperButton
+            label="One fewer workout a week"
+            onClick={() => nudge(-1)}
+            disabled={goal <= min}
+            icon={Minus}
+          />
+          <span className="tabular w-[3ch] text-center text-[5.5rem] font-extrabold leading-none text-foreground">
+            {goal}
+          </span>
+          <StepperButton label="One more workout a week" onClick={() => nudge(1)} disabled={goal >= max} icon={Plus} />
+        </div>
+
+        <div className="mt-12 rounded-xl bg-card p-6 text-center animate-rise-in [animation-delay:140ms]">
+          <p className="text-sm font-medium text-muted-foreground">Your refundable deposit</p>
+          <CountUpMoney
+            value={deposit}
+            currency={currency}
+            className="mt-1 block text-5xl font-extrabold leading-none text-foreground"
+            durationMs={520}
+          />
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            {goal * CHALLENGE_WEEKS} workouts over {CHALLENGE_WEEKS} weeks, {formatMoney(REWARD_PER_WORKOUT, currency)}{" "}
+            earned back for each one.
+          </p>
+        </div>
       </div>
 
       <ScreenActions>
@@ -274,12 +471,46 @@ function Comparison({ onNext }: { onNext: () => void }) {
         </Button>
       </ScreenActions>
     </Screen>
+  );
+}
+
+function StepperButton({
+  label,
+  icon: Icon,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  icon: typeof Minus;
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="flex h-16 w-16 items-center justify-center rounded-full bg-card text-foreground transition-all active:scale-[0.94] disabled:opacity-30"
+    >
+      <Icon className="h-7 w-7" strokeWidth={2.5} aria-hidden="true" />
+    </button>
   );
 }
 
 /** The commitment, with the real maths — but the button charges nothing. */
-function Commit({ currency, deposit, onNext }: { currency: CurrencyCode; deposit: number; onNext: () => void }) {
-  const total = DEMO_GOAL * CHALLENGE_WEEKS;
+function Commit({
+  goal,
+  currency,
+  deposit,
+  onNext,
+}: {
+  goal: WeeklyGoal;
+  currency: CurrencyCode;
+  deposit: number;
+  onNext: () => void;
+}) {
+  const total = goal * CHALLENGE_WEEKS;
 
   return (
     <Screen className="flex-1">
@@ -289,8 +520,8 @@ function Commit({ currency, deposit, onNext }: { currency: CurrencyCode; deposit
 
       <div className="mt-10 animate-rise-in [animation-delay:80ms]">
         <dl className="divide-y divide-border overflow-hidden rounded-xl bg-card">
-          <Row label="Your goal" value={`${DEMO_GOAL} workouts a week`} />
-          <Row label="For" value="4 weeks" />
+          <Row label="Your goal" value={`${goal} workouts a week`} />
+          <Row label="For" value={`${CHALLENGE_WEEKS} weeks`} />
           <Row label="Total" value={`${total} workouts`} />
           <Row label="Each worth" value={formatMoney(REWARD_PER_WORKOUT, currency)} />
         </dl>
@@ -309,9 +540,6 @@ function Commit({ currency, deposit, onNext }: { currency: CurrencyCode; deposit
         <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={onNext}>
           Pay {formatMoney(deposit, currency)} deposit
         </Button>
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          Demo — nothing is charged, this screen just carries on.
-        </p>
       </ScreenActions>
     </Screen>
   );
@@ -333,9 +561,6 @@ function Confirming({ onDone }: { onDone: () => void }) {
       <h1 className="mt-8 text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
         Confirming your deposit.
       </h1>
-      <p className="mt-3 max-w-[30ch] text-base leading-relaxed text-muted-foreground animate-rise-in [animation-delay:60ms]">
-        Demo — in the app this is the moment the card is really charged.
-      </p>
     </div>
   );
 }
@@ -348,22 +573,27 @@ function Confirming({ onDone }: { onDone: () => void }) {
 function Dashboard({
   currency,
   deposit,
+  goal,
   verified,
+  didVerify,
   workouts,
   onVerified,
+  onFinish,
 }: {
   currency: CurrencyCode;
   deposit: number;
+  goal: WeeklyGoal;
   verified: number;
+  didVerify: boolean;
   workouts: DemoWorkout[];
   onVerified: () => void;
+  onFinish: () => void;
 }) {
   const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
   const [showPayoff, setShowPayoff] = useState<boolean>(false);
 
   const earned = verified * REWARD_PER_WORKOUT;
   const remaining = deposit - earned;
-  const loggedToday = verified >= 3;
 
   // The payoff overlay clears itself; the count-up happens underneath it, in
   // the money card, because that's the shot: the number moving on its own.
@@ -378,7 +608,7 @@ function Dashboard({
       <Screen className="flex-1">
         <header className="flex items-baseline justify-between py-4">
           <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            Week <span className="tabular">1</span> of <span className="tabular">4</span>
+            Week <span className="tabular">1</span> of <span className="tabular">{CHALLENGE_WEEKS}</span>
           </p>
           <p className="text-sm font-medium text-muted-foreground">GymTaxx Challenge</p>
         </header>
@@ -404,12 +634,12 @@ function Dashboard({
           <div className="flex items-baseline justify-between">
             <p className="font-semibold text-foreground">This week</p>
             <p className="tabular text-sm font-medium text-muted-foreground">
-              {verified} / {DEMO_GOAL} done
+              {verified} / {goal} done
             </p>
           </div>
 
           <div className="mt-4">
-            <WeekDots goal={DEMO_GOAL} verified={verified} pending={0} />
+            <WeekDots goal={goal} verified={verified} pending={0} />
           </div>
 
           <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -419,16 +649,11 @@ function Dashboard({
         </section>
 
         <div className="mt-4 animate-rise-in [animation-delay:140ms]">
-          <Button
-            size="xl"
-            className="w-full"
-            disabled={loggedToday}
-            onClick={() => setIsCameraOpen(true)}
-          >
+          <Button size="xl" className="w-full" disabled={didVerify} onClick={() => setIsCameraOpen(true)}>
             <Camera className="h-5 w-5" aria-hidden="true" />
-            {loggedToday ? "Logged for today" : "Verify a workout"}
+            {didVerify ? "Logged for today" : "Verify a workout"}
           </Button>
-          {loggedToday ? (
+          {didVerify ? (
             <p className="mt-3 text-center text-xs text-muted-foreground">
               One workout a day counts. Come back tomorrow.
             </p>
@@ -454,6 +679,16 @@ function Dashboard({
             ))}
           </ul>
         </section>
+
+        <ScreenActions className="bg-transparent">
+          <button
+            type="button"
+            onClick={onFinish}
+            className="w-full py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Finish the demo
+          </button>
+        </ScreenActions>
       </Screen>
 
       {isCameraOpen ? (
@@ -486,15 +721,8 @@ function VerifiedPayoff({ currency }: { currency: CurrencyCode }) {
       <h2 className="mt-8 text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
         Workout verified
       </h2>
-      <p
-        className={cn(
-          "tabular mt-2 text-3xl font-extrabold text-success-ink animate-rise-in [animation-delay:120ms]",
-        )}
-      >
+      <p className="tabular mt-2 text-3xl font-extrabold text-success-ink animate-rise-in [animation-delay:120ms]">
         +{formatMoney(REWARD_PER_WORKOUT, currency)} earned back
-      </p>
-      <p className="mt-6 text-sm text-muted-foreground animate-rise-in [animation-delay:300ms]">
-        In the app, a workout waits in review until it's approved. This one pays instantly — it's the demo.
       </p>
     </div>
   );
@@ -576,13 +804,7 @@ function CameraCapture({ onUse, onClose }: { onUse: () => void; onClose: () => v
         {shot ? (
           <img src={shot} alt="Your gym proof" className="h-full w-full object-contain" />
         ) : (
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            autoPlay
-            className="h-full w-full object-cover"
-          />
+          <video ref={videoRef} playsInline muted autoPlay className="h-full w-full object-cover" />
         )}
 
         {!hasCamera ? (
@@ -606,11 +828,7 @@ function CameraCapture({ onUse, onClose }: { onUse: () => void; onClose: () => v
             >
               Retake
             </Button>
-            <Button
-              className="h-14 flex-1"
-              onClick={submit}
-              disabled={isSubmitting}
-            >
+            <Button className="h-14 flex-1" onClick={submit} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
               Use photo
             </Button>
@@ -653,10 +871,10 @@ function CameraCapture({ onUse, onClose }: { onUse: () => void; onClose: () => v
 /** The wrap card: what was filmed, and where the real thing lives. */
 function End({ onRestart }: { onRestart: () => void }) {
   const moments = [
-    "The comparison — the gap, made visible",
+    "The install — it goes on the home screen",
+    "The goal — the deposit climbing with it",
     "The commitment — money on the line",
-    "The dashboard — the number counting up",
-    "The payoff — workout verified",
+    "The payoff — verified, and the money counting up",
   ];
 
   return (
@@ -682,7 +900,11 @@ function End({ onRestart }: { onRestart: () => void }) {
       </div>
 
       <ScreenActions>
-        <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={() => (window.location.href = "/install")}>
+        <Button
+          size="xl"
+          className="h-16 w-full rounded-full text-lg font-bold"
+          onClick={() => (window.location.href = "/install")}
+        >
           Start for real
           <ChevronRight className="h-5 w-5" aria-hidden="true" />
         </Button>
