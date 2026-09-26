@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
       const { data: endedRows, error: endedError } = await admin
         .from("user_challenges")
         .select(
-          "id, user_id, started_at, ends_at, time_zone, currency, deposit_minor, refund_status, refunded_at",
+          "id, user_id, challenge_id, started_at, ends_at, time_zone, currency, deposit_minor, refund_status, refunded_at",
         )
         .eq("payment_status", "paid")
         .lt("ends_at", new Date().toISOString())
@@ -225,6 +225,7 @@ Deno.serve(async (req) => {
       const rows = (endedRows ?? []) as {
         id: string;
         user_id: string;
+        challenge_id: string;
         started_at: string;
         ends_at: string;
         time_zone: string;
@@ -262,6 +263,21 @@ Deno.serve(async (req) => {
         ]),
       );
 
+      // The per-workout reward lives on the challenge, so the earned-back
+      // figure the list shows is computed exactly like the participant's own
+      // dashboard does it (same window, same verified-only rule).
+      const challengeIds = [...new Set(rows.map((row) => row.challenge_id))];
+      const { data: challengeData } =
+        challengeIds.length > 0
+          ? await admin.from("challenges").select("id, reward_per_workout").in("id", challengeIds)
+          : { data: [] };
+      const rewardById = new Map(
+        ((challengeData ?? []) as { id: string; reward_per_workout: number | null }[]).map((challenge) => [
+          challenge.id,
+          Number(challenge.reward_per_workout ?? FALLBACK_REWARD),
+        ]),
+      );
+
       const items = rows.map((row) => {
         const start = new Date(row.started_at);
         const end = new Date(row.ends_at);
@@ -271,14 +287,18 @@ Deno.serve(async (req) => {
           return at >= start && at < end;
         });
 
+        const deposit = (row.deposit_minor ?? 0) / 100;
+        const verified = inWindow.filter((submission) => submission.status === "verified").length;
+
         return {
           id: row.id,
           email: emailById.get(row.user_id) ?? null,
           endedAt: row.ends_at,
           timeZone: row.time_zone,
           currency: row.currency,
-          deposit: (row.deposit_minor ?? 0) / 100,
-          verified: inWindow.filter((submission) => submission.status === "verified").length,
+          deposit,
+          earned: Math.min(verified * (rewardById.get(row.challenge_id) ?? FALLBACK_REWARD), deposit),
+          verified,
           pending: inWindow.filter((submission) => submission.status === "pending").length,
           refundStatus: row.refund_status,
         };

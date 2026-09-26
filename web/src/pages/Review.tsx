@@ -30,6 +30,7 @@ type FinishedItem = {
   timeZone: string;
   currency: string;
   deposit: number;
+  earned: number;
   verified: number;
   pending: number;
   refundStatus: string;
@@ -289,9 +290,10 @@ function TabButton({
 /**
  * Ended challenges and their refund state, newest first.
  *
- * The deposit and the verified count are what the refund amount is computed
- * from, so they lead; pending proofs are called out separately because they are
- * the reason to finish the review before pressing the button.
+ * Earned-back leads because the refund is the deposit minus that figure; the
+ * deposit, verified count and pending proofs follow so the number can be
+ * sanity-checked at a glance. Pending proofs are called out separately: they
+ * are the reason to finish the review before pressing the button.
  */
 function FinishedList({
   items,
@@ -329,6 +331,7 @@ function FinishedList({
           </div>
 
           <p className="mt-1 text-sm text-muted-foreground">
+            {formatMoney(item.earned, currencyFrom(item.currency))} earned of{" "}
             {formatMoney(item.deposit, currencyFrom(item.currency))} deposit · {item.verified} verified
             {item.pending > 0 ? ` · ${item.pending} pending` : ""}
           </p>
