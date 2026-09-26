@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Screen, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
+import { currencyFrom, formatMoney } from "@/lib/money";
 import { callFunction } from "@/lib/supabase";
 
 type QueueItem = {
@@ -20,25 +21,64 @@ type QueueItem = {
 };
 
 const REVIEW_KEY = ["review", "queue"] as const;
+const FINISHED_KEY = ["review", "finished"] as const;
+
+type FinishedItem = {
+  id: string;
+  email: string | null;
+  endedAt: string;
+  timeZone: string;
+  currency: string;
+  deposit: number;
+  verified: number;
+  pending: number;
+  refundStatus: string;
+};
 
 /**
- * The operator's review queue — not a participant screen.
+ * The operator's review screens — not participant screens.
  *
- * The endpoint behind it returns 404 to anyone not on the admin allowlist, so
+ * The endpoint behind them returns 404 to anyone not on the admin allowlist, so
  * the route existing is harmless; a curious user who guesses the URL sees an
  * empty state rather than anyone else's gym photos.
+ *
+ * Two tabs: the pending proof queue, and finished challenges awaiting their
+ * manual refund. Refunds themselves stay in the Stripe Dashboard — Mark refunded
+ * only records that the money has gone back, so the app and the person agree.
  */
 export default function Review() {
   const queryClient = useQueryClient();
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState<string>("");
+  const [tab, setTab] = useState<"queue" | "finished">("queue");
 
-  const { data, isLoading, isError } = useQuery({
+  const {
+    data,
+    isLoading: queueLoading,
+    isError: queueError,
+  } = useQuery({
     queryKey: REVIEW_KEY,
     queryFn: () => callFunction<{ items: QueueItem[] }>("review-workouts", { action: "list" }),
     staleTime: 0,
     retry: 0,
   });
+
+  // Loaded only when the tab is open: the finished list costs three reads and
+  // there is no reason to pay that on every visit to the queue.
+  const {
+    data: finishedData,
+    isLoading: finishedLoading,
+    isError: finishedError,
+  } = useQuery({
+    queryKey: FINISHED_KEY,
+    queryFn: () => callFunction<{ items: FinishedItem[] }>("review-workouts", { action: "finished_list" }),
+    enabled: tab === "finished",
+    staleTime: 0,
+    retry: 0,
+  });
+
+  const isLoading = queueLoading || (tab === "finished" && finishedLoading);
+  const isError = queueError || (tab === "finished" && finishedError);
 
   const decide = useMutation({
     mutationFn: (input: { submissionId: string; decision: "verified" | "rejected"; reason?: string }) =>
@@ -48,6 +88,12 @@ export default function Review() {
       setReason("");
       await queryClient.invalidateQueries({ queryKey: REVIEW_KEY });
     },
+  });
+
+  const markRefunded = useMutation({
+    mutationFn: (participationId: string) =>
+      callFunction<{ status: string }>("review-workouts", { action: "mark_refunded", participationId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: FINISHED_KEY }),
   });
 
   if (isLoading) {
@@ -73,17 +119,41 @@ export default function Review() {
   }
 
   const items = data?.items ?? [];
+  const finishedItems = finishedData?.items ?? [];
 
   return (
     <Screen>
       <header className="py-4">
-        <ScreenTitle className="text-title">Review queue</ScreenTitle>
+        <ScreenTitle className="text-title">Review</ScreenTitle>
         <p className="mt-1 text-sm text-muted-foreground">
-          <span className="tabular">{items.length}</span> waiting
+          {tab === "queue" ? (
+            <span>
+              <span className="tabular">{items.length}</span> waiting
+            </span>
+          ) : (
+            <span>
+              <span className="tabular">{finishedItems.length}</span> finished
+            </span>
+          )}
         </p>
+
+        <div className="mt-3 flex gap-2" role="tablist" aria-label="Review sections">
+          <TabButton active={tab === "queue"} onClick={() => setTab("queue")}>
+            Queue
+          </TabButton>
+          <TabButton active={tab === "finished"} onClick={() => setTab("finished")}>
+            Finished
+          </TabButton>
+        </div>
       </header>
 
-      {items.length === 0 ? (
+      {tab === "finished" ? (
+        <FinishedList
+          items={finishedItems}
+          marking={markRefunded.isPending}
+          onMarkRefunded={(participationId) => markRefunded.mutate(participationId)}
+        />
+      ) : items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent">
             <Check className="h-8 w-8 text-success-ink" strokeWidth={3} aria-hidden="true" />
@@ -189,5 +259,95 @@ export default function Review() {
         </ul>
       )}
     </Screen>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+        active ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Ended challenges and their refund state, newest first.
+ *
+ * The deposit and the verified count are what the refund amount is computed
+ * from, so they lead; pending proofs are called out separately because they are
+ * the reason to finish the review before pressing the button.
+ */
+function FinishedList({
+  items,
+  marking,
+  onMarkRefunded,
+}: {
+  items: FinishedItem[];
+  marking: boolean;
+  onMarkRefunded: (participationId: string) => void;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <p className="text-lg font-semibold text-foreground">Nothing finished yet</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ended challenges show up here with what to refund.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <ul className="space-y-3 pb-10">
+      {items.map((item) => (
+        <li key={item.id} className="rounded-lg bg-card p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="min-w-0 truncate font-semibold text-foreground">
+              {item.email ?? "Unknown account"}
+            </p>
+            <p className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(
+                new Date(item.endedAt),
+              )}
+            </p>
+          </div>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatMoney(item.deposit, currencyFrom(item.currency))} deposit · {item.verified} verified
+            {item.pending > 0 ? ` · ${item.pending} pending` : ""}
+          </p>
+
+          <div className="mt-3">
+            {item.refundStatus === "refunded" ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-success-ink">
+                <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
+                Returned
+              </span>
+            ) : (
+              <Button className="w-full" disabled={marking} onClick={() => onMarkRefunded(item.id)}>
+                {marking ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                Mark refunded
+              </Button>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

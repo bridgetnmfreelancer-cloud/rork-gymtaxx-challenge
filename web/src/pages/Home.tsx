@@ -15,6 +15,7 @@ import { alreadyLoggedToday, computeProgress, formatDeadline, statusOf } from "@
 import { useCurrentChallenge, useParticipation, useSubmissions } from "@/lib/queries";
 import { clearDepositSettling, depositSettlingSince } from "@/lib/settlement";
 import { weeklyStart, currentZone } from "@/lib/gymweek";
+import ChallengeEnd from "./ChallengeEnd";
 import type { ChallengeRow, UserChallengeRow, WorkoutSubmissionRow } from "@/lib/database.types";
 
 /**
@@ -56,6 +57,20 @@ export default function Home() {
     // £80 that they haven't paid at all.
     if (settlingSince !== null) return <ConfirmingDeposit since={settlingSince} withNav />;
     return <ReadyWhenYouAre />;
+  }
+
+  // Their four weeks are over. The dashboard gives way to the verdict screen:
+  // it reads the same data, presents it as a settled month, and points at the
+  // next challenge. Late approvals still lift the numbers through the usual
+  // refetch-on-focus behaviour, so nothing here waits on the operator.
+  if (new Date(participation.ends_at) <= new Date()) {
+    return (
+      <ChallengeEnd
+        submissions={submissions ?? []}
+        participation={participation}
+        challenge={challenge ?? null}
+      />
+    );
   }
 
   return <Dashboard submissions={submissions ?? []} participation={participation} challenge={challenge ?? null} />;

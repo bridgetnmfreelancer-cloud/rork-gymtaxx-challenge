@@ -173,6 +173,7 @@ export type Database = {
           challenge_status: string
           client_ip: string | null
           client_user_agent: string | null
+          closed_push_at: string | null
           created_at: string
           currency: string
           deposit_minor: number | null
@@ -184,6 +185,9 @@ export type Database = {
           id: string
           payment_status: string
           plan: string | null
+          refund_status: string
+          refunded_at: string | null
+          rejoin_push_at: string | null
           started_at: string
           stripe_payment_intent_id: string | null
           time_zone: string
@@ -196,6 +200,7 @@ export type Database = {
           challenge_status?: string
           client_ip?: string | null
           client_user_agent?: string | null
+          closed_push_at?: string | null
           created_at?: string
           currency?: string
           deposit_minor?: number | null
@@ -207,6 +212,9 @@ export type Database = {
           id?: string
           payment_status?: string
           plan?: string | null
+          refund_status?: string
+          refunded_at?: string | null
+          rejoin_push_at?: string | null
           started_at?: string
           stripe_payment_intent_id?: string | null
           time_zone?: string
@@ -219,6 +227,7 @@ export type Database = {
           challenge_status?: string
           client_ip?: string | null
           client_user_agent?: string | null
+          closed_push_at?: string | null
           created_at?: string
           currency?: string
           deposit_minor?: number | null
@@ -230,6 +239,9 @@ export type Database = {
           id?: string
           payment_status?: string
           plan?: string | null
+          refund_status?: string
+          refunded_at?: string | null
+          rejoin_push_at?: string | null
           started_at?: string
           stripe_payment_intent_id?: string | null
           time_zone?: string

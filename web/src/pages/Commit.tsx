@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { flowProgress } from "@/lib/flow";
 import { currencyFrom, currencyForRegion, depositFor, formatMoney, isWeeklyGoal, totalWorkouts } from "@/lib/money";
 import { loadAnswers } from "@/lib/onboarding";
-import { useCurrentChallenge, useParticipation } from "@/lib/queries";
+import { useCurrentChallenge, useEndedParticipation, useParticipation } from "@/lib/queries";
 import { CHALLENGE_WEEKS, REWARD_PER_WORKOUT } from "@/lib/money";
 
 /**
@@ -25,6 +25,7 @@ export default function Commit() {
   const navigate = useNavigate();
   const { data: challenge } = useCurrentChallenge();
   const { data: participation } = useParticipation();
+  const { data: lastEnded } = useEndedParticipation();
 
   const saved = useMemo(() => loadAnswers(), []);
   const goal = saved.goal && isWeeklyGoal(saved.goal) ? saved.goal : 4;
@@ -77,6 +78,17 @@ export default function Commit() {
         <Outcome icon={ArrowUpRight} tone="good" title={`Log a workout, get ${formatMoney(reward, currency)} back`} />
         <Outcome icon={ArrowDownRight} tone="bad" title={`Miss a workout, lose ${formatMoney(reward, currency)}`} />
       </div>
+
+      {/* A returning participant can start before their old deposit lands, so
+          the two flows would otherwise cross silently. One quiet line keeps the
+          money they already know about from becoming a surprise on their card. */}
+      {lastEnded ? (
+        <p className="mt-5 text-center text-sm text-muted-foreground animate-rise-in [animation-delay:240ms]">
+          {lastEnded.refund_status === "refunded"
+            ? "Your previous deposit has been returned."
+            : "Your previous deposit is being returned to your card."}
+        </p>
+      ) : null}
 
       <ScreenActions>
         <Button size="xl" className="w-full" onClick={() => navigate("/ready")}>

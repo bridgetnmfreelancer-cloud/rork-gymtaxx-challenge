@@ -27,6 +27,15 @@ const SIGNED_URL_TTL_SECONDS = 60 * 30;
  * Approving does not transfer money by itself — refunds are issued by hand in
  * the Stripe Dashboard. It records what has been earned, which is what the
  * participant's dashboard reads.
+ *
+ * Two more operator actions live here, for the end of a challenge:
+ *
+ * - `finished_list` — every paid challenge whose four weeks are over, with the
+ *   verified/pending counts and the deposit, so the refund amount is visible at
+ *   a glance before it is issued by hand.
+ * - `mark_refunded` — records that the refund has been sent. It does not move
+ *   money; it flips what the person sees in the app ("being returned" becomes
+ *   "returned") and sends the refund-confirmed push.
  */
 
 /** Emails allowed to review, comma-separated. Empty means nobody can review. */
@@ -114,10 +123,11 @@ async function notifyDecision(
 }
 
 type ReviewRequest = {
-  action?: "list" | "decide" | "whoami" | "test_activate" | "test_reset";
+  action?: "list" | "decide" | "whoami" | "test_activate" | "test_reset" | "finished_list" | "mark_refunded";
   submissionId?: string;
   decision?: "verified" | "rejected";
   reason?: string;
+  participationId?: string;
 };
 
 Deno.serve(async (req) => {
@@ -186,6 +196,133 @@ Deno.serve(async (req) => {
 
       console.log(`review-workouts: test mode ${paid ? "on" : "off"} for ${email}`);
       return json({ status: "ok", paid });
+    }
+
+    /**
+     * Every paid challenge whose four weeks are over, newest first.
+     *
+     * Counts come from submissions *inside the challenge window*, the same rule
+     * the participant's dashboard uses, so the earned figure here can never
+     * disagree with what they see. Pending submissions are shown separately:
+     * they are the reason to finish the review before refunding.
+     */
+    if (body.action === "finished_list") {
+      const { data: endedRows, error: endedError } = await admin
+        .from("user_challenges")
+        .select(
+          "id, user_id, started_at, ends_at, time_zone, currency, deposit_minor, refund_status, refunded_at",
+        )
+        .eq("payment_status", "paid")
+        .lt("ends_at", new Date().toISOString())
+        .order("ends_at", { ascending: false })
+        .limit(50);
+
+      if (endedError) {
+        console.error("review-workouts: finished list read failed", endedError.message);
+        return json({ error: "read_failed" }, 500);
+      }
+
+      const rows = (endedRows ?? []) as {
+        id: string;
+        user_id: string;
+        started_at: string;
+        ends_at: string;
+        time_zone: string;
+        currency: string;
+        deposit_minor: number | null;
+        refund_status: string;
+        refunded_at: string | null;
+      }[];
+
+      // Windowed counts and emails come from their own reads — the participation
+      // row has no foreign key to either.
+      const ids = rows.map((row) => row.id);
+      const { data: submissionData } =
+        ids.length > 0
+          ? await admin
+              .from("workout_submissions")
+              .select("user_challenge_id, status, captured_at")
+              .in("user_challenge_id", ids)
+          : { data: [] };
+      const submissions = (submissionData ?? []) as {
+        user_challenge_id: string;
+        status: string;
+        captured_at: string;
+      }[];
+
+      const userIds = [...new Set(rows.map((row) => row.user_id))];
+      const { data: profileData } =
+        userIds.length > 0
+          ? await admin.from("profiles").select("id, email").in("id", userIds)
+          : { data: [] };
+      const emailById = new Map(
+        ((profileData ?? []) as { id: string; email: string | null }[]).map((profile) => [
+          profile.id,
+          profile.email,
+        ]),
+      );
+
+      const items = rows.map((row) => {
+        const start = new Date(row.started_at);
+        const end = new Date(row.ends_at);
+        const inWindow = submissions.filter((submission) => {
+          if (submission.user_challenge_id !== row.id) return false;
+          const at = new Date(submission.captured_at);
+          return at >= start && at < end;
+        });
+
+        return {
+          id: row.id,
+          email: emailById.get(row.user_id) ?? null,
+          endedAt: row.ends_at,
+          timeZone: row.time_zone,
+          currency: row.currency,
+          deposit: (row.deposit_minor ?? 0) / 100,
+          verified: inWindow.filter((submission) => submission.status === "verified").length,
+          pending: inWindow.filter((submission) => submission.status === "pending").length,
+          refundStatus: row.refund_status,
+        };
+      });
+
+      return json({ items });
+    }
+
+    /**
+     * Record that a deposit has been refunded by hand.
+     *
+     * Guarded on `payment_status` and the current refund state, so marking twice
+     * is a no-op rather than a second notification. Like every write here, it
+     * runs through the service role — the participant can never flip this
+     * themselves.
+     */
+    if (body.action === "mark_refunded") {
+      const participationId = body.participationId;
+      if (!participationId) return json({ error: "invalid_request" }, 422);
+
+      const { data: refunded, error } = await admin
+        .from("user_challenges")
+        .update({ refund_status: "refunded", refunded_at: new Date().toISOString() })
+        .eq("id", participationId)
+        .eq("payment_status", "paid")
+        .neq("refund_status", "refunded")
+        .select("id, user_id")
+        .maybeSingle();
+
+      if (error) {
+        console.error("review-workouts: refund mark failed", participationId, error.message);
+        return json({ error: "update_failed" }, 500);
+      }
+
+      if (refunded) {
+        await notifyUser(admin, refunded.user_id, {
+          title: "Deposit returned \u2705",
+          body: "Your deposit is back on your card. Ready when you are for the next one.",
+          url: "/home",
+          tag: "gymtaxx-refund",
+        });
+      }
+
+      return json({ status: "ok" });
     }
 
     if (body.action === "decide") {

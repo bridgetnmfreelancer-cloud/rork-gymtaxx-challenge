@@ -7,7 +7,7 @@ import { MAX_FAILURES } from "../_shared/push.ts";
 /**
  * Sends the reminders that bring people back.
  *
- * Two audiences, deliberately treated differently:
+ * Three audiences, deliberately treated differently:
  *
  * - **Mid-challenge and behind.** Told while there is still time to fix it,
  *   never after the week has closed. A reminder that arrives too late to act
@@ -15,6 +15,9 @@ import { MAX_FAILURES } from "../_shared/push.ts";
  * - **Not in a challenge.** A four-week sequence pointing back at the one thing
  *   left to do, then silence. Thursday and Sunday in week one; Monday at 6pm and
  *   Sunday after that, with different words every week.
+ * - **Just finished.** A verdict push within a couple of days of the four weeks
+ *   ending, then — if they haven't started again — one rejoin nudge a few days
+ *   later. After that, silence unless they come back.
  *
  * Meant to be called hourly by a scheduler. Each run only sends to people
  * whose *local* time is in the evening window, which is how one hourly job
@@ -127,6 +130,31 @@ const FIRST_WORKOUT_CHECK_IN: Message = {
   body:
     "Just checking in for your first workout. Don't forget to log your workouts when you go to the gym to secure your deposit!",
 };
+
+/**
+ * The one-off pushes at the end of a challenge, sent from the same hourly run.
+ * The copy is placeholder until the real words arrive; the slots are what matter.
+ */
+const CLOSE_PUSH: Message = {
+  title: "Your month is done",
+  body: "Your challenge has finished. Open GymTaxx to see where your deposit landed.",
+};
+
+const REJOIN_PUSH: Message = {
+  title: "Ready for another month?",
+  body: "Start your next challenge and put something behind it again.",
+};
+
+/**
+ * How long after the end the verdict is still news. Past this the challenge is
+ * marked without sending — "your month is done" landing three weeks late is
+ * noise, and marking it keeps this branch from re-deciding every hour.
+ */
+const CLOSE_PUSH_MAX_DAYS = 2;
+
+/** The rejoin nudge waits a few days, then gives up entirely after ten. */
+const REJOIN_AFTER_DAYS = 3;
+const REJOIN_MAX_DAYS = 10;
 
 type Subscription = {
   id: string;
@@ -261,66 +289,132 @@ Deno.serve(async (req) => {
 
       let title: string;
       let body: string;
-      let url: string;
+      let url = "/home";
+      let tag = "gymtaxx-reminder";
+      let closeDue = false;
+      let rejoinDue = false;
 
       if (!participation) {
-        const { count: paidBefore } = await admin
+        // Between challenges. Three kinds of person land here, and each gets
+        // different words: someone whose four weeks just ended, someone who
+        // ended a while ago and has already heard everything, and someone who
+        // has never finished setting up.
+        const { data: endedRow } = await admin
           .from("user_challenges")
-          .select("id", { count: "exact", head: true })
+          .select("id, ends_at, closed_push_at, rejoin_push_at")
           .eq("user_id", sub.user_id)
-          .eq("payment_status", "paid");
+          .eq("payment_status", "paid")
+          .eq("challenge_status", "active")
+          .lte("ends_at", now.toISOString())
+          .order("ends_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        // Someone whose four weeks have finished needs their own sequence —
-        // inviting them to take a first step they've already taken reads as if
-        // we weren't paying attention. Silence beats the wrong words until that
-        // sequence is written.
-        if ((paidBefore ?? 0) > 0) {
-          skipped += 1;
-          continue;
-        }
+        const ended = endedRow as {
+          id: string;
+          ends_at: string;
+          closed_push_at: string | null;
+          rejoin_push_at: string | null;
+        } | null;
 
-        const ageHours = (now.getTime() - new Date(sub.created_at).getTime()) / 3_600_000;
-        const isWelcomeDue =
-          sub.last_sent_on === null && ageHours >= WELCOME_MIN_HOURS && ageHours <= WELCOME_MAX_HOURS;
+        if (ended) {
+          const daysSinceEnd = (now.getTime() - new Date(ended.ends_at).getTime()) / DAY_MS;
+          const inEveningWindow = hour >= SEND_HOUR_START && hour <= SEND_HOUR_END;
 
-        if (isWelcomeDue) {
-          if (hour < WELCOME_HOUR_START || hour > WELCOME_HOUR_END) {
+          // The verdict, once per challenge. A challenge that ended long ago is
+          // marked without sending — stale news is noise, and the marker keeps
+          // this branch from re-deciding every hour.
+          if (ended.closed_push_at === null) {
+            if (daysSinceEnd > CLOSE_PUSH_MAX_DAYS) {
+              await admin
+                .from("user_challenges")
+                .update({ closed_push_at: now.toISOString() })
+                .eq("id", ended.id);
+              skipped += 1;
+              continue;
+            }
+            if (!inEveningWindow) {
+              skipped += 1;
+              continue;
+            }
+            title = CLOSE_PUSH.title;
+            body = CLOSE_PUSH.body;
+            tag = "gymtaxx-close";
+            closeDue = true;
+          } else if (
+            ended.rejoin_push_at === null &&
+            daysSinceEnd >= REJOIN_AFTER_DAYS &&
+            daysSinceEnd <= REJOIN_MAX_DAYS
+          ) {
+            if (!inEveningWindow) {
+              skipped += 1;
+              continue;
+            }
+            title = REJOIN_PUSH.title;
+            body = REJOIN_PUSH.body;
+            url = "/challenge";
+            tag = "gymtaxx-rejoin";
+            rejoinDue = true;
+          } else {
             skipped += 1;
             continue;
           }
-          title = WELCOME.title;
-          body = WELCOME.body;
         } else {
-          const week = preChallengeWeek(new Date(sub.created_at), now, zone);
-          if (week > FINAL_WEEK) {
+          const { count: paidBefore } = await admin
+            .from("user_challenges")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", sub.user_id)
+            .eq("payment_status", "paid");
+
+          // Someone who has paid before but already heard everything stays
+          // silent — inviting them to take a first step they've already taken
+          // reads as if we weren't paying attention.
+          if ((paidBefore ?? 0) > 0) {
             skipped += 1;
             continue;
           }
 
-          const scheduled = PRE_CHALLENGE_SEQUENCE[week]?.[weekday];
+          const ageHours = (now.getTime() - new Date(sub.created_at).getTime()) / 3_600_000;
+          const isWelcomeDue =
+            sub.last_sent_on === null && ageHours >= WELCOME_MIN_HOURS && ageHours <= WELCOME_MAX_HOURS;
 
-          // Each message can pin its own earliest hour — the Monday ones are
-          // written for 6pm — and otherwise rides the general evening window.
-          const earliestHour = scheduled?.atHour ?? SEND_HOUR_START;
-          if (!scheduled || hour < earliestHour || hour > SEND_HOUR_END) {
-            skipped += 1;
-            continue;
+          if (isWelcomeDue) {
+            if (hour < WELCOME_HOUR_START || hour > WELCOME_HOUR_END) {
+              skipped += 1;
+              continue;
+            }
+            title = WELCOME.title;
+            body = WELCOME.body;
+          } else {
+            const week = preChallengeWeek(new Date(sub.created_at), now, zone);
+            if (week > FINAL_WEEK) {
+              skipped += 1;
+              continue;
+            }
+
+            const scheduled = PRE_CHALLENGE_SEQUENCE[week]?.[weekday];
+
+            // Each message can pin its own earliest hour — the Monday ones are
+            // written for 6pm — and otherwise rides the general evening window.
+            const earliestHour = scheduled?.atHour ?? SEND_HOUR_START;
+            if (!scheduled || hour < earliestHour || hour > SEND_HOUR_END) {
+              skipped += 1;
+              continue;
+            }
+
+            // Two evenings running reads as pestering, which is exactly what a
+            // Saturday sign-up would otherwise get. Monday is the exception: the
+            // Sunday-then-Monday pair is written to land back to back, so it goes
+            // out even to someone who heard from us the night before.
+            if (weekday !== MONDAY && sub.last_sent_on === previousLocalDate(now, zone)) {
+              skipped += 1;
+              continue;
+            }
+
+            title = scheduled.title;
+            body = scheduled.body;
           }
-
-          // Two evenings running reads as pestering, which is exactly what a
-          // Saturday sign-up would otherwise get. Monday is the exception: the
-          // Sunday-then-Monday pair is written to land back to back, so it goes
-          // out even to someone who heard from us the night before.
-          if (weekday !== MONDAY && sub.last_sent_on === previousLocalDate(now, zone)) {
-            skipped += 1;
-            continue;
-          }
-
-          title = scheduled.title;
-          body = scheduled.body;
         }
-
-        url = "/home";
       } else {
         const goal = participation.goal_workouts_per_week;
         const weekStart = currentWeekStart(now, safeZone(participation.time_zone));
@@ -377,13 +471,16 @@ Deno.serve(async (req) => {
           endpoint: sub.endpoint,
           keys: { p256dh: sub.p256dh, auth: sub.auth },
         },
-        JSON.stringify({ title, body, url, tag: "gymtaxx-reminder" }),
+        JSON.stringify({ title, body, url, tag }),
       );
 
-      await admin
-        .from("push_subscriptions")
-        .update({ last_sent_on: date, failure_count: 0 })
-        .eq("id", sub.id);
+      // The close and rejoin pushes each carry their own once-marker on the
+      // participation row, written only when the push actually went out.
+      const markSent: Record<string, string | number> = { last_sent_on: date, failure_count: 0 };
+      if (closeDue) markSent.closed_push_at = now.toISOString();
+      if (rejoinDue) markSent.rejoin_push_at = now.toISOString();
+
+      await admin.from("push_subscriptions").update(markSent).eq("id", sub.id);
 
       sent += 1;
     } catch (err) {

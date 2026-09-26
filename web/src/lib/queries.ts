@@ -9,6 +9,7 @@ import { supabase } from "./supabase";
 export const queryKeys = {
   currentChallenge: ["challenge", "current"] as const,
   participation: (userId: string | undefined) => ["participation", userId ?? "anon"] as const,
+  endedParticipation: (userId: string | undefined) => ["participation", "ended", userId ?? "anon"] as const,
   submissions: (participationId: string | undefined) => ["submissions", participationId ?? "none"] as const,
   profile: (userId: string | undefined) => ["profile", userId ?? "anon"] as const,
 };
@@ -72,6 +73,37 @@ export function useParticipation(): UseQueryResult<UserChallengeRow | null> {
     },
     // A 3-D Secure detour can suspend the app mid-payment; coming back should
     // re-read rather than trust what was cached before the card was charged.
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * The most recent finished participation, if any.
+ *
+ * Read by the start flow so it can say where the previous deposit stands —
+ * "being returned" until the operator records the refund, "returned" after.
+ * Paid rows only: an abandoned signup says nothing about money coming back.
+ */
+export function useEndedParticipation(): UseQueryResult<UserChallengeRow | null> {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: queryKeys.endedParticipation(user?.id),
+    enabled: Boolean(user?.id),
+    queryFn: async (): Promise<UserChallengeRow | null> => {
+      const { data, error } = await supabase
+        .from("user_challenges")
+        .select("*")
+        .eq("payment_status", "paid")
+        .lt("ends_at", new Date().toISOString())
+        .order("ends_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    // Refunds are recorded from the operator screen, so this re-reads on return
+    // rather than serving a stale "being returned".
     refetchOnWindowFocus: true,
   });
 }
