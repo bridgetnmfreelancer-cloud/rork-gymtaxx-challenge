@@ -61,7 +61,7 @@ const FALLBACK_REWARD = 5;
  *
  * Swallows every error it can raise. The decision is already recorded by the time
  * this runs, and a failed notification must never make a successful review look
- * like it failed.
+ * like it failed. An optional note from the reviewer rides along either way.
  */
 async function notifyDecision(
   admin: Admin,
@@ -108,12 +108,14 @@ async function notifyDecision(
     const done = count ?? 0;
     const earned = `${symbol}${reward} earned back.`;
 
+    const progress =
+      goal > 0 && done >= goal
+        ? `${earned} That's the week complete \u2014 ${done} of ${goal}.`
+        : `${earned} ${done} of ${goal} done this week.`;
+
     await notifyUser(admin, userId, {
       title: "Workout approved \u2705",
-      body:
-        goal > 0 && done >= goal
-          ? `${earned} That's the week complete \u2014 ${done} of ${goal}.`
-          : `${earned} ${done} of ${goal} done this week.`,
+      body: reason ? `${progress} \u2014 ${reason}` : progress,
       url: "/home",
       tag: "gymtaxx-review",
     });
@@ -351,8 +353,10 @@ Deno.serve(async (req) => {
         return json({ error: "invalid_request" }, 422);
       }
 
-      const reason =
-        decision === "rejected" && body.reason ? String(body.reason).slice(0, 200) : null;
+      // The same field serves both verdicts: a rejection's reason and an
+      // approval's tip ("take a better pic instead of just the floor"). The
+      // column name predates approval notes; the display picks the tone.
+      const reason = body.reason ? String(body.reason).trim().slice(0, 200) || null : null;
 
       const { data: reviewed, error } = await admin
         .from("workout_submissions")

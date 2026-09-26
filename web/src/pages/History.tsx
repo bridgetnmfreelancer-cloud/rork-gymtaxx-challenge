@@ -125,8 +125,16 @@ function HistoryRow({ row, zone, locale }: { row: WorkoutSubmissionRow; zone: st
           {time}
           {hasLocation ? " \u00b7 location recorded" : " \u00b7 no location signal"}
         </p>
+        {/* The note field serves both verdicts: an approval tip reads neutral,
+            a rejection reason reads as the warning it is. */}
         {row.rejection_reason ? (
-          <p className="mt-1 text-xs font-medium text-danger-ink">{row.rejection_reason}</p>
+          <p
+            className={`mt-1 text-xs font-medium ${
+              statusOf(row) === "rejected" ? "text-danger-ink" : "text-muted-foreground"
+            }`}
+          >
+            {row.rejection_reason}
+          </p>
         ) : null}
       </div>
       <StatusPill status={statusOf(row)} />

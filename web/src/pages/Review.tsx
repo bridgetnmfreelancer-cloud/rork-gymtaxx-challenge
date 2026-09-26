@@ -51,6 +51,9 @@ export default function Review() {
   const queryClient = useQueryClient();
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState<string>("");
+  // Optional tip attached to an approval — the same note field, friendlier tone.
+  const [noting, setNoting] = useState<string | null>(null);
+  const [note, setNote] = useState<string>("");
   const [tab, setTab] = useState<"queue" | "finished">("queue");
 
   const {
@@ -87,6 +90,8 @@ export default function Review() {
     onSuccess: async () => {
       setRejecting(null);
       setReason("");
+      setNoting(null);
+      setNote("");
       await queryClient.invalidateQueries({ queryKey: REVIEW_KEY });
     },
   });
@@ -237,20 +242,53 @@ export default function Review() {
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-4 flex gap-2">
-                      <Button variant="outline" className="flex-1" onClick={() => setRejecting(item.id)}>
-                        <X className="h-4 w-4" aria-hidden="true" />
-                        Reject
-                      </Button>
-                      <Button
-                        className="flex-[2]"
-                        disabled={decide.isPending}
-                        onClick={() => decide.mutate({ submissionId: item.id, decision: "verified" })}
-                      >
-                        {decide.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-                        <Check className="h-4 w-4" aria-hidden="true" />
-                        Verify
-                      </Button>
+                    <div className="mt-4 space-y-3">
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setRejecting(item.id);
+                            setNoting(null);
+                          }}
+                        >
+                          <X className="h-4 w-4" aria-hidden="true" />
+                          Reject
+                        </Button>
+                        <Button
+                          className="flex-[2]"
+                          disabled={decide.isPending}
+                          onClick={() =>
+                            decide.mutate({
+                              submissionId: item.id,
+                              decision: "verified",
+                              reason: note.trim() || undefined,
+                            })
+                          }
+                        >
+                          {decide.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                          Verify
+                        </Button>
+                      </div>
+
+                      {noting === item.id ? (
+                        <input
+                          type="text"
+                          value={note}
+                          onChange={(event) => setNote(event.target.value)}
+                          placeholder="Optional note sent with the approval"
+                          className="h-12 w-full rounded-md border border-border bg-background px-4 text-base"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setNoting(item.id)}
+                          className="text-xs font-medium text-muted-foreground underline underline-offset-4"
+                        >
+                          Add a note
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
