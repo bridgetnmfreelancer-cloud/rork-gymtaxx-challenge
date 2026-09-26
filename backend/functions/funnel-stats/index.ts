@@ -220,6 +220,90 @@ function buildMoney(moneyRows: MoneyRow[]) {
   };
 }
 
+type ActiveRow = {
+  id: string;
+  user_id: string;
+  started_at: string;
+  ends_at: string;
+  goal_workouts_per_week: number;
+  challenges: { number_of_weeks: number; reward_per_workout: number } | { number_of_weeks: number; reward_per_workout: number }[] | null;
+};
+
+type SubmissionRow = { user_challenge_id: string; status: string; captured_at: string };
+
+type ActiveChallenge = {
+  email: string | null;
+  startedAt: string;
+  endsAt: string;
+  week: number;
+  weeks: number;
+  goalTotal: number;
+  verified: number;
+  daysLeft: number;
+};
+
+/**
+ * The challenges that are live right now, with the clock on each.
+ *
+ * Deliberately ignores the range selector: the operator's question here is
+ * "what is happening at this moment and how long do I have", which no date
+ * slice answers. The three buckets matter separately because nothing has been
+ * built for what happens when a challenge ends — `finished` catches challenges
+ * whose end has passed while the row still reads active, which is exactly the
+ * gap waiting to be built.
+ */
+function buildActiveChallenges(
+  rows: ActiveRow[],
+  submissions: SubmissionRow[],
+  emailById: Map<string, string | null>,
+  now: Date,
+): { waiting: number; running: ActiveChallenge[]; finished: ActiveChallenge[] } {
+  const byChallenge = new Map<string, { status: string; capturedAt: string }[]>();
+  for (const submission of submissions) {
+    const list = byChallenge.get(submission.user_challenge_id) ?? [];
+    list.push({ status: submission.status, capturedAt: submission.captured_at });
+    byChallenge.set(submission.user_challenge_id, list);
+  }
+
+  const waiting: ActiveChallenge[] = [];
+  const running: ActiveChallenge[] = [];
+  const finished: ActiveChallenge[] = [];
+
+  for (const row of rows) {
+    const challenge = Array.isArray(row.challenges) ? row.challenges[0] : row.challenges;
+    const weeks = challenge?.number_of_weeks ?? 4;
+    const start = new Date(row.started_at);
+    const end = new Date(row.ends_at);
+
+    // Verified inside the challenge window only, matching the dashboard's own
+    // rule — a workout approved before the opening Monday pays nothing.
+    const verified = (byChallenge.get(row.id) ?? []).filter((submission) => {
+      if (submission.status !== "verified") return false;
+      const at = new Date(submission.capturedAt);
+      return at >= start && at < end;
+    }).length;
+
+    const entry: ActiveChallenge = {
+      email: emailById.get(row.user_id) ?? null,
+      startedAt: row.started_at,
+      endsAt: row.ends_at,
+      weeks,
+      week: now < start ? 0 : Math.min(weeks, Math.max(1, Math.floor((now.getTime() - start.getTime()) / (7 * 86_400_000)) + 1)),
+      goalTotal: row.goal_workouts_per_week * weeks,
+      verified,
+      daysLeft: Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86_400_000)),
+    };
+
+    if (now < start) waiting.push(entry);
+    else if (now >= end) finished.push(entry);
+    else running.push(entry);
+  }
+
+  // Soonest finish first — the number the operator is watching.
+  const byEnd = (a: ActiveChallenge, b: ActiveChallenge): number => (a.endsAt < b.endsAt ? -1 : 1);
+  return { waiting: waiting.length, running: running.sort(byEnd), finished: finished.sort(byEnd) };
+}
+
 type Step = {
   from: string;
   to: string;
@@ -459,6 +543,42 @@ Deno.serve(async (req) => {
     if (moneyError) console.error("funnel-stats: money query failed", moneyError);
     const moneyRows = (moneyData ?? []) as MoneyRow[];
 
+    // Challenges live right now, read independently of the range. Emails come
+    // from profiles because the funnel rows are range-filtered and an active
+    // challenge can belong to an account older than the window being viewed.
+    const now = new Date();
+    const { data: activeData, error: activeError } = await admin
+      .from("user_challenges")
+      .select(
+        "id, user_id, started_at, ends_at, goal_workouts_per_week, challenges(number_of_weeks, reward_per_workout)",
+      )
+      .eq("challenge_status", "active");
+    if (activeError) console.error("funnel-stats: active query failed", activeError);
+    const activeRows = (activeData ?? []) as ActiveRow[];
+
+    const activeIds = activeRows.map((row) => row.id);
+    const { data: activeSubmissionData, error: activeSubmissionError } =
+      activeIds.length > 0
+        ? await admin
+            .from("workout_submissions")
+            .select("user_challenge_id, status, captured_at")
+            .in("user_challenge_id", activeIds)
+        : { data: [] as SubmissionRow[], error: null };
+    if (activeSubmissionError) console.error("funnel-stats: submissions query failed", activeSubmissionError);
+    const activeSubmissions = (activeSubmissionData ?? []) as SubmissionRow[];
+
+    const activeUserIds = [...new Set(activeRows.map((row) => row.user_id))];
+    const { data: activeProfileData, error: activeProfileError } =
+      activeUserIds.length > 0
+        ? await admin.from("profiles").select("id, email").in("id", activeUserIds)
+        : { data: [] as { id: string; email: string | null }[], error: null };
+    if (activeProfileError) console.error("funnel-stats: profiles query failed", activeProfileError);
+    const emailById = new Map<string, string | null>(
+      ((activeProfileData ?? []) as { id: string; email: string | null }[]).map((profile) => [profile.id, profile.email]),
+    );
+
+    const activeChallenges = buildActiveChallenges(activeRows, activeSubmissions, emailById, now);
+
     const chosePlan = new Set<string>(
       moneyRows.filter((row) => row.plan !== null).map((row) => row.user_id),
     );
@@ -522,6 +642,7 @@ Deno.serve(async (req) => {
         inferredFromReminders: rows.filter((row) => row.installed_at === null && row.has_device).length,
       },
       money: buildMoney(moneyRows),
+      activeChallenges,
       byDay: buildByDay(rows),
       places: buildPlaces(rows),
       people: rows.map((row) => ({

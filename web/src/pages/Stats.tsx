@@ -64,6 +64,19 @@ type Money = {
   planMix: { plan: string; count: number }[];
 };
 
+type ActiveChallenge = {
+  email: string | null;
+  startedAt: string;
+  endsAt: string;
+  week: number;
+  weeks: number;
+  goalTotal: number;
+  verified: number;
+  daysLeft: number;
+};
+
+type ActiveChallenges = { waiting: number; running: ActiveChallenge[]; finished: ActiveChallenge[] };
+
 type Stats = {
   since: string;
   days: number;
@@ -79,6 +92,7 @@ type Stats = {
   };
   installConfidence: { confirmed: number; inferredFromReminders: number };
   money: Money;
+  activeChallenges: ActiveChallenges;
   arrivals: Arrivals;
   sources: Source[];
   visitsByDay: VisitDay[];
@@ -118,6 +132,8 @@ const EMPTY_MONEY: Money = {
   depositsHeld: { gbp: 0, usd: 0 },
   planMix: [],
 };
+
+const EMPTY_ACTIVE: ActiveChallenges = { waiting: 0, running: [], finished: [] };
 
 /**
  * The last week of the pre-challenge reminder sequence, mirroring `send-reminders`.
@@ -213,6 +229,7 @@ function normalise(data: Partial<Stats> | undefined): Stats {
       inferredFromReminders: data?.installConfidence?.inferredFromReminders ?? 0,
     },
     money: data?.money ?? EMPTY_MONEY,
+    activeChallenges: data?.activeChallenges ?? EMPTY_ACTIVE,
     arrivals: data?.arrivals ?? EMPTY_ARRIVALS,
     sources: data?.sources ?? [],
     visitsByDay: data?.visitsByDay ?? [],
@@ -241,6 +258,16 @@ function timeLabel(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+  }).format(new Date(iso));
+}
+
+/** "Sun 4 Oct" — a challenge end date as the operator reads it. */
+function dateLabel(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
   }).format(new Date(iso));
 }
 
@@ -469,6 +496,8 @@ export default function Stats() {
   const sawLanding = arrivals.stages[0]?.count ?? 0;
   const installedCount = data.stages.find((stage) => stage.key === "installed")?.count ?? 0;
   const { confirmed, inferredFromReminders } = data.installConfidence;
+  const active = data.activeChallenges;
+  const soonest = active.running[0] ?? null;
   const journeyTotal = data.journey.stages.reduce((sum, stage) => sum + stage.count, 0);
 
   /**
@@ -694,6 +723,71 @@ export default function Stats() {
           revenue — here or in your ad reporting. Forfeited deposits do become income, but only once a challenge has
           finished, which is not shown on this screen.
         </p>
+      </Card>
+
+      <Card title="Challenges running">
+        {active.running.length === 0 && active.finished.length === 0 && active.waiting === 0 ? (
+          <p className="text-sm text-muted-foreground">None yet.</p>
+        ) : (
+          <>
+            {soonest ? (
+              <div className="rounded-md bg-primary px-4 py-4">
+                <p className="text-xs font-medium text-primary-foreground/70">First challenge finishes</p>
+                <p className="tabular mt-1 text-3xl font-extrabold text-accent">
+                  {soonest.daysLeft === 0 ? "Today" : `${soonest.daysLeft} day${soonest.daysLeft === 1 ? "" : "s"}`}
+                </p>
+                <p className="mt-1 text-sm text-primary-foreground/70">
+                  {dateLabel(soonest.endsAt)} · {soonest.email ?? "unknown account"}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 space-y-2">
+              <Line label="Running now" value={active.running.length} />
+              {active.waiting > 0 ? <Line label="Waiting for their opening Monday" value={active.waiting} muted /> : null}
+              {active.finished.length > 0 ? (
+                <Line label="Finished, nothing happens yet" value={active.finished.length} muted />
+              ) : null}
+            </div>
+
+            {active.running.length > 0 ? (
+              <ul className="mt-4 space-y-3 border-t border-border pt-4">
+                {active.running.map((challenge) => (
+                  <li key={`${challenge.email ?? "unknown"}-${challenge.endsAt}`}>
+                    <p className="text-sm font-medium text-foreground">{challenge.email ?? "Unknown account"}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Week <span className="tabular">{challenge.week}</span> of <span className="tabular">{challenge.weeks}</span>
+                      {" · "}
+                      <span className="tabular">{challenge.verified}</span> of{" "}
+                      <span className="tabular">{challenge.goalTotal}</span> verified · ends {dateLabel(challenge.endsAt)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {active.finished.length > 0 ? (
+              <ul className="mt-3 space-y-3">
+                {active.finished.map((challenge) => (
+                  <li key={`done-${challenge.email ?? "unknown"}-${challenge.endsAt}`}>
+                    <p className="text-sm font-medium text-muted-foreground">{challenge.email ?? "Unknown account"}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Finished {dateLabel(challenge.endsAt)} · <span className="tabular">{challenge.verified}</span> of{" "}
+                      <span className="tabular">{challenge.goalTotal}</span> verified
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+              This card shows right now, whatever the range above is set to. A challenge ends on the Monday morning
+              after its final week, in the participant's own time zone, so one can read finished here while they are
+              still on their final Sunday. Nothing is built yet for what happens when a challenge ends — this is the
+              clock on that.
+            </p>
+          </>
+        )}
       </Card>
 
       <Card title="Every step">
