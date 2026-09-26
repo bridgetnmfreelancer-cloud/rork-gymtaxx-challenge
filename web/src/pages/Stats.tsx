@@ -781,10 +781,11 @@ export default function Stats() {
             ) : null}
 
             <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-              This card shows right now, whatever the range above is set to. A challenge ends on the Monday morning
-              after its final week, in the participant's own time zone, so one can read finished here while they are
-              still on their final Sunday. Nothing is built yet for what happens when a challenge ends — this is the
-              clock on that.
+              Only challenges with money on the line are counted — a challenge is created the moment someone signs up,
+              months before they pay, so unpaid ones are left out. This card shows right now, whatever the range above
+              is set to. A challenge ends on the Monday morning after its final week, in the participant's own time
+              zone, so one can read finished here while they are still on their final Sunday. Nothing is built yet for
+              what happens when a challenge ends — this is the clock on that.
             </p>
           </>
         )}

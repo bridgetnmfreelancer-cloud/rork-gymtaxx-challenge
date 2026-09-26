@@ -226,6 +226,7 @@ type ActiveRow = {
   started_at: string;
   ends_at: string;
   goal_workouts_per_week: number;
+  payment_status: string;
   challenges: { number_of_weeks: number; reward_per_workout: number } | { number_of_weeks: number; reward_per_workout: number }[] | null;
 };
 
@@ -255,7 +256,7 @@ type ActiveChallenge = {
 function buildActiveChallenges(
   rows: ActiveRow[],
   submissions: SubmissionRow[],
-  emailById: Map<string, string | null>,
+  profilesById: Map<string, { email: string | null; grandfathered: boolean }>,
   now: Date,
 ): { waiting: number; running: ActiveChallenge[]; finished: ActiveChallenge[] } {
   const byChallenge = new Map<string, { status: string; capturedAt: string }[]>();
@@ -270,6 +271,14 @@ function buildActiveChallenges(
   const finished: ActiveChallenge[] = [];
 
   for (const row of rows) {
+    // A challenge row is created the moment someone signs up, and most of the
+    // funnel sits between that and a payment — the first version of this card
+    // counted every abandoned challenge as if it were running. Only challenges
+    // with money on the line belong here: paid rows, plus pre-fee accounts who
+    // joined on the original terms and were never asked to pay.
+    const profile = profilesById.get(row.user_id);
+    if (row.payment_status !== "paid" && profile?.grandfathered !== true) continue;
+
     const challenge = Array.isArray(row.challenges) ? row.challenges[0] : row.challenges;
     const weeks = challenge?.number_of_weeks ?? 4;
     const start = new Date(row.started_at);
@@ -284,7 +293,7 @@ function buildActiveChallenges(
     }).length;
 
     const entry: ActiveChallenge = {
-      email: emailById.get(row.user_id) ?? null,
+      email: profile?.email ?? null,
       startedAt: row.started_at,
       endsAt: row.ends_at,
       weeks,
@@ -550,7 +559,7 @@ Deno.serve(async (req) => {
     const { data: activeData, error: activeError } = await admin
       .from("user_challenges")
       .select(
-        "id, user_id, started_at, ends_at, goal_workouts_per_week, challenges(number_of_weeks, reward_per_workout)",
+        "id, user_id, started_at, ends_at, goal_workouts_per_week, payment_status, challenges(number_of_weeks, reward_per_workout)",
       )
       .eq("challenge_status", "active");
     if (activeError) console.error("funnel-stats: active query failed", activeError);
@@ -570,14 +579,17 @@ Deno.serve(async (req) => {
     const activeUserIds = [...new Set(activeRows.map((row) => row.user_id))];
     const { data: activeProfileData, error: activeProfileError } =
       activeUserIds.length > 0
-        ? await admin.from("profiles").select("id, email").in("id", activeUserIds)
-        : { data: [] as { id: string; email: string | null }[], error: null };
+        ? await admin.from("profiles").select("id, email, grandfathered").in("id", activeUserIds)
+        : { data: [] as { id: string; email: string | null; grandfathered: boolean }[], error: null };
     if (activeProfileError) console.error("funnel-stats: profiles query failed", activeProfileError);
-    const emailById = new Map<string, string | null>(
-      ((activeProfileData ?? []) as { id: string; email: string | null }[]).map((profile) => [profile.id, profile.email]),
+    const profilesById = new Map<string, { email: string | null; grandfathered: boolean }>(
+      ((activeProfileData ?? []) as { id: string; email: string | null; grandfathered: boolean }[]).map((profile) => [
+        profile.id,
+        { email: profile.email, grandfathered: profile.grandfathered === true },
+      ]),
     );
 
-    const activeChallenges = buildActiveChallenges(activeRows, activeSubmissions, emailById, now);
+    const activeChallenges = buildActiveChallenges(activeRows, activeSubmissions, profilesById, now);
 
     const chosePlan = new Set<string>(
       moneyRows.filter((row) => row.plan !== null).map((row) => row.user_id),
