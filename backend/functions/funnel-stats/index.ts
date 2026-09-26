@@ -552,18 +552,51 @@ Deno.serve(async (req) => {
     if (moneyError) console.error("funnel-stats: money query failed", moneyError);
     const moneyRows = (moneyData ?? []) as MoneyRow[];
 
-    // Challenges live right now, read independently of the range. Emails come
-    // from profiles because the funnel rows are range-filtered and an active
-    // challenge can belong to an account older than the window being viewed.
+    // Challenges live right now, read independently of the range. The candidate
+    // set is narrowed *inside the query*: `challenge_status` never moves off
+    // "active" (nothing is built yet for finished challenges), so a bare filter
+    // returns every challenge ever signed up for — hundreds of rows, almost all
+    // abandoned before paying. Feeding all of those ids into the submissions and
+    // profile lookups produces requests the gateway refuses, which failed both
+    // lookups silently: every running challenge rendered as 0 verified under an
+    // unknown account while its dates and weeks, fetched separately, looked fine.
     const now = new Date();
-    const { data: activeData, error: activeError } = await admin
-      .from("user_challenges")
-      .select(
-        "id, user_id, started_at, ends_at, goal_workouts_per_week, payment_status, challenges(number_of_weeks, reward_per_workout)",
-      )
-      .eq("challenge_status", "active");
-    if (activeError) console.error("funnel-stats: active query failed", activeError);
-    const activeRows = (activeData ?? []) as ActiveRow[];
+    const activeSelect =
+      "id, user_id, started_at, ends_at, goal_workouts_per_week, payment_status, challenges(number_of_weeks, reward_per_workout)";
+
+    const [{ data: paidData, error: paidError }, { data: grandfatheredProfiles, error: grandfatheredError }] =
+      await Promise.all([
+        admin
+          .from("user_challenges")
+          .select(activeSelect)
+          .eq("challenge_status", "active")
+          .in("payment_status", ["paid"]),
+        admin.from("profiles").select("id, email, grandfathered").eq("grandfathered", true),
+      ]);
+    if (paidError) console.error("funnel-stats: paid challenges query failed", paidError);
+    if (grandfatheredError) console.error("funnel-stats: grandfathered profiles query failed", grandfatheredError);
+
+    // Grandfathered accounts joined before fees existed and may never be marked
+    // paid, so their challenges are fetched on their own and unioned in.
+    const grandfatheredIds = (grandfatheredProfiles ?? []).map((profile) => profile.id);
+    const { data: grandfatheredData, error: grandfatheredChallengesError } =
+      grandfatheredIds.length > 0
+        ? await admin
+            .from("user_challenges")
+            .select(activeSelect)
+            .eq("challenge_status", "active")
+            .in("user_id", grandfatheredIds)
+        : { data: [] as ActiveRow[], error: null };
+    if (grandfatheredChallengesError) {
+      console.error("funnel-stats: grandfathered challenges query failed", grandfatheredChallengesError);
+    }
+
+    // Union by id: a grandfathered account can also be marked paid.
+    const activeById = new Map<string, ActiveRow>();
+    for (const row of [...((paidData ?? []) as ActiveRow[]), ...((grandfatheredData ?? []) as ActiveRow[])]) {
+      activeById.set(row.id, row);
+    }
+    const activeRows = [...activeById.values()];
 
     const activeIds = activeRows.map((row) => row.id);
     const { data: activeSubmissionData, error: activeSubmissionError } =
