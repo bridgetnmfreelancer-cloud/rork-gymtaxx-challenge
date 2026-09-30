@@ -401,8 +401,7 @@ function ControlBox({ icon: Icon, label }: { icon: typeof Share; label?: string 
  * Three tiles are one tap and gone. A counter opening at one makes the choice
  * itself the shot: the creator thumbs it up to three, four or five, and every
  * tap is a beat in which the question above has time to be read.
- */
-function GoalPicker({
+ */function GoalPicker({
   goal,
   onChange,
   onNext,
@@ -420,11 +419,8 @@ function GoalPicker({
   return (
     <Screen className="flex-1">
       <h1 className="mx-auto mt-10 max-w-[18ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
-        Choose your weekly commitment
+        How many times will you go to the gym?
       </h1>
-      <p className="mx-auto mt-3 max-w-[32ch] text-center text-base leading-relaxed text-muted-foreground animate-rise-in [animation-delay:80ms]">
-        How many workouts will you complete each week during your GymTaxx monthly challenge?
-      </p>
 
       <div className="relative flex flex-1 flex-col items-center justify-center py-10">
         {/* The same soft bloom as the stake screen, so the two counters read
@@ -447,7 +443,7 @@ function GoalPicker({
         </div>
 
         <p className="relative mt-8 text-base font-medium text-muted-foreground animate-rise-in [animation-delay:160ms]">
-          a week
+          times per week
         </p>
       </div>
 
