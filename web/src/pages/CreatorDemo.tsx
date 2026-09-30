@@ -25,13 +25,11 @@ import { WeekDots } from "@/components/WeekDots";
 import { Button } from "@/components/ui/button";
 import {
   CHALLENGE_WEEKS,
-  WEEKLY_GOALS,
   currencyForRegion,
   currencySymbol,
   formatMoney,
   REWARD_PER_WORKOUT,
   type CurrencyCode,
-  type WeeklyGoal,
 } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -65,8 +63,17 @@ type DemoStep = "intro" | "install" | "goal" | "stake" | "commit" | "allin" | "h
 
 type DemoWorkout = { id: string; day: string; time: string };
 
-/** Where the goal picker opens — the goal most people choose. */
-const DEFAULT_GOAL: WeeklyGoal = 4;
+/**
+ * Where the counters open: at one, never on a pre-chosen answer.
+ *
+ * The real screen offers 3–5 as tiles; the demo counts up from one so a
+ * creator is visibly choosing on camera, and the taps buy a viewer time
+ * to read the question before the final number lands.
+ */
+const DEFAULT_GOAL = 1;
+const MIN_GOAL = 1;
+/** The same ceiling the real screen offers — nobody films a promise the product can't take. */
+const MAX_GOAL = 5;
 
 /**
  * What one workout can be worth, in whole pounds or dollars.
@@ -133,8 +140,8 @@ export default function CreatorDemo() {
   useDemoManifest();
 
   const [step, setStep] = useState<DemoStep>("intro");
-  const [goal, setGoal] = useState<WeeklyGoal>(DEFAULT_GOAL);
-  const [stake, setStake] = useState<number>(MAX_STAKE);
+  const [goal, setGoal] = useState<number>(DEFAULT_GOAL);
+  const [stake, setStake] = useState<number>(MIN_STAKE);
   const [didVerify, setDidVerify] = useState<boolean>(false);
   const [workouts, setWorkouts] = useState<DemoWorkout[]>(seedWorkouts);
 
@@ -143,10 +150,10 @@ export default function CreatorDemo() {
   // Two banked before filming starts, three once the camera moment lands.
   const verified = didVerify ? 3 : 2;
 
-  /** Restarts the whole story — the fastest way to film a second take. */
+  /** Restarts the whole story — the fastest way to film a second take. Both counters rewind to one. */
   function restart(): void {
     setGoal(DEFAULT_GOAL);
-    setStake(MAX_STAKE);
+    setStake(MIN_STAKE);
     setDidVerify(false);
     setWorkouts(seedWorkouts());
     setStep("intro");
@@ -388,16 +395,28 @@ function ControlBox({ icon: Icon, label }: { icon: typeof Share; label?: string 
   );
 }
 
-/** Choosing the weekly commitment — the real screen's copy and grid. */
+/**
+ * Choosing the weekly commitment — a counter, not the real screen's grid.
+ *
+ * Three tiles are one tap and gone. A counter opening at one makes the choice
+ * itself the shot: the creator thumbs it up to three, four or five, and every
+ * tap is a beat in which the question above has time to be read.
+ */
 function GoalPicker({
   goal,
   onChange,
   onNext,
 }: {
-  goal: WeeklyGoal;
-  onChange: (goal: WeeklyGoal) => void;
+  goal: number;
+  onChange: (goal: number) => void;
   onNext: () => void;
 }) {
+  function nudge(by: number): void {
+    const next = goal + by;
+    if (next < MIN_GOAL || next > MAX_GOAL) return;
+    onChange(next);
+  }
+
   return (
     <Screen className="flex-1">
       <h1 className="mx-auto mt-10 max-w-[18ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
@@ -407,37 +426,29 @@ function GoalPicker({
         How many workouts will you complete each week during your GymTaxx monthly challenge?
       </p>
 
-      <div className="mt-10 animate-rise-in [animation-delay:160ms]">
-        <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Workouts per week">
-          {WEEKLY_GOALS.map((option) => {
-            const isSelected = option === goal;
-            return (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={isSelected}
-                onClick={() => onChange(option)}
-                className={cn(
-                  "flex h-24 flex-col items-center justify-center rounded-lg border-2 transition-all active:scale-[0.97]",
-                  isSelected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-transparent bg-card text-foreground hover:border-border",
-                )}
-              >
-                <span className="tabular text-3xl font-extrabold leading-none">{option}</span>
-                <span
-                  className={cn(
-                    "mt-1 text-xs font-medium",
-                    isSelected ? "text-primary-foreground/70" : "text-muted-foreground",
-                  )}
-                >
-                  a week
-                </span>
-              </button>
-            );
-          })}
+      <div className="relative flex flex-1 flex-col items-center justify-center py-10">
+        {/* The same soft bloom as the stake screen, so the two counters read
+            as one repeated gesture rather than two different screens. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_55%_40%_at_50%_45%,rgba(134,239,172,0.22),transparent_70%)]"
+        />
+
+        <div className="relative flex items-center justify-center gap-8 animate-rise-in [animation-delay:160ms]">
+          <StepperButton label="Fewer workouts a week" onClick={() => nudge(-1)} disabled={goal <= MIN_GOAL} icon={Minus} />
+          <span
+            className="tabular flex w-[2ch] items-center justify-center text-[5rem] font-extrabold leading-none tracking-[-0.03em] text-foreground"
+            role="status"
+            aria-label={`${goal} workouts a week`}
+          >
+            {goal}
+          </span>
+          <StepperButton label="More workouts a week" onClick={() => nudge(1)} disabled={goal >= MAX_GOAL} icon={Plus} filled />
         </div>
+
+        <p className="relative mt-8 text-base font-medium text-muted-foreground animate-rise-in [animation-delay:160ms]">
+          a week
+        </p>
       </div>
 
       <ScreenActions>
@@ -458,7 +469,8 @@ function GoalPicker({
  * ships. Capped at £5 so nobody films a challenge dearer than the real one.
  *
  * A dial rather than a grid on purpose: three tiles are one tap and gone,
- * while thumbing a number up and watching money appear is a shot.
+ * while thumbing a number up and watching money appear is a shot. It opens
+ * at £1, not £5, so that thumb-up journey is always filmed, never skipped.
  */
 function StakePicker({
   stake,
@@ -501,7 +513,7 @@ function StakePicker({
             <span className="mt-2 text-[2.5rem] font-bold">{currencySymbol(currency)}</span>
             {stake}
           </span>
-          <StepperButton label="Raise the stake" onClick={() => nudge(1)} disabled={stake >= MAX_STAKE} icon={Plus} />
+          <StepperButton label="Raise the stake" onClick={() => nudge(1)} disabled={stake >= MAX_STAKE} icon={Plus} filled />
         </div>
 
         <p className="relative mt-8 text-base font-medium text-muted-foreground animate-rise-in [animation-delay:160ms]">
@@ -523,11 +535,14 @@ function StepperButton({
   icon: Icon,
   onClick,
   disabled,
+  filled = false,
 }: {
   label: string;
   icon: typeof Minus;
   onClick: () => void;
   disabled: boolean;
+  /** The raise side is filled, the lower side outlined — the way forward is the louder control. */
+  filled?: boolean;
 }) {
   return (
     <button
@@ -535,7 +550,10 @@ function StepperButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-background text-foreground transition-all active:scale-[0.94] disabled:opacity-25"
+      className={cn(
+        "flex h-14 w-14 items-center justify-center rounded-full border transition-all active:scale-[0.94] disabled:opacity-25",
+        filled ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground",
+      )}
     >
       <Icon className="h-6 w-6" strokeWidth={2.5} aria-hidden="true" />
     </button>
@@ -558,7 +576,7 @@ function Commit({
   deposit,
   onPaid,
 }: {
-  goal: WeeklyGoal;
+  goal: number;
   stake: number;
   currency: CurrencyCode;
   deposit: number;
@@ -749,7 +767,7 @@ function Dashboard({
 }: {
   currency: CurrencyCode;
   deposit: number;
-  goal: WeeklyGoal;
+  goal: number;
   stake: number;
   verified: number;
   didVerify: boolean;
