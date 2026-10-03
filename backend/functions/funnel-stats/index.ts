@@ -91,6 +91,42 @@ function londonDate(at: Date): string {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+type Admin = ReturnType<typeof createAdminClient>;
+
+type PagedResult<T> = { data: T[] | null; error: { message: string } | null };
+
+/**
+ * Read every row of an unbounded table, in pages.
+ *
+ * PostgREST caps a single table read at 1000 rows. The visits table crossed
+ * that during the first month of ad spend, and nothing errored — the "All"
+ * range just quietly counted a truncated slice of the table, which is how it
+ * could show *fewer* visitors than the 30-day range sitting inside it. The
+ * narrow range fit under the cap; the wide one did not. Reading pages of 1000
+ * until a short page comes back is the whole fix.
+ *
+ * On a read failure the rows gathered so far are returned rather than thrown:
+ * a partial card is still worth rendering, and the console entry says why.
+ */
+async function readAll<T>(
+  admin: Admin,
+  label: string,
+  page: (range: { from: number; to: number }) => PromiseLike<PagedResult<T>>,
+): Promise<T[]> {
+  const PAGE_SIZE = 1000;
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page({ from, to: from + PAGE_SIZE - 1 });
+    if (error) {
+      console.error(`funnel-stats: ${label} read failed`, error.message);
+      return all;
+    }
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < PAGE_SIZE) return all;
+  }
+}
+
 type FunnelRow = {
   user_id: string;
   email: string | null;
@@ -542,15 +578,20 @@ Deno.serve(async (req) => {
 
     // The money split and the plan choice both live on the participation row.
     // Read separately rather than widening the reporting function, so a failure
-    // here costs two cards rather than the whole page.
-    const { data: moneyData, error: moneyError } = await admin
-      .from("user_challenges")
-      .select(
-        "user_id, plan, deposit_minor, fee_minor, currency, payment_status, goal_workouts_per_week, challenges(number_of_weeks, reward_per_workout)",
-      )
-      .gte("created_at", since.toISOString());
-    if (moneyError) console.error("funnel-stats: money query failed", moneyError);
-    const moneyRows = (moneyData ?? []) as MoneyRow[];
+    // here costs two cards rather than the whole page. Paged, because on the
+    // "All" range this reads the whole table and every abandoned signup is a row.
+    const moneyRows = await readAll<MoneyRow>(
+      admin,
+      "money query",
+      (range) =>
+        admin
+          .from("user_challenges")
+          .select(
+            "user_id, plan, deposit_minor, fee_minor, currency, payment_status, goal_workouts_per_week, challenges(number_of_weeks, reward_per_workout)",
+          )
+          .gte("created_at", since.toISOString())
+          .range(range.from, range.to),
+    );
 
     // Challenges live right now, read independently of the range. The candidate
     // set is narrowed *inside the query*: `challenge_status` never moves off
@@ -634,16 +675,21 @@ Deno.serve(async (req) => {
     // Anonymous arrivals. Read with the service role because the table has no
     // policies at all — it is written through a function and read only here.
     // A failure to read visits must not take the whole funnel down, since the
-    // account-level numbers are still useful on their own.
-    const { data: visitData, error: visitError } = await admin
-      .from("visits")
-      .select(
-        "visitor_id, first_seen_at, landed_at, tapped_join_at, reached_install_at, reached_signup_at, signed_up_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
-      )
-      .gte("first_seen_at", since.toISOString());
-
-    if (visitError) console.error("funnel-stats: visits query failed", visitError);
-    const visits = (visitData ?? []) as VisitRow[];
+    // account-level numbers are still useful on their own. Paged: this is the
+    // read whose 1000-row truncation made "All" count fewer visitors than
+    // "30 days".
+    const visits = await readAll<VisitRow>(
+      admin,
+      "visits query",
+      (range) =>
+        admin
+          .from("visits")
+          .select(
+            "visitor_id, first_seen_at, landed_at, tapped_join_at, reached_install_at, reached_signup_at, signed_up_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
+          )
+          .gte("first_seen_at", since.toISOString())
+          .range(range.from, range.to),
+    );
 
     // The first visit ever recorded, regardless of the range being viewed.
     // Without it the visitor numbers look catastrophic on the "All" range,
