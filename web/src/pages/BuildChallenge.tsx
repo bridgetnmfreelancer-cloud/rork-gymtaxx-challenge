@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Flame, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -58,6 +58,42 @@ export default function BuildChallenge() {
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
         </div>
+      </Screen>
+    );
+  }
+
+  // Trial: this screen sells the week, and the commitment choice moves to the
+  // next screen. The standard flow below is untouched — it comes back intact
+  // the moment the experiment flag goes off.
+  if (isTrial) {
+    return (
+      <Screen>
+        <StepProgress {...flowProgress("challenge")} onBack={() => navigate(-1)} />
+        <div className="relative flex flex-1 flex-col">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-4 h-64 w-64 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl"
+          />
+          <div className="relative flex flex-1 flex-col items-center justify-center pb-10 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-accent animate-pop-in">
+              <Flame className="h-8 w-8 text-success-ink" aria-hidden="true" />
+            </div>
+            <ScreenTitle className="mt-8 max-w-xs animate-rise-in">
+              Try the GymTaxx method for one week
+            </ScreenTitle>
+            <p className="mt-4 text-lg font-medium leading-relaxed text-foreground animate-rise-in [animation-delay:120ms]">
+              See what a week of actually showing up feels like.
+            </p>
+            <p className="mt-3 text-base leading-relaxed text-muted-foreground animate-rise-in [animation-delay:200ms]">
+              No subscription. Just a fully refundable commitment deposit.
+            </p>
+          </div>
+        </div>
+        <ScreenActions>
+          <Button size="xl" className="w-full" onClick={commit}>
+            Continue
+          </Button>
+        </ScreenActions>
       </Screen>
     );
   }

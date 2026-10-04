@@ -1,14 +1,16 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
 import { flowProgress } from "@/lib/flow";
-import { currencyFrom, currencyForRegion, depositFor, formatMoney, isWeeklyGoal, totalWorkouts } from "@/lib/money";
-import { loadAnswers } from "@/lib/onboarding";
+import { currentZone, formatStartDate, weeklyStart } from "@/lib/gymweek";
+import { currencyFrom, currencyForRegion, depositFor, formatMoney, isWeeklyGoal, totalWorkouts, WEEKLY_GOALS, type WeeklyGoal } from "@/lib/money";
+import { loadAnswers, saveAnswers } from "@/lib/onboarding";
 import { useCurrentChallenge, useEndedParticipation, useParticipation } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { CHALLENGE_WEEKS, REWARD_PER_WORKOUT } from "@/lib/money";
 
 /**
@@ -37,6 +39,86 @@ export default function Commit() {
 
   const workouts = totalWorkouts(goal, weeks);
   const deposit = depositFor(goal, weeks);
+
+  // Trial: the commitment choice lives on this screen (the screen before sells
+  // the week), so it needs its own selection state — unselected until they tap.
+  const [selectedGoal, setSelectedGoal] = useState<WeeklyGoal | null>(() =>
+    saved.goal && isWeeklyGoal(saved.goal) ? saved.goal : null,
+  );
+
+  const zone = useMemo(() => currentZone(), []);
+  const startLabel = useMemo(
+    () => formatStartDate(weeklyStart(new Date(), zone), zone, currency === "gbp" ? "en-GB" : "en-US"),
+    [zone, currency],
+  );
+
+  if (isTrial) {
+    const trialDeposit = depositFor(selectedGoal ?? 4, weeks);
+    return (
+      <Screen>
+        <StepProgress {...flowProgress("commit")} onBack={() => navigate(-1)} />
+
+        <div className="pt-6">
+          <ScreenTitle className="animate-rise-in">
+            How many workouts will you commit to next week?
+          </ScreenTitle>
+        </div>
+
+        <div className="mt-8 animate-rise-in [animation-delay:120ms]">
+          <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Workouts next week">
+            {WEEKLY_GOALS.map((option) => {
+              const isSelected = option === selectedGoal;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  onClick={() => setSelectedGoal(option)}
+                  className={cn(
+                    "flex h-28 items-center justify-center rounded-lg border-2 transition-all active:scale-[0.97]",
+                    isSelected
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-transparent bg-card text-foreground hover:border-border",
+                  )}
+                >
+                  <span className="tabular text-4xl font-extrabold leading-none">{option}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {selectedGoal !== null ? (
+          <div key={selectedGoal} className="mt-8 rounded-lg bg-card p-5 animate-rise-in">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Your trial</p>
+            <p className="mt-3 text-lg font-semibold text-foreground">
+              {selectedGoal} workouts
+            </p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
+              <span className="tabular">{formatMoney(trialDeposit, currency)}</span> refundable deposit
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">Starts {startLabel}</p>
+          </div>
+        ) : null}
+
+        <ScreenActions>
+          <Button
+            size="xl"
+            className="w-full"
+            disabled={selectedGoal === null}
+            onClick={() => {
+              if (selectedGoal === null) return;
+              saveAnswers({ ...saved, goal: selectedGoal });
+              navigate("/ready");
+            }}
+          >
+            Continue
+          </Button>
+        </ScreenActions>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
