@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
 import { formatStartDate } from "@/lib/gymweek";
 import { currencyFrom, depositFor, formatMoney } from "@/lib/money";
-import { queryKeys, useCurrentChallenge, useParticipation } from "@/lib/queries";
+import { queryKeys, useChallengeById, useParticipation } from "@/lib/queries";
 import { CHALLENGE_WEEKS } from "@/lib/money";
 
 /**
@@ -28,7 +28,7 @@ export default function Activated() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { data: participation, isLoading } = useParticipation();
-  const { data: challenge } = useCurrentChallenge();
+  const { data: challenge } = useChallengeById(participation?.challenge_id);
 
   // Snapshotted at mount so the value can't change underneath this render pass
   // once the marker is cleared below.

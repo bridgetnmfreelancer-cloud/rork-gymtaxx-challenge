@@ -162,7 +162,10 @@ async function repeatWeek(admin: Admin, userId: string): Promise<Response> {
 }
 
 /**
- * Record a refund request on the account's most recent ended paid challenge.
+ * Record a refund request on the account's most recent ended paid **trial** week.
+ *
+ * Joined and pinned to trial rows, so a standard challenge can never be marked
+ * `requested` from here even if a client asks at the wrong moment.
  *
  * Marks `requested` — never `refunded`; the money itself is moved by hand in
  * Stripe and then recorded through the operator screen as usual. A `carried`
@@ -172,10 +175,11 @@ async function repeatWeek(admin: Admin, userId: string): Promise<Response> {
 async function requestRefund(admin: Admin, userId: string): Promise<Response> {
   const { data: rows, error: readError } = await admin
     .from("user_challenges")
-    .select("id, refund_status")
+    .select("id, refund_status, challenges!inner(challenge_type)")
     .eq("user_id", userId)
     .eq("payment_status", "paid")
     .eq("challenge_status", "active")
+    .eq("challenges.challenge_type", "trial_week")
     .lt("ends_at", new Date().toISOString())
     .order("ends_at", { ascending: false })
     .limit(1);

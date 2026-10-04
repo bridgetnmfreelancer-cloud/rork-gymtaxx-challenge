@@ -9,6 +9,7 @@ import { decideChallenge } from "./trial";
 /** Shared keys, so a mutation can invalidate exactly what it changed. */
 export const queryKeys = {
   currentChallenge: (userId: string | undefined) => ["challenge", "current", userId ?? "anon"] as const,
+  challengeById: (challengeId: string | null | undefined) => ["challenge", "by-id", challengeId ?? "none"] as const,
   participation: (userId: string | undefined) => ["participation", userId ?? "anon"] as const,
   endedParticipation: (userId: string | undefined) => ["participation", "ended", userId ?? "anon"] as const,
   submissions: (participationId: string | undefined) => ["submissions", participationId ?? "none"] as const,
@@ -16,13 +17,17 @@ export const queryKeys = {
 };
 
 /**
- * The challenge this person is joining right now.
+ * The challenge this person would join next — the decision.
  *
  * The decision — trial week or standard month — is made in one shared place
- * (`decideChallenge`), so every screen that reads the terms reads the same
- * answer the enrolment acts on. Its result is user-scoped: someone with a paid
- * trial in their history gets the standard challenge even while the experiment
- * is running.
+ * (`decideChallenge`), so every enrolment screen (Ready, BuildChallenge,
+ * Commit, Pay) reads the same terms the enrolment acts on. Its result is
+ * user-scoped: someone with a paid trial in their history gets the standard
+ * challenge even while the experiment is running.
+ *
+ * Decision screens only. A screen that displays an existing participation must
+ * read the challenge that row belongs to — `useChallengeById` — because the
+ * decision answers "what's next", not "what am I in".
  */
 export function useCurrentChallenge(): UseQueryResult<ChallengeRow | null> {
   const { user } = useAuth();
@@ -33,6 +38,35 @@ export function useCurrentChallenge(): UseQueryResult<ChallengeRow | null> {
       return (await decideChallenge(user?.id ?? null))?.challenge ?? null;
     },
     staleTime: 30_000,
+  });
+}
+
+/**
+ * A challenge by id — the terms a specific participation actually belongs to.
+ *
+ * Every screen that displays an existing participation (Home's dashboard and
+ * verdict, Verify, History, Activated, Account) reads its challenge through
+ * this, never through `decideChallenge`: the decision answers "what would this
+ * person join next", which is the trial whenever the flag is on. Feeding that
+ * into a finished standard month is how trial copy and trial buttons end up on
+ * a standard user's screen — the leak this hook keeps closed.
+ */
+export function useChallengeById(
+  challengeId: string | null | undefined,
+): UseQueryResult<ChallengeRow | null> {
+  return useQuery({
+    queryKey: queryKeys.challengeById(challengeId),
+    enabled: Boolean(challengeId),
+    queryFn: async (): Promise<ChallengeRow | null> => {
+      const { data, error } = await supabase
+        .from("challenges")
+        .select("*")
+        .eq("id", challengeId ?? "")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60_000,
   });
 }
 

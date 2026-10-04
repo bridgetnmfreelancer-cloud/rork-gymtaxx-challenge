@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
 import { captureLocation, locationPermissionState, type LocationFix } from "@/lib/location";
 import { currencyFrom, formatMoney } from "@/lib/money";
-import { queryKeys, useCurrentChallenge, useParticipation } from "@/lib/queries";
+import { queryKeys, useChallengeById, useParticipation } from "@/lib/queries";
 import { REWARD_PER_WORKOUT } from "@/lib/money";
 import { canvasToJpeg, submitWorkout } from "@/lib/workouts";
 
@@ -26,7 +26,7 @@ export default function Verify() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { data: participation } = useParticipation();
-  const { data: challenge } = useCurrentChallenge();
+  const { data: challenge } = useChallengeById(participation?.challenge_id);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

@@ -12,7 +12,7 @@ import { formatStartDate } from "@/lib/gymweek";
 import { CHALLENGE_WEEKS, currencyForRegion, depositFor, formatMoney, isWeeklyGoal } from "@/lib/money";
 import { loadAnswers } from "@/lib/onboarding";
 import { alreadyLoggedToday, computeProgress, formatDeadline, statusOf } from "@/lib/progress";
-import { useCurrentChallenge, useParticipation, useSubmissions } from "@/lib/queries";
+import { useChallengeById, useCurrentChallenge, useParticipation, useSubmissions } from "@/lib/queries";
 import { clearDepositSettling, depositSettlingSince } from "@/lib/settlement";
 import { weeklyStart, currentZone } from "@/lib/gymweek";
 import ChallengeEnd from "./ChallengeEnd";
@@ -28,6 +28,9 @@ import type { ChallengeRow, UserChallengeRow, WorkoutSubmissionRow } from "@/lib
 export default function Home() {
   const { data: participation, isLoading: loadingParticipation } = useParticipation();
   const { data: challenge, isLoading: loadingChallenge } = useCurrentChallenge();
+  // Anything showing an existing participation reads the challenge that row
+  // belongs to; only the sell screen below uses the decision challenge.
+  const { data: ownChallenge } = useChallengeById(participation?.challenge_id);
   const { data: submissions, isLoading: loadingSubmissions } = useSubmissions(participation?.id);
 
   // Snapshotted at mount, so clearing it below can't change this render pass.
@@ -68,12 +71,12 @@ export default function Home() {
       <ChallengeEnd
         submissions={submissions ?? []}
         participation={participation}
-        challenge={challenge ?? null}
+        challenge={ownChallenge ?? null}
       />
     );
   }
 
-  return <Dashboard submissions={submissions ?? []} participation={participation} challenge={challenge ?? null} />;
+  return <Dashboard submissions={submissions ?? []} participation={participation} challenge={ownChallenge ?? null} />;
 }
 
 /**

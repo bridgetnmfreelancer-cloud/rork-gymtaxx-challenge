@@ -8,7 +8,7 @@ import type { UserChallengeRow, WorkoutSubmissionRow } from "@/lib/database.type
 import { addWeeks } from "@/lib/gymweek";
 import { CHALLENGE_WEEKS, currencyFrom, formatMoney } from "@/lib/money";
 import { statusOf } from "@/lib/progress";
-import { useCurrentChallenge, useParticipation, useSubmissions } from "@/lib/queries";
+import { useChallengeById, useParticipation, useSubmissions } from "@/lib/queries";
 
 type WeekGroup = {
   index: number;
@@ -26,7 +26,7 @@ type WeekGroup = {
  */
 export default function History() {
   const { data: participation, isLoading: loadingParticipation } = useParticipation();
-  const { data: challenge } = useCurrentChallenge();
+  const { data: challenge } = useChallengeById(participation?.challenge_id);
   const { data: submissions, isLoading: loadingSubmissions } = useSubmissions(participation?.id);
 
   const totalWeeks = challenge?.number_of_weeks ?? CHALLENGE_WEEKS;

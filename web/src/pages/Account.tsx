@@ -46,7 +46,7 @@ import {
 } from "@/lib/push";
 import { canUsePush, isIOS, isStandalone } from "@/lib/pwa";
 import { formatFee, intervalSuffix, isPlanId, planById } from "@/lib/plans";
-import { queryKeys, useCurrentChallenge, useParticipation, useProfile } from "@/lib/queries";
+import { queryKeys, useChallengeById, useParticipation, useProfile } from "@/lib/queries";
 import { callFunction } from "@/lib/supabase";
 
 const SUPPORT_EMAIL = "support@gymtaxx.com";
@@ -86,7 +86,7 @@ export default function Account() {
   const queryClient = useQueryClient();
   const { user, signOut } = useAuth();
   const { data: participation } = useParticipation();
-  const { data: challenge } = useCurrentChallenge();
+  const { data: challenge } = useChallengeById(participation?.challenge_id);
   const { data: profile } = useProfile();
 
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
