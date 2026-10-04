@@ -140,9 +140,24 @@ const CLOSE_PUSH: Message = {
   body: "Your challenge has finished. Open GymTaxx to see where your deposit landed.",
 };
 
+/** The same two slots, worded for a 7-day trial week. */
+const TRIAL_CLOSE_PUSH: Message = {
+  title: "Your trial week is done",
+  body: "Your week has finished. Open GymTaxx to see where your deposit landed.",
+};
+
 const REJOIN_PUSH: Message = {
   title: "Ready for another month?",
   body: "Start your next challenge and put something behind it again.",
+};
+
+/**
+ * Trial weeks rejoin to the dashboard, not the builder: the decision a finished
+ * trial week is waiting on — second chance, refund, or membership — lives there.
+ */
+const TRIAL_REJOIN_PUSH: Message = {
+  title: "Your trial result is in",
+  body: "Claim your deposit back or keep going with GymTaxx — it's waiting in the app.",
 };
 
 /**
@@ -301,7 +316,7 @@ Deno.serve(async (req) => {
         // has never finished setting up.
         const { data: endedRow } = await admin
           .from("user_challenges")
-          .select("id, ends_at, closed_push_at, rejoin_push_at")
+          .select("id, ends_at, closed_push_at, rejoin_push_at, challenges(challenge_type)")
           .eq("user_id", sub.user_id)
           .eq("payment_status", "paid")
           .eq("challenge_status", "active")
@@ -315,7 +330,13 @@ Deno.serve(async (req) => {
           ends_at: string;
           closed_push_at: string | null;
           rejoin_push_at: string | null;
+          challenges: { challenge_type: string } | { challenge_type: string }[];
         } | null;
+        const endedIsTrial =
+          (Array.isArray(ended?.challenges) ? ended?.challenges[0]?.challenge_type : ended?.challenges?.challenge_type) ===
+          "trial_week";
+        const closeCopy = endedIsTrial ? TRIAL_CLOSE_PUSH : CLOSE_PUSH;
+        const rejoinCopy = endedIsTrial ? TRIAL_REJOIN_PUSH : REJOIN_PUSH;
 
         if (ended) {
           const daysSinceEnd = (now.getTime() - new Date(ended.ends_at).getTime()) / DAY_MS;
@@ -337,8 +358,8 @@ Deno.serve(async (req) => {
               skipped += 1;
               continue;
             }
-            title = CLOSE_PUSH.title;
-            body = CLOSE_PUSH.body;
+            title = closeCopy.title;
+            body = closeCopy.body;
             tag = "gymtaxx-close";
             closeDue = true;
           } else if (
@@ -350,9 +371,9 @@ Deno.serve(async (req) => {
               skipped += 1;
               continue;
             }
-            title = REJOIN_PUSH.title;
-            body = REJOIN_PUSH.body;
-            url = "/challenge";
+            title = rejoinCopy.title;
+            body = rejoinCopy.body;
+            url = endedIsTrial ? "/home" : "/challenge";
             tag = "gymtaxx-rejoin";
             rejoinDue = true;
           } else {

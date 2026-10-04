@@ -4,10 +4,11 @@ import { useAuth } from "@/context/AuthProvider";
 import type { ChallengeRow, ProfileRow, UserChallengeRow, WorkoutSubmissionRow } from "./database.types";
 import { isDepositSettling } from "./settlement";
 import { supabase } from "./supabase";
+import { decideChallenge } from "./trial";
 
 /** Shared keys, so a mutation can invalidate exactly what it changed. */
 export const queryKeys = {
-  currentChallenge: ["challenge", "current"] as const,
+  currentChallenge: (userId: string | undefined) => ["challenge", "current", userId ?? "anon"] as const,
   participation: (userId: string | undefined) => ["participation", userId ?? "anon"] as const,
   endedParticipation: (userId: string | undefined) => ["participation", "ended", userId ?? "anon"] as const,
   submissions: (participationId: string | undefined) => ["submissions", participationId ?? "none"] as const,
@@ -15,27 +16,23 @@ export const queryKeys = {
 };
 
 /**
- * The challenge everyone joins right now.
+ * The challenge this person is joining right now.
  *
- * There is one live challenge at a time; its row carries the shared terms
- * (length, reward per workout) that the deposit is calculated from on the
- * server. Reading it here keeps the numbers on screen and the amount charged
- * derived from the same source.
+ * The decision — trial week or standard month — is made in one shared place
+ * (`decideChallenge`), so every screen that reads the terms reads the same
+ * answer the enrolment acts on. Its result is user-scoped: someone with a paid
+ * trial in their history gets the standard challenge even while the experiment
+ * is running.
  */
 export function useCurrentChallenge(): UseQueryResult<ChallengeRow | null> {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: queryKeys.currentChallenge,
+    queryKey: queryKeys.currentChallenge(user?.id),
     queryFn: async (): Promise<ChallengeRow | null> => {
-      const { data, error } = await supabase
-        .from("challenges")
-        .select("*")
-        .order("start_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      return (await decideChallenge(user?.id ?? null))?.challenge ?? null;
     },
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
   });
 }
 

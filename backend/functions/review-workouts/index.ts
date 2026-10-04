@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
       const { data: endedRows, error: endedError } = await admin
         .from("user_challenges")
         .select(
-          "id, user_id, challenge_id, started_at, ends_at, time_zone, currency, deposit_minor, refund_status, refunded_at",
+          "id, user_id, challenge_id, started_at, ends_at, time_zone, currency, deposit_minor, refund_status, refunded_at, goal_workouts_per_week, repeat_of, challenges(challenge_type)",
         )
         .eq("payment_status", "paid")
         .lt("ends_at", new Date().toISOString())
@@ -235,6 +235,9 @@ Deno.serve(async (req) => {
         deposit_minor: number | null;
         refund_status: string;
         refunded_at: string | null;
+        goal_workouts_per_week: number;
+        repeat_of: string | null;
+        challenges: { challenge_type: string } | { challenge_type: string }[];
       }[];
 
       // Windowed counts and emails come from their own reads — the participation
@@ -291,6 +294,9 @@ Deno.serve(async (req) => {
 
         const deposit = (row.deposit_minor ?? 0) / 100;
         const verified = inWindow.filter((submission) => submission.status === "verified").length;
+        const challengeType = Array.isArray(row.challenges)
+          ? row.challenges[0]?.challenge_type
+          : row.challenges?.challenge_type;
 
         return {
           id: row.id,
@@ -303,6 +309,9 @@ Deno.serve(async (req) => {
           verified,
           pending: inWindow.filter((submission) => submission.status === "pending").length,
           refundStatus: row.refund_status,
+          goal: row.goal_workouts_per_week,
+          isTrial: challengeType === "trial_week",
+          repeatOf: row.repeat_of,
         };
       });
 
@@ -313,9 +322,11 @@ Deno.serve(async (req) => {
      * Record that a deposit has been refunded by hand.
      *
      * Guarded on `payment_status` and the current refund state, so marking twice
-     * is a no-op rather than a second notification. Like every write here, it
-     * runs through the service role — the participant can never flip this
-     * themselves.
+     * is a no-op rather than a second notification. A `carried` row is refused:
+     * it is the first half of a trial repeat pair, its refund figure was
+     * superseded by week two, and refunding it as well would pay the person
+     * twice from the one original charge. Like every write here, it runs
+     * through the service role — the participant can never flip this.
      */
     if (body.action === "mark_refunded") {
       const participationId = body.participationId;
@@ -327,12 +338,26 @@ Deno.serve(async (req) => {
         .eq("id", participationId)
         .eq("payment_status", "paid")
         .neq("refund_status", "refunded")
+        .neq("refund_status", "carried")
         .select("id, user_id")
         .maybeSingle();
 
       if (error) {
         console.error("review-workouts: refund mark failed", participationId, error.message);
         return json({ error: "update_failed" }, 500);
+      }
+
+      if (!refunded) {
+        // Distinguish a carried row from an already-refunded one so the operator
+        // learns why nothing happened rather than tapping again.
+        const { data: existing } = await admin
+          .from("user_challenges")
+          .select("refund_status")
+          .eq("id", participationId)
+          .maybeSingle();
+        if (existing?.refund_status === "carried") {
+          return json({ error: "carried_row" }, 422);
+        }
       }
 
       if (refunded) {

@@ -40,7 +40,11 @@ export default function Ready() {
 
   /**
    * Someone signed in already configured this before; they skip the account
-   * screen entirely and go straight to the plans with their challenge created.
+   * screen entirely and go straight to payment with their challenge created.
+   *
+   * A trial enrolment skips the plans screen — there is no plan to pick and no
+   * membership to sell, so the only step left is the deposit. Everyone else
+   * follows the standard journey through the paywall.
    */
   const start = useCallback(async (): Promise<void> => {
     const userId = session?.user.id;
@@ -52,9 +56,9 @@ export default function Ready() {
     }
 
     setIsWorking(true);
-    await enrolQuietly(userId);
+    const result = await enrolQuietly(userId);
     setIsWorking(false);
-    navigate("/plan");
+    navigate(result.kind === "trial" ? "/pay" : "/plan");
   }, [session, navigate]);
 
   return (

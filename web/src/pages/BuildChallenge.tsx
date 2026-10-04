@@ -39,6 +39,7 @@ export default function BuildChallenge() {
   const currency = useMemo(() => currencyForRegion(), []);
 
   const weeks = challenge?.number_of_weeks ?? CHALLENGE_WEEKS;
+  const isTrial = challenge?.challenge_type === "trial_week";
 
   const start = useMemo(() => weeklyStart(new Date(), zone), [zone]);
   const startLabel = useMemo(
@@ -68,7 +69,9 @@ export default function BuildChallenge() {
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Choose your weekly commitment</ScreenTitle>
         <ScreenSubtitle className="animate-rise-in [animation-delay:80ms]">
-          How many workouts will you complete each week during your GymTaxx monthly challenge?
+          {isTrial
+            ? "How many workouts will you complete during your GymTaxx trial week?"
+            : "How many workouts will you complete each week during your GymTaxx monthly challenge?"}
         </ScreenSubtitle>
       </div>
 

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, MapPin, ShieldAlert, X } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Screen, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,11 @@ type FinishedItem = {
   verified: number;
   pending: number;
   refundStatus: string;
+  /** Workouts per week on the goal — shown on trial rows. */
+  goal: number;
+  isTrial: boolean;
+  /** Set on the second week of a trial repeat pair. */
+  repeatOf: string | null;
 };
 
 /**
@@ -100,6 +106,16 @@ export default function Review() {
     mutationFn: (participationId: string) =>
       callFunction<{ status: string }>("review-workouts", { action: "mark_refunded", participationId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: FINISHED_KEY }),
+    onError: (error) => {
+      // Carried rows are refused server-side — their refund figure was
+      // superseded by week two, and the message says where to look instead.
+      const message = String(error.message);
+      toast.error(
+        message === "carried_row"
+          ? "This week is carried into its second — refund against that week's row instead."
+          : "Couldn't record the refund. Try again.",
+      );
+    },
   });
 
   if (isLoading) {
@@ -332,6 +348,10 @@ function TabButton({
  * deposit, verified count and pending proofs follow so the number can be
  * sanity-checked at a glance. Pending proofs are called out separately: they
  * are the reason to finish the review before pressing the button.
+ *
+ * Trial rows are tagged so the 7-day experiment never reads as a standard
+ * month, and a repeat pair shows as exactly one refundable row: week two
+ * carries the figure, week one is marked carried and cannot be refunded.
  */
 function FinishedList({
   items,
@@ -368,11 +388,30 @@ function FinishedList({
             </p>
           </div>
 
+          {item.isTrial ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-foreground">
+                Trial · {item.goal}/week
+              </span>
+              {item.repeatOf ? (
+                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-foreground">
+                  Second-chance week
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
           <p className="mt-1 text-sm text-muted-foreground">
             {formatMoney(item.earned, currencyFrom(item.currency))} earned of{" "}
             {formatMoney(item.deposit, currencyFrom(item.currency))} deposit · {item.verified} verified
             {item.pending > 0 ? ` · ${item.pending} pending` : ""}
           </p>
+
+          {item.repeatOf ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Refund against this row only — week one is carried.
+            </p>
+          ) : null}
 
           <div className="mt-3">
             {item.refundStatus === "refunded" ? (
@@ -380,11 +419,22 @@ function FinishedList({
                 <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />
                 Returned
               </span>
+            ) : item.refundStatus === "carried" ? (
+              <span className="inline-flex items-center rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted-foreground">
+                Carried into week two
+              </span>
             ) : (
-              <Button className="w-full" disabled={marking} onClick={() => onMarkRefunded(item.id)}>
-                {marking ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-                Mark refunded
-              </Button>
+              <div className="space-y-2">
+                {item.refundStatus === "requested" ? (
+                  <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-foreground">
+                    Refund requested
+                  </span>
+                ) : null}
+                <Button className="w-full" disabled={marking} onClick={() => onMarkRefunded(item.id)}>
+                  {marking ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                  Mark refunded
+                </Button>
+              </div>
             )}
           </div>
         </li>

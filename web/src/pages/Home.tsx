@@ -56,7 +56,7 @@ export default function Home() {
     // Dropping them on the sell screen here would tell someone who has just paid
     // £80 that they haven't paid at all.
     if (settlingSince !== null) return <ConfirmingDeposit since={settlingSince} withNav />;
-    return <ReadyWhenYouAre />;
+    return <ReadyWhenYouAre weeks={challenge?.number_of_weeks ?? CHALLENGE_WEEKS} />;
   }
 
   // Their four weeks are over. The dashboard gives way to the verdict screen:
@@ -83,7 +83,7 @@ export default function Home() {
  * back costs them one tap rather than the whole flow again. This is where a
  * reminder lands them.
  */
-function ReadyWhenYouAre() {
+function ReadyWhenYouAre({ weeks }: { weeks: number }) {
   const navigate = useNavigate();
   const answers = useMemo(() => loadAnswers(), []);
   const goal = answers.goal && isWeeklyGoal(answers.goal) ? answers.goal : 4;
@@ -110,7 +110,7 @@ function ReadyWhenYouAre() {
         <dl className="mt-8 divide-y divide-border overflow-hidden rounded-lg bg-card animate-rise-in [animation-delay:120ms]">
           <SummaryRow label="Your goal" value={`${goal} workouts a week`} />
           <SummaryRow label="Would start" value={startLabel} />
-          <SummaryRow label="Commitment" value={formatMoney(depositFor(goal, CHALLENGE_WEEKS), currency)} />
+          <SummaryRow label="Commitment" value={formatMoney(depositFor(goal, weeks), currency)} />
         </dl>
 
         <Button size="xl" className="mt-8 w-full animate-rise-in [animation-delay:180ms]" onClick={() => navigate("/challenge")}>

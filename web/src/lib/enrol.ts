@@ -3,6 +3,7 @@ import { loadAnswers } from "./onboarding";
 import { ensureParticipation } from "./participation";
 import { supabase } from "./supabase";
 import { recordQuestionsAnswered } from "./telemetry";
+import { decideChallenge, type ChallengeKind } from "./trial";
 
 /**
  * Turn the answers held on the phone into a real enrolment.
@@ -12,11 +13,15 @@ import { recordQuestionsAnswered } from "./telemetry";
  * answered, and the challenge they configured is created against their new
  * account at the goal they picked.
  *
+ * Which challenge they join — the 7-day trial week or the standard month — is
+ * decided in one shared place (`decideChallenge`), the same function the
+ * screens read their terms from, so what they were shown is what gets created.
+ *
  * Runs immediately after sign-up, and again as a safety net at the paywall if
  * that first attempt failed — the deposit is priced from the participation row,
  * so nobody can be allowed to reach payment without one.
  */
-export async function enrolFromAnswers(userId: string): Promise<void> {
+export async function enrolFromAnswers(userId: string): Promise<ChallengeKind> {
   const answers = loadAnswers();
   const goal = answers.goal && isWeeklyGoal(answers.goal) ? answers.goal : 4;
 
@@ -24,33 +29,38 @@ export async function enrolFromAnswers(userId: string): Promise<void> {
   // an enrolment fails.
   void recordQuestionsAnswered();
 
-  const { data: challenge, error: challengeError } = await supabase
-    .from("challenges")
-    .select("*")
-    .order("start_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const decision = await decideChallenge(userId);
+  if (!decision) throw new Error("no live challenge to join");
 
-  if (challengeError) throw challengeError;
-  if (!challenge) throw new Error("no live challenge to join");
-
-  // Someone who came back to redo the flow may already have an unpaid row; that
-  // gets reused and re-priced rather than stacking up abandoned records.
+  // Someone who came back to redo the flow may already have an unpaid row for
+  // THIS challenge; that gets reused and re-priced rather than stacking up
+  // abandoned records. An unpaid row for a different challenge — a trial left
+  // unpaid while the flag was off, say — is deliberately left alone rather
+  // than silently re-priced into terms they never saw.
   const { data: existing } = await supabase
     .from("user_challenges")
     .select("*")
     .eq("challenge_status", "active")
+    .eq("challenge_id", decision.challenge.id)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   await ensureParticipation({
     userId,
-    challengeId: challenge.id,
+    challengeId: decision.challenge.id,
     goal,
-    weeks: challenge.number_of_weeks ?? CHALLENGE_WEEKS,
+    weeks: decision.challenge.number_of_weeks ?? CHALLENGE_WEEKS,
     existing: existing ?? null,
   });
+
+  return decision.kind;
+}
+
+export interface EnrolResult {
+  enrolled: boolean;
+  /** The terms they were enrolled on. A trial goes straight to payment. */
+  kind: ChallengeKind | null;
 }
 
 /**
@@ -60,12 +70,12 @@ export async function enrolFromAnswers(userId: string): Promise<void> {
  * and must not be dead-ended by a network blip. The paywall retries this before
  * letting anyone through to payment, so a false here is recoverable.
  */
-export async function enrolQuietly(userId: string): Promise<boolean> {
+export async function enrolQuietly(userId: string): Promise<EnrolResult> {
   try {
-    await enrolFromAnswers(userId);
-    return true;
+    const kind = await enrolFromAnswers(userId);
+    return { enrolled: true, kind };
   } catch (error) {
     console.error("enrol: could not create participation", error);
-    return false;
+    return { enrolled: false, kind: null };
   }
 }

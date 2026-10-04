@@ -53,6 +53,10 @@ export async function createParticipation({
  * People bounce off the payment screen and come back later; without this, each
  * return trip would leave another dead record and the deposit function reads
  * only the newest one.
+ *
+ * The reuse is guarded on the challenge matching, too: an unpaid row for a
+ * different challenge carries different terms, and silently re-pricing it
+ * would charge someone for terms they never saw.
  */
 export async function ensureParticipation({
   userId,
@@ -67,7 +71,7 @@ export async function ensureParticipation({
   weeks: number;
   existing: UserChallengeRow | null;
 }): Promise<UserChallengeRow> {
-  if (existing && existing.payment_status === "unpaid") {
+  if (existing && existing.payment_status === "unpaid" && existing.challenge_id === challengeId) {
     if (existing.goal_workouts_per_week === goal) return existing;
 
     // They changed their mind about the goal before paying, so the deposit

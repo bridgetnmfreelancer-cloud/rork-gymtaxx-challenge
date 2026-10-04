@@ -18,8 +18,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_config: {
+        Row: {
+          key: string
+          value: string
+        }
+        Insert: {
+          key: string
+          value: string
+        }
+        Update: {
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
       challenges: {
         Row: {
+          challenge_type: string
           created_at: string
           id: string
           name: string
@@ -28,6 +44,7 @@ export type Database = {
           start_date: string
         }
         Insert: {
+          challenge_type?: string
           created_at?: string
           id?: string
           name: string
@@ -36,6 +53,7 @@ export type Database = {
           start_date?: string
         }
         Update: {
+          challenge_type?: string
           created_at?: string
           id?: string
           name?: string
@@ -188,6 +206,7 @@ export type Database = {
           refund_status: string
           refunded_at: string | null
           rejoin_push_at: string | null
+          repeat_of: string | null
           started_at: string
           stripe_payment_intent_id: string | null
           time_zone: string
@@ -215,6 +234,7 @@ export type Database = {
           refund_status?: string
           refunded_at?: string | null
           rejoin_push_at?: string | null
+          repeat_of?: string | null
           started_at?: string
           stripe_payment_intent_id?: string | null
           time_zone?: string
@@ -242,6 +262,7 @@ export type Database = {
           refund_status?: string
           refunded_at?: string | null
           rejoin_push_at?: string | null
+          repeat_of?: string | null
           started_at?: string
           stripe_payment_intent_id?: string | null
           time_zone?: string
@@ -253,6 +274,13 @@ export type Database = {
             columns: ["challenge_id"]
             isOneToOne: false
             referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_challenges_repeat_of_fkey"
+            columns: ["repeat_of"]
+            isOneToOne: false
+            referencedRelation: "user_challenges"
             referencedColumns: ["id"]
           },
         ]

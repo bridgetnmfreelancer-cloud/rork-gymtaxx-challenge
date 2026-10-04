@@ -31,6 +31,7 @@ export default function Commit() {
   const goal = saved.goal && isWeeklyGoal(saved.goal) ? saved.goal : 4;
 
   const weeks = challenge?.number_of_weeks ?? CHALLENGE_WEEKS;
+  const isTrial = challenge?.challenge_type === "trial_week";
   const reward = Number(challenge?.reward_per_workout ?? REWARD_PER_WORKOUT);
   const currency = participation ? currencyFrom(participation.currency) : currencyForRegion();
 
@@ -52,11 +53,13 @@ export default function Commit() {
       <div className="mt-8 space-y-3">
         <div className="rounded-lg bg-card p-5 animate-rise-in [animation-delay:80ms]">
           <p className="text-sm text-muted-foreground">
-            {goal} workouts/week × {weeks} weeks
+            {isTrial ? `${goal} workouts, one week` : `${goal} workouts/week × ${weeks} weeks`}
           </p>
           <p className="mt-1 leading-none">
             <span className="tabular text-4xl font-extrabold text-foreground">{workouts}</span>
-            <span className="ml-2 text-base font-semibold text-foreground">workouts for the month</span>
+            <span className="ml-2 text-base font-semibold text-foreground">
+              {isTrial ? "workouts in your trial week" : "workouts for the month"}
+            </span>
           </p>
         </div>
 
@@ -78,6 +81,12 @@ export default function Commit() {
         <Outcome icon={ArrowUpRight} tone="good" title={`Log a workout, get ${formatMoney(reward, currency)} back`} />
         <Outcome icon={ArrowDownRight} tone="bad" title={`Miss a workout, lose ${formatMoney(reward, currency)}`} />
       </div>
+
+      {isTrial ? (
+        <p className="mt-5 text-center text-sm text-muted-foreground animate-rise-in [animation-delay:240ms]">
+          One week only — no membership. Hit your goal and the full deposit comes back.
+        </p>
+      ) : null}
 
       {/* A returning participant can start before their old deposit lands, so
           the two flows would otherwise cross silently. One quiet line keeps the

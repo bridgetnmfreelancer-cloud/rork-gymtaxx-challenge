@@ -25,6 +25,26 @@ interface RequestBody {
   plan?: unknown;
 }
 
+/**
+ * Whether the 7-day trial experiment is switched on.
+ *
+ * Read from the `app_config` row the operator flips with one SQL command — no
+ * deploy to turn the experiment off. Fails closed: any read error refuses to
+ * price a trial, so a broken config row can never open an unintended free path.
+ */
+async function trialEnabled(admin: ReturnType<typeof createAdminClient>): Promise<boolean> {
+  const { data, error } = await admin
+    .from("app_config")
+    .select("value")
+    .eq("key", "trial_week_enabled")
+    .maybeSingle();
+  if (error) {
+    console.error("create-deposit-payment: trial flag unreadable", error.message);
+    return false;
+  }
+  return data?.value === "on";
+}
+
 function asCookie(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -88,7 +108,7 @@ Deno.serve(async (req) => {
     const { data: participation, error } = await supabase
       .from("user_challenges")
       .select(
-        "id, goal_workouts_per_week, payment_status, currency, stripe_payment_intent_id, challenges(number_of_weeks, reward_per_workout)",
+        "id, goal_workouts_per_week, payment_status, currency, stripe_payment_intent_id, challenges(number_of_weeks, reward_per_workout, challenge_type)",
       )
       .eq("challenge_status", "active")
       .order("created_at", { ascending: false })
@@ -155,7 +175,20 @@ Deno.serve(async (req) => {
     let feeMinor = 0;
     let saveCard = false;
 
-    if (!isGrandfathered) {
+    // The 7-day trial branch: deposit only, no plan, no access fee, no saved
+    // card and no membership. The free-first-month stamping lives in the webhook
+    // behind a plan id, so a trial never touches it — a trial completer who
+    // later joins keeps their normal free-first-challenge eligibility.
+    const isTrial = challenge.challenge_type === "trial_week";
+
+    if (isTrial) {
+      // The rollback guard. Flag off means no trial can even be priced, so
+      // turning the experiment off is airtight regardless of what any client
+      // sends or which unpaid rows already exist.
+      if (!(await trialEnabled(admin))) {
+        return json({ error: "trial_unavailable" }, 422);
+      }
+    } else if (!isGrandfathered) {
       if (!isPlanId(body.plan)) {
         return json({ error: "no_plan" }, 422);
       }
@@ -190,6 +223,7 @@ Deno.serve(async (req) => {
       amountMinor,
       currency,
       plan: planId,
+      trial: isTrial,
     };
 
     // Reuse the intent already attached to this participation when we can, so a

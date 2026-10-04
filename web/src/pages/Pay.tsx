@@ -28,6 +28,8 @@ type DepositResponse =
       amountMinor: number;
       currency: string;
       plan: string | null;
+      /** True on the 7-day trial week: no plan, no access fee, no membership. */
+      trial?: boolean;
     };
 
 /**
@@ -122,7 +124,9 @@ export default function Pay() {
       <div className="pt-6">
         <ScreenTitle className="animate-rise-in">Secure your commitment</ScreenTitle>
         <ScreenSubtitle className="animate-rise-in [animation-delay:60ms]">
-          {formatMoney(deposit, currency)} held now, earned back {formatMoney(5, currency)} at a time.
+          {data.trial
+            ? `One week, no membership. ${formatMoney(deposit, currency)} held now, earned back ${formatMoney(5, currency)} at a time.`
+            : `${formatMoney(deposit, currency)} held now, earned back ${formatMoney(5, currency)} at a time.`}
         </ScreenSubtitle>
       </div>
 
@@ -137,7 +141,7 @@ export default function Pay() {
         <div className="flex items-baseline justify-between px-5 py-3.5">
           <dt className="text-sm text-muted-foreground">GymTaxx access</dt>
           <dd className="tabular text-sm font-semibold text-foreground">
-            {fee === 0 ? "Free" : formatFee(fee, currency)}
+            {data.trial ? "No membership needed" : fee === 0 ? "Free" : formatFee(fee, currency)}
           </dd>
         </div>
         <div className="flex items-baseline justify-between px-5 py-3.5">
