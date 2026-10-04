@@ -1,5 +1,5 @@
-import { Flame, Loader2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CreditCard, Dumbbell, Loader2, ShieldCheck } from "lucide-react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
@@ -62,33 +62,78 @@ export default function BuildChallenge() {
     );
   }
 
-  // Trial: this screen sells the week, and the commitment choice moves to the
-  // next screen. The standard flow below is untouched — it comes back intact
-  // the moment the experiment flag goes off.
+  // Trial: this screen sells the week as three scannable benefits, and the
+  // commitment choice moves to the next screen. The standard flow below is
+  // untouched — it comes back intact the moment the experiment flag goes off.
   if (isTrial) {
+    const benefits: { icon: ReactNode; label: string }[] = [
+      {
+        icon: <Dumbbell className="h-5 w-5" aria-hidden="true" />,
+        label: "One week of accountability",
+      },
+      {
+        icon: (
+          <span className="relative inline-flex" aria-hidden="true">
+            <CreditCard className="h-5 w-5" />
+            <span className="absolute top-1/2 h-0.5 w-[calc(100%+6px)] -translate-y-1/2 -rotate-45 rounded-full bg-current" />
+          </span>
+        ),
+        label: "No subscription",
+      },
+      {
+        icon: <ShieldCheck className="h-5 w-5" aria-hidden="true" />,
+        label: "Fully refundable commitment deposit",
+      },
+    ];
+
     return (
       <Screen>
-        <StepProgress {...flowProgress("challenge")} onBack={() => navigate(-1)} />
-        <div className="relative flex flex-1 flex-col">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-4 h-64 w-64 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl"
-          />
-          <div className="relative flex flex-1 flex-col items-center justify-center pb-10 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-accent animate-pop-in">
-              <Flame className="h-8 w-8 text-success-ink" aria-hidden="true" />
+        <StepProgress {...flowProgress("challenge")} onBack={null} />
+
+        <div className="flex flex-1 flex-col">
+          {/* Little calendar illustration — pure CSS, no image payload. */}
+          <div className="relative mx-auto mt-14 h-36 w-40 animate-pop-in" aria-hidden="true">
+            <div className="absolute -left-7 top-7 h-1 w-5 -rotate-[30deg] rounded-full bg-accent" />
+            <div className="absolute -left-5 top-16 h-1 w-4 -rotate-[30deg] rounded-full bg-accent/60" />
+            <div className="absolute -right-7 top-7 h-1 w-5 rotate-[30deg] rounded-full bg-accent" />
+            <div className="absolute -right-5 top-16 h-1 w-4 rotate-[30deg] rounded-full bg-accent/60" />
+            <div className="relative h-full w-full rounded-2xl border border-border/70 bg-background shadow-xl shadow-foreground/5">
+              <div className="absolute -top-2.5 left-9 h-5 w-1.5 rounded-full bg-foreground" />
+              <div className="absolute -top-2.5 right-9 h-5 w-1.5 rounded-full bg-foreground" />
+              <div className="flex h-14 items-center justify-center gap-1.5 rounded-t-2xl bg-accent/25">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <span key={i} className="h-2.5 w-2.5 rounded-full bg-accent" />
+                ))}
+              </div>
+              <div className="grid grid-cols-6 gap-x-2.5 gap-y-2.5 p-4">
+                {Array.from({ length: 12 }, (_, i) => (
+                  <span key={i} className="h-2 w-2 rounded-full bg-muted" />
+                ))}
+              </div>
             </div>
-            <ScreenTitle className="mt-8 max-w-xs animate-rise-in">
-              Try the GymTaxx method for one week
-            </ScreenTitle>
-            <p className="mt-4 text-lg font-medium leading-relaxed text-foreground animate-rise-in [animation-delay:120ms]">
-              See what a week of actually showing up feels like.
-            </p>
-            <p className="mt-3 text-base leading-relaxed text-muted-foreground animate-rise-in [animation-delay:200ms]">
-              No subscription. Just a fully refundable commitment deposit.
-            </p>
           </div>
+
+          <ScreenTitle className="mt-10 animate-rise-in text-center">
+            Try GymTaxx
+            <br />
+            for free next week
+          </ScreenTitle>
+          <p className="mt-6 text-lg font-medium leading-relaxed text-muted-foreground animate-rise-in [animation-delay:120ms]">
+            See what a week of actually showing up feels like.
+          </p>
+
+          <ul className="mt-9 space-y-5 animate-rise-in [animation-delay:200ms]">
+            {benefits.map((benefit) => (
+              <li key={benefit.label} className="flex items-center gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/40 text-success-ink">
+                  {benefit.icon}
+                </span>
+                <span className="text-base font-medium text-foreground">{benefit.label}</span>
+              </li>
+            ))}
+          </ul>
         </div>
+
         <ScreenActions>
           <Button size="xl" className="w-full" onClick={commit}>
             Continue

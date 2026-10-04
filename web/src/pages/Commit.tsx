@@ -41,9 +41,10 @@ export default function Commit() {
   const deposit = depositFor(goal, weeks);
 
   // Trial: the commitment choice lives on this screen (the screen before sells
-  // the week), so it needs its own selection state — unselected until they tap.
-  const [selectedGoal, setSelectedGoal] = useState<WeeklyGoal | null>(() =>
-    saved.goal && isWeeklyGoal(saved.goal) ? saved.goal : null,
+  // the week). 4 is preselected so the trial summary is always visible — the
+  // page reads at a glance with zero taps.
+  const [selectedGoal, setSelectedGoal] = useState<WeeklyGoal>(() =>
+    saved.goal && isWeeklyGoal(saved.goal) ? saved.goal : 4,
   );
 
   const zone = useMemo(() => currentZone(), []);
@@ -53,14 +54,14 @@ export default function Commit() {
   );
 
   if (isTrial) {
-    const trialDeposit = depositFor(selectedGoal ?? 4, weeks);
+    const trialDeposit = depositFor(selectedGoal, weeks);
     return (
       <Screen>
         <StepProgress {...flowProgress("commit")} onBack={() => navigate(-1)} />
 
         <div className="pt-6">
           <ScreenTitle className="animate-rise-in">
-            How many workouts will you commit to next week?
+            How many workouts are you committing to next week?
           </ScreenTitle>
         </div>
 
@@ -76,39 +77,31 @@ export default function Commit() {
                   aria-checked={isSelected}
                   onClick={() => setSelectedGoal(option)}
                   className={cn(
-                    "flex h-28 items-center justify-center rounded-lg border-2 transition-all active:scale-[0.97]",
-                    isSelected
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-transparent bg-card text-foreground hover:border-border",
+                    "flex h-28 items-center justify-center rounded-2xl transition-all active:scale-[0.97]",
+                    isSelected ? "bg-primary text-primary-foreground" : "bg-card text-foreground",
                   )}
                 >
-                  <span className="tabular text-4xl font-extrabold leading-none">{option}</span>
+                  <span className="tabular text-5xl font-extrabold leading-none">{option}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {selectedGoal !== null ? (
-          <div key={selectedGoal} className="mt-8 rounded-lg bg-card p-5 animate-rise-in">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Your trial</p>
-            <p className="mt-3 text-lg font-semibold text-foreground">
-              {selectedGoal} workouts
-            </p>
-            <p className="mt-1 text-lg font-semibold text-foreground">
-              <span className="tabular">{formatMoney(trialDeposit, currency)}</span> refundable deposit
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">Starts {startLabel}</p>
-          </div>
-        ) : null}
+        <div key={selectedGoal} className="mt-8 rounded-2xl bg-card p-5 animate-rise-in">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Your trial</p>
+          <p className="mt-3 text-lg font-bold text-foreground">{selectedGoal} workouts</p>
+          <p className="mt-0.5 text-lg font-bold text-foreground">
+            <span className="tabular">{formatMoney(trialDeposit, currency)}</span> refundable deposit
+          </p>
+          <p className="mt-2 text-base text-muted-foreground">Starts {startLabel}</p>
+        </div>
 
         <ScreenActions>
           <Button
             size="xl"
             className="w-full"
-            disabled={selectedGoal === null}
             onClick={() => {
-              if (selectedGoal === null) return;
               saveAnswers({ ...saved, goal: selectedGoal });
               navigate("/ready");
             }}
