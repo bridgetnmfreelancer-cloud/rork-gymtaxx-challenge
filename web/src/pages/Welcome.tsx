@@ -95,11 +95,12 @@ export default function Welcome() {
         // paywall retries this before letting anyone through to payment.
         const { data: created } = await supabase.auth.getSession();
         const userId = created.session?.user.id;
-        if (userId) await enrolQuietly(userId);
+        const result = userId ? await enrolQuietly(userId) : null;
 
-        // Straight to the plans. They have already built the challenge and read
-        // the deposit, so there is nothing left to explain.
-        navigate("/plan", { replace: true });
+        // Straight to the paywall. They have already built the challenge and
+        // read the deposit, so there is nothing left to explain — and a trial
+        // has no plans to pick, so it goes straight to its deposit.
+        navigate(result?.kind === "trial" ? "/pay" : "/plan", { replace: true });
       } else {
         await signIn(email, password);
         // Someone logging back in has already been through all of that. If they

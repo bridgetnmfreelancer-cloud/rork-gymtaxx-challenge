@@ -21,7 +21,7 @@ import {
   type Plan,
   type PlanId,
 } from "@/lib/plans";
-import { queryKeys, useParticipation, useProfile } from "@/lib/queries";
+import { queryKeys, useCurrentChallenge, useParticipation, useProfile } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,6 +45,10 @@ export default function PlanPicker() {
   const { user } = useAuth();
   const { data: participation } = useParticipation();
   const { data: profile, isLoading: isProfileLoading } = useProfile();
+  // The decision, not only the profile: on the trial week there are no plans
+  // to pick and no free month to sell, so this screen must not render at all.
+  const { data: decision, isLoading: isDecisionLoading } = useCurrentChallenge();
+  const isTrial = decision?.challenge_type === "trial_week";
 
   const [isStarting, setIsStarting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,10 +79,12 @@ export default function PlanPicker() {
   // has meant in the funnel since launch. No money is involved, so this one is
   // safe to fire from the browser; anything carrying value is sent server-side.
   useEffect(() => {
-    if (!isProfileLoading && !showIntro) {
+    // Wait for the decision as well as the profile: a trial never reaches the
+    // plans, and the funnel must not count a paywall view that never showed.
+    if (!isProfileLoading && !isDecisionLoading && !showIntro && !isTrial) {
       trackIntent("InitiateCheckout");
     }
-  }, [isProfileLoading, showIntro]);
+  }, [isProfileLoading, isDecisionLoading, showIntro, isTrial]);
 
   const headline = PLANS.filter((plan) => HEADLINE_PLAN_IDS.includes(plan.id));
   const secondary = PLANS.filter((plan) => !HEADLINE_PLAN_IDS.includes(plan.id));
@@ -112,7 +118,7 @@ export default function PlanPicker() {
     navigate("/pay");
   }
 
-  if (isProfileLoading) {
+  if (isProfileLoading || isDecisionLoading) {
     return (
       <Screen>
         <div className="flex flex-1 items-center justify-center">
@@ -126,6 +132,15 @@ export default function PlanPicker() {
   // signed up on different terms and keep them; the server enforces the same
   // rule, so skipping past here cannot be used to dodge a fee.
   if (profile?.grandfathered === true) {
+    return <Navigate to="/pay" replace />;
+  }
+
+  // The trial week has no plans and no free first month — the deposit is the
+  // whole offer. Anyone steered here on trial terms (social sign-in, a stale
+  // link, back navigation) goes straight to the paywall that prices their
+  // trial. Every trial path enrols before it can land here, so payment always
+  // has a row to price against.
+  if (isTrial) {
     return <Navigate to="/pay" replace />;
   }
 

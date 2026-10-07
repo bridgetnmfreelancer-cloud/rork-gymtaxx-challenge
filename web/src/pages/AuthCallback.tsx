@@ -55,10 +55,12 @@ export default function AuthCallback() {
           // as the email sign-up path does.
           void recordVisit("signed_up");
           // Everything they chose anonymously becomes theirs here, then straight
-          // on to the plans — they have already built the challenge and read the
-          // deposit, so there is nothing left to explain.
-          await enrolQuietly(userId);
-          navigate("/plan", { replace: true });
+          // on to the paywall — they have already built the challenge and read
+          // the deposit, so there is nothing left to explain. A trial has no
+          // plans screen, so it goes to its deposit, exactly as the email
+          // sign-up and log-in paths do.
+          const { kind } = await enrolQuietly(userId);
+          navigate(kind === "trial" ? "/pay" : "/plan", { replace: true });
           return;
         }
 
