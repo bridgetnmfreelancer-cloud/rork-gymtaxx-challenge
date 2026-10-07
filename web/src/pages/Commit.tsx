@@ -60,7 +60,10 @@ export default function Commit() {
         <StepProgress {...flowProgress("commit")} onBack={() => navigate(-1)} />
 
         <div className="pt-6">
-          <ScreenTitle className="animate-rise-in">
+          {/* Centred like the intro's header so the trial pair reads as one
+              system — header, choice, summary — and the question sits straight
+              over the symmetric grid below it. */}
+          <ScreenTitle className="animate-rise-in text-center">
             How many workouts are you committing to next week?
           </ScreenTitle>
         </div>

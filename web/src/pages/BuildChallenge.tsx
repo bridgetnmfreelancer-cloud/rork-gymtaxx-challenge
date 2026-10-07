@@ -113,16 +113,15 @@ export default function BuildChallenge() {
             </div>
           </div>
 
+          {/* The H1 is the page's only headline — no supporting line, so the
+              hierarchy is illustration → headline → benefits, nothing between. */}
           <ScreenTitle className="mt-10 animate-rise-in text-center">
             Try GymTaxx
             <br />
             for free next week
           </ScreenTitle>
-          <p className="mt-6 text-lg font-medium leading-relaxed text-muted-foreground animate-rise-in [animation-delay:120ms]">
-            See what a week of actually showing up feels like.
-          </p>
 
-          <ul className="mt-9 space-y-5 animate-rise-in [animation-delay:200ms]">
+          <ul className="mt-10 space-y-5 animate-rise-in [animation-delay:120ms]">
             {benefits.map((benefit) => (
               <li key={benefit.label} className="flex items-center gap-4">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/40 text-success-ink">
