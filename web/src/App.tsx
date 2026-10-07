@@ -90,6 +90,11 @@ const App = () => (
             {/* Interest list for a challenge that doesn't exist yet. Public and
                 outside the auth gate: most of the point is cold traffic. */}
             <Route path="/75daychallenge" element={<Waitlist />} />
+            {/* Shareable alias for the trial entry, for links sent to people who
+                already have accounts. Same decision-based screen as /challenge:
+                trial for anyone eligible, standard silently otherwise, so the
+                link never dead-ends when the experiment ends. */}
+            <Route path="/trial" element={<BuildChallenge />} />
             <Route path="/install" element={<Install />} />
             <Route path="/welcome" element={<Welcome />} />
 

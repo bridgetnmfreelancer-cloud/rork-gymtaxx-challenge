@@ -102,11 +102,20 @@ export default function Welcome() {
         navigate("/plan", { replace: true });
       } else {
         await signIn(email, password);
-        // Someone logging back in has already been through all of that. Home
-        // reads their actual state and shows the dashboard if they've paid, or
-        // the start screen if they haven't — so it's the only correct landing
-        // place for a returning account.
-        navigate("/home", { replace: true });
+        // Someone logging back in has already been through all of that. If they
+        // arrived mid-flow — say from a trial link shared with existing users —
+        // finish what they started: enrol at the goal they picked and go
+        // straight to the paywall. Otherwise Home reads their actual state and
+        // shows the dashboard if they've paid, or the start screen if they
+        // haven't, which is the right landing place for a plain return visit.
+        if (isInFlow) {
+          const { data: created } = await supabase.auth.getSession();
+          const userId = created.session?.user.id;
+          const result = userId ? await enrolQuietly(userId) : null;
+          navigate(result?.kind === "trial" ? "/pay" : "/plan", { replace: true });
+        } else {
+          navigate("/home", { replace: true });
+        }
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Something went wrong. Try again.");
