@@ -23,7 +23,8 @@ import { decideChallenge, type ChallengeKind } from "./trial";
  */
 export async function enrolFromAnswers(userId: string): Promise<ChallengeKind> {
   const answers = loadAnswers();
-  const goal = answers.goal && isWeeklyGoal(answers.goal) ? answers.goal : 4;
+  const hasGoal = answers.goal !== null && isWeeklyGoal(answers.goal);
+  const goal = hasGoal ? answers.goal : 4;
 
   // Fire-and-forget: this is funnel measurement, and it must never be the reason
   // an enrolment fails.
@@ -52,6 +53,11 @@ export async function enrolFromAnswers(userId: string): Promise<ChallengeKind> {
     goal,
     weeks: decision.challenge.number_of_weeks ?? CHALLENGE_WEEKS,
     existing: existing ?? null,
+    // No goal on this phone means nobody chose one here — a freshly installed
+    // app holds empty answers and the goal above is only the default. An
+    // existing row keeps the goal it was configured with rather than being
+    // silently repriced to that default.
+    respectExistingGoal: !hasGoal,
   });
 
   return decision.kind;
@@ -78,4 +84,41 @@ export async function enrolQuietly(userId: string): Promise<EnrolResult> {
     console.error("enrol: could not create participation", error);
     return { enrolled: false, kind: null };
   }
+}
+
+/** Where a mid-flow sign-in lands, decided before anything is written. */
+export type ResumeKind = "fresh" | "pay" | "plan" | "home";
+
+/**
+ * Resolve a returning account's destination from server state alone.
+ *
+ * An account that has never answered the questions is mid-flow by definition:
+ * the answers on THIS phone are theirs, so enrolment comes from them exactly
+ * as it would at sign-up — the "fresh" case. Everyone else already has a
+ * challenge in the database, and local answers must never touch it: on a
+ * freshly installed app they are empty, and applying the local default goal
+ * would silently reprice the row they configured on another device.
+ */
+export async function resumeDestination(userId: string): Promise<ResumeKind> {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("answered_questions_at, onboarding_completed")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!profile || (profile.answered_questions_at === null && !profile.onboarding_completed)) {
+    return "fresh";
+  }
+
+  const { data: row } = await supabase
+    .from("user_challenges")
+    .select("payment_status, challenges!inner(challenge_type)")
+    .eq("user_id", userId)
+    .eq("challenge_status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!row || row.payment_status === "paid") return "home";
+  return row.challenges.challenge_type === "trial_week" ? "pay" : "plan";
 }

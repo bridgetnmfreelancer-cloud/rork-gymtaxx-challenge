@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { Button } from "@/components/ui/button";
 import { enrolQuietly } from "@/lib/enrol";
+import { postSignupRoute } from "@/lib/journey";
 import { supabase } from "@/lib/supabase";
 import { recordVisit } from "@/lib/visitor";
 
@@ -60,7 +61,15 @@ export default function AuthCallback() {
           // plans screen, so it goes to its deposit, exactly as the email
           // sign-up and log-in paths do.
           const { kind } = await enrolQuietly(userId);
-          navigate(kind === "trial" ? "/pay" : "/plan", { replace: true });
+          // Same decision as the email sign-up path: a Join arrival in a
+          // browser meets the install page here — after the account exists —
+          // and everyone else goes straight to the paywall their terms imply.
+          const route = postSignupRoute(kind);
+          if (route === "install") {
+            navigate("/install?journey=join", { replace: true });
+            return;
+          }
+          navigate(route === "pay" ? "/pay" : "/plan", { replace: true });
           return;
         }
 

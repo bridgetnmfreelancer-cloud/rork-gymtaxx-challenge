@@ -1,10 +1,11 @@
 import { Check, Copy, MoreHorizontal, Share, SquarePlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions } from "@/components/Screen";
-import { browserName, detectBrowser } from "@/lib/pwa";
+import { clearJourney, readJourney } from "@/lib/journey";
+import { browserName, detectBrowser, isStandalone } from "@/lib/pwa";
 import { recordVisit } from "@/lib/visitor";
 
 /**
@@ -132,8 +133,24 @@ type Step = { title: ReactNode; detail?: ReactNode };
  */
 export default function Install() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const kind = useMemo(() => detectBrowser(), []);
   const name = browserName(kind);
+
+  // The flag is the source of truth — set on the landing page and deliberately
+  // left alive by account creation so this page could still read it. The URL
+  // parameter rides along (the sign-up navigation carries it) so the decisions
+  // below never depend on the flag alone.
+  const isJoin = readJourney() === "join" || params.get("journey") === "join";
+  const standalone = useMemo(() => isStandalone(), []);
+
+  // Someone already running the installed app has nothing to install, so the
+  // destination is resolved on the spot — the flag's purpose is fulfilled and
+  // it dies with that decision.
+  useEffect(() => {
+    if (isJoin && standalone) clearJourney();
+  }, [isJoin, standalone]);
+  if (isJoin && standalone) return <Navigate to="/plan" replace />;
 
   // The step with no completion signal — finishing an install closes this page
   // rather than advancing it. Counting arrivals here is what makes the size of
@@ -261,7 +278,15 @@ export default function Install() {
         <button
           type="button"
           className="w-full py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
-          onClick={() => navigate("/onboarding?browser=1")}
+          onClick={() => {
+            // The flag's last read: the destination is chosen, so this is
+            // exactly where its life ends. The label is the same on both
+            // journeys; only where it leads differs — a Join user goes to
+            // their pending payment via the plan picker, whose guards send a
+            // trial straight to the deposit screen.
+            if (isJoin) clearJourney();
+            navigate(isJoin ? "/plan" : "/onboarding?browser=1");
+          }}
         >
           Continue in browser
         </button>

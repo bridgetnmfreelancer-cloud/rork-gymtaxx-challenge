@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Logo, Wordmark } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
+import { setJourney } from "@/lib/journey";
 import {
   CHALLENGE_WEEKS,
   REWARD_PER_WORKOUT,
@@ -95,20 +96,42 @@ export default function Landing() {
   const onAndroid = useMemo(() => isAndroid(), []);
 
   /**
-   * Send them wherever they actually need to go.
+   * The hero and closing buttons: today's journey, untouched.
    *
    * Most arrivals are cold Safari traffic that needs the install steps, but the
    * same link gets shared and reopened, so someone already signed in shouldn't
-   * be told to install an app they're standing inside.
+   * be told to install an app they're standing inside. Install comes first
+   * because on iPhone only the installed app keeps a session — answers given
+   * in the browser would not survive the install.
    */
-  const start = useCallback((): void => {
+  const startGetApp = useCallback((): void => {
     // Separates "read the page and left" from "read the page and wanted in",
     // which are very different problems to fix.
     void recordVisit("join_tapped");
 
+    setJourney("getapp");
+
     if (session) navigate("/home");
     else if (isStandalone()) navigate("/onboarding");
     else navigate("/install");
+  }, [navigate, session]);
+
+  /**
+   * The header pill: the onboarding-first experiment.
+   *
+   * The hypothesis under test — someone who taps the small pill may want to
+   * explore before installing, so they build the challenge and create the
+   * account first and meet the install page on the way to payment. Already
+   * installed, there is nothing to install: straight into onboarding as
+   * today.
+   */
+  const startJoin = useCallback((): void => {
+    void recordVisit("join_tapped");
+
+    setJourney("join");
+
+    if (session) navigate("/home");
+    else navigate("/onboarding");
   }, [navigate, session]);
 
   /**
@@ -121,10 +144,12 @@ export default function Landing() {
   const joinAndroid = useCallback((): void => {
     void recordVisit("join_tapped", "android_tally");
     if (ANDROID_SIGNUP_URL.length > 0) window.open(ANDROID_SIGNUP_URL, "_blank", "noopener,noreferrer");
-    else start();
-  }, [start]);
+    else startGetApp();
+  }, [startGetApp]);
 
-  const join = onAndroid ? joinAndroid : start;
+  /** The nav pill is the only tap that runs the Join journey. */
+  const joinNav = onAndroid ? joinAndroid : startJoin;
+  const joinApp = onAndroid ? joinAndroid : startGetApp;
 
   return (
     <div className="min-h-full bg-background">
@@ -150,7 +175,7 @@ export default function Landing() {
             </a>
 
             <Button
-              onClick={join}
+              onClick={joinNav}
               className="h-11 rounded-full bg-accent px-5 text-base font-semibold text-success-ink hover:bg-accent/90 sm:px-6"
             >
               Join Now
@@ -178,7 +203,7 @@ export default function Landing() {
           <div className="mt-10 w-full animate-rise-in [animation-delay:160ms]">
             <Button
               size="xl"
-              onClick={join}
+              onClick={joinApp}
               className="w-full rounded-full bg-accent text-success-ink hover:bg-accent/90 lg:w-auto lg:px-14"
             >
               {onAndroid ? "Get GymTaxx on Android" : "Download the app"}
@@ -280,7 +305,7 @@ export default function Landing() {
 
           <Button
             size="xl"
-            onClick={join}
+            onClick={joinApp}
             className="mt-10 w-full rounded-full bg-accent uppercase tracking-wide text-success-ink hover:bg-accent/90 lg:w-auto lg:px-14"
           >
             Join the challenge

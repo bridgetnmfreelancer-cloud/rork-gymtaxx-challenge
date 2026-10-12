@@ -64,15 +64,22 @@ export async function ensureParticipation({
   goal,
   weeks,
   existing,
+  respectExistingGoal = false,
 }: {
   userId: string;
   challengeId: string;
   goal: number;
   weeks: number;
   existing: UserChallengeRow | null;
+  /**
+   * Set when the goal on this phone was never actually chosen — a freshly
+   * installed app holds empty answers, and the caller's goal is only the
+   * default. The row keeps its own goal rather than being silently repriced.
+   */
+  respectExistingGoal?: boolean;
 }): Promise<UserChallengeRow> {
   if (existing && existing.payment_status === "unpaid" && existing.challenge_id === challengeId) {
-    if (existing.goal_workouts_per_week === goal) return existing;
+    if (respectExistingGoal || existing.goal_workouts_per_week === goal) return existing;
 
     // They changed their mind about the goal before paying, so the deposit
     // amount changes with it.

@@ -119,29 +119,44 @@ export default function Onboarding() {
       <StepProgress {...flowProgress(stage)} onBack={index === 0 ? null : goBack} />
 
       {stage === "problem" ? (
-        // The whole panel is the control. There is nothing to decide here, and a
-        // button would imply there was.
-        <button
-          type="button"
-          onClick={goNext}
-          className="flex flex-1 flex-col text-left active:opacity-70 transition-opacity"
-        >
-          <div className="pt-10">
-            <p className="text-display leading-[1.1] text-foreground animate-rise-in">
-              You know how you've been telling yourself you'll be consistent with the gym, but somehow it never happens?
-            </p>
-            <p className="mt-8 text-2xl font-semibold leading-snug text-foreground animate-rise-in [animation-delay:700ms]">
-              You're not alone.
-            </p>
-            <p className="mt-3 text-2xl font-semibold leading-snug text-muted-foreground animate-rise-in [animation-delay:1100ms]">
-              90% of people stop going to the gym consistently after only 3 months.
-            </p>
-          </div>
+        <div className="flex flex-1 flex-col">
+          {/* The whole panel is the control. There is nothing to decide here, and a
+              button would imply there was. */}
+          <button
+            type="button"
+            onClick={goNext}
+            className="flex flex-1 flex-col text-left active:opacity-70 transition-opacity"
+          >
+            <div className="pt-10">
+              <p className="text-display leading-[1.1] text-foreground animate-rise-in">
+                You know how you've been telling yourself you'll be consistent with the gym, but somehow it never happens?
+              </p>
+              <p className="mt-8 text-2xl font-semibold leading-snug text-foreground animate-rise-in [animation-delay:700ms]">
+                You're not alone.
+              </p>
+              <p className="mt-3 text-2xl font-semibold leading-snug text-muted-foreground animate-rise-in [animation-delay:1100ms]">
+                90% of people stop going to the gym consistently after only 3 months.
+              </p>
+            </div>
 
-          <span className="mt-auto py-8 text-center text-sm font-medium text-muted-foreground animate-rise-in [animation-delay:1900ms]">
-            Tap to continue
-          </span>
-        </button>
+            <span className="mt-auto py-8 text-center text-sm font-medium text-muted-foreground animate-rise-in [animation-delay:1900ms]">
+              Tap to continue
+            </span>
+          </button>
+
+          {/* The way in for someone who already has an account — most relevant
+              after an install, where the app's storage is fresh and the person
+              is not. Mid-flow mode keeps the progress bar on the account
+              screen; signing in there reads their challenge from the database
+              and resumes it, rather than repeating any of this. */}
+          <button
+            type="button"
+            onClick={() => navigate("/welcome", { state: { fromFlow: true } })}
+            className="mb-5 w-full py-3 text-center text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Already have an account? <span className="font-semibold text-foreground">Log in</span>
+          </button>
+        </div>
       ) : null}
 
       {stage === "mechanism" ? (

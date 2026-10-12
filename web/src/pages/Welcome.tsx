@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthProvider";
 import { suggestEmailFix } from "@/lib/email";
-import { enrolQuietly } from "@/lib/enrol";
+import { enrolQuietly, resumeDestination } from "@/lib/enrol";
+import { postSignupRoute } from "@/lib/journey";
 import { flowProgress } from "@/lib/flow";
 import { isIOS, isStandalone } from "@/lib/pwa";
 import { supabase } from "@/lib/supabase";
@@ -97,23 +98,44 @@ export default function Welcome() {
         const userId = created.session?.user.id;
         const result = userId ? await enrolQuietly(userId) : null;
 
-        // Straight to the paywall. They have already built the challenge and
-        // read the deposit, so there is nothing left to explain — and a trial
-        // has no plans to pick, so it goes straight to its deposit.
-        navigate(result?.kind === "trial" ? "/pay" : "/plan", { replace: true });
+        // Where account creation leads is journey-dependent: the header-join
+        // experiment meets the install page here — after the account exists —
+        // while today's journey goes straight to the paywall. The route
+        // resolver reads (and, inside the installed app, clears) the flag; the
+        // URL parameter rides along so the install page's decision never
+        // depends on the flag alone.
+        const route = postSignupRoute(result?.kind ?? null);
+        if (route === "install") {
+          navigate("/install?journey=join", { replace: true });
+          return;
+        }
+        navigate(route === "pay" ? "/pay" : "/plan", { replace: true });
       } else {
         await signIn(email, password);
         // Someone logging back in has already been through all of that. If they
-        // arrived mid-flow — say from a trial link shared with existing users —
-        // finish what they started: enrol at the goal they picked and go
-        // straight to the paywall. Otherwise Home reads their actual state and
-        // shows the dashboard if they've paid, or the start screen if they
-        // haven't, which is the right landing place for a plain return visit.
+        // arrived mid-flow — from a trial link, or from the log-in link on the
+        // opening screen after an install — their destination is resolved from
+        // the server, not from this phone: a freshly installed app holds empty
+        // answers, and enroling from those would have repriced their row to
+        // the default goal. Only an account that has never answered (someone
+        // whose sign-up enrolment failed) still enrols from the answers here.
+        // Otherwise Home reads their actual state and shows the dashboard if
+        // they've paid, or the start screen if they haven't.
         if (isInFlow) {
           const { data: created } = await supabase.auth.getSession();
           const userId = created.session?.user.id;
-          const result = userId ? await enrolQuietly(userId) : null;
-          navigate(result?.kind === "trial" ? "/pay" : "/plan", { replace: true });
+          if (!userId) {
+            navigate("/home", { replace: true });
+            return;
+          }
+
+          const resumed = await resumeDestination(userId);
+          if (resumed === "fresh") {
+            const result = await enrolQuietly(userId);
+            navigate(result?.kind === "trial" ? "/pay" : "/plan", { replace: true });
+            return;
+          }
+          navigate(resumed === "plan" ? "/plan" : resumed === "pay" ? "/pay" : "/home", { replace: true });
         } else {
           navigate("/home", { replace: true });
         }
