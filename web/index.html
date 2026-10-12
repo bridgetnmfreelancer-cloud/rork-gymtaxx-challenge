@@ -93,6 +93,20 @@
         document.head.appendChild(gaScript);
       }
     </script>
+
+    <!-- Mouseflow session replay. Same production-domain guard as GA4 above,
+         so preview and local builds are never recorded. -->
+    <script>
+      if (window.location.hostname === 'app.gymtaxx.com') {
+        window._mfq = window._mfq || [];
+        (function() {
+          var mf = document.createElement('script');
+          mf.type = 'text/javascript'; mf.defer = true;
+          mf.src = '//cdn.mouseflow.com/projects/bd04154c-444a-4414-95b8-b37f4b6c19d4.js';
+          document.getElementsByTagName('head')[0].appendChild(mf);
+        })();
+      }
+    </script>
   </head>
 
   <body>
