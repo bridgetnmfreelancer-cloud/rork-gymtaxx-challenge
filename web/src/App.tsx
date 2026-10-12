@@ -17,6 +17,7 @@ import Commit from "./pages/Commit";
 import CreatorDemo from "./pages/CreatorDemo";
 import Entry from "./pages/Entry";
 import ForgotPassword from "./pages/ForgotPassword";
+import GoogleVerification from "./pages/GoogleVerification";
 import History from "./pages/History";
 import Home from "./pages/Home";
 import Install from "./pages/Install";
@@ -97,6 +98,10 @@ const App = () => (
             <Route path="/trial" element={<BuildChallenge />} />
             <Route path="/install" element={<Install />} />
             <Route path="/welcome" element={<Welcome />} />
+            {/* Search Console ownership check: Google fetches this exact URL.
+                Served by the router because the publisher blocks raw HTML
+                files in public/. */}
+            <Route path="/googlee4bc7fef234f1d05.html" element={<GoogleVerification />} />
 
             {PUBLIC_FLOW_ROUTES.map((route) => (
               <Route key={route.path} path={route.path} element={route.element} />
