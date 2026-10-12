@@ -124,10 +124,10 @@ const App = () => (
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
-
-            {/* Inside the router because it reads the location. */}
-            <GaPageViewTracker />
           </Routes>
+          {/* A sibling of Routes, not a child — Routes only accepts Route
+              elements. Inside the router because it reads the location. */}
+          <GaPageViewTracker />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
