@@ -76,6 +76,23 @@
     src="https://www.facebook.com/tr?id=1037615782556108&ev=PageView&noscript=1"
     /></noscript>
     <!-- End Meta Pixel Code -->
+
+    <!-- Google Analytics 4. Loads only on the production domain — previews and
+         local builds measure nothing. Automatic page views are disabled in the
+         config because the app is an SPA: GaPageViewTracker sends exactly one
+         page_view per screen, so GA4 never counts a duplicate. -->
+    <script>
+      if (window.location.hostname === 'app.gymtaxx.com') {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-D857WR9NBX', { send_page_view: false });
+        var gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-D857WR9NBX';
+        document.head.appendChild(gaScript);
+      }
+    </script>
   </head>
 
   <body>

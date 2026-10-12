@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import { AppOpenTracker } from "@/components/AppOpenTracker";
+import { GaPageViewTracker } from "@/components/GaPageViewTracker";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { PushSync } from "@/components/PushSync";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -123,6 +124,9 @@ const App = () => (
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
+
+            {/* Inside the router because it reads the location. */}
+            <GaPageViewTracker />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
