@@ -7,23 +7,22 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthProvider";
 import { setJourney } from "@/lib/journey";
 import {
-  CHALLENGE_WEEKS,
   REWARD_PER_WORKOUT,
-  WEEKLY_GOALS,
   currencyForRegion,
   currencySymbol,
   depositFor,
   formatMoney,
-  totalWorkouts,
 } from "@/lib/money";
 import { isAndroid, isStandalone } from "@/lib/pwa";
 import { recordVisit } from "@/lib/visitor";
 
 /**
- * The smallest goal, used for the worked example in step two — the same one the
- * marketing site quotes.
+ * The worked example in step two — the shortest challenge at a common goal.
+ * Challenge length now varies, so the copy explains what the deposit depends
+ * on (goal and length) instead of quoting a fixed per-workout price.
  */
-const EXAMPLE_GOAL = WEEKLY_GOALS[0];
+const EXAMPLE_GOAL = 4;
+const EXAMPLE_WEEKS = 1;
 
 /**
  * Where Android arrivals go instead of the install flow — the manual,
@@ -78,8 +77,7 @@ export default function Landing() {
   const currency = useMemo(() => currencyForRegion(), []);
   const symbol = currencySymbol(currency);
   const perWorkout = `${symbol}${REWARD_PER_WORKOUT}`;
-  const exampleWorkouts = totalWorkouts(EXAMPLE_GOAL);
-  const exampleDeposit = formatMoney(depositFor(EXAMPLE_GOAL), currency);
+  const exampleDeposit = formatMoney(depositFor(EXAMPLE_GOAL, EXAMPLE_WEEKS), currency);
 
   useEffect(() => {
     document.title = "GymTaxx | Finally stay consistent with the gym";
@@ -235,9 +233,9 @@ export default function Landing() {
             <Step icon={Target} index="01" title="Set your weekly goal">
               Choose how many times you'll go to the gym each week.
             </Step>
-            <Step icon={Wallet} index="02" title={`Deposit ${perWorkout} per workout`}>
-              We'll calculate your refundable deposit. Complete a workout and earn back {perWorkout}. For example:{" "}
-              {EXAMPLE_GOAL} workouts/week = {exampleWorkouts} workouts per month = {exampleDeposit} deposit.
+            <Step icon={Wallet} index="02" title="Make a commitment deposit (fully refundable)">
+              Your fully refundable deposit depends on your goal and challenge length. For example, {EXAMPLE_GOAL}{" "}
+              workouts per week for 1 week = {exampleDeposit} deposit.
             </Step>
             <Step icon={Camera} index="03" title="Verify your workouts">
               Every workout must be verified with a gym photo and location before it counts.
