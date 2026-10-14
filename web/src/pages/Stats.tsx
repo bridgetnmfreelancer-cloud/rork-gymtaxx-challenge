@@ -702,33 +702,6 @@ export default function Stats() {
         </p>
       </Card>
 
-      <Card title="Visitors by day">
-        {data.visitsByDay.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing yet.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-muted-foreground">
-                <th className="pb-2 text-left font-medium">Day</th>
-                <th className="pb-2 text-right font-medium">Visited</th>
-                <th className="pb-2 text-right font-medium">Join</th>
-                <th className="pb-2 text-right font-medium">Install</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.visitsByDay.map((bucket) => (
-                <tr key={bucket.date} className="border-t border-border">
-                  <td className="py-2 text-left text-foreground">{dayLabel(bucket.date)}</td>
-                  <td className="tabular py-2 text-right text-foreground">{bucket.arrivals}</td>
-                  <td className="tabular py-2 text-right text-muted-foreground">{bucket.tappedJoin}</td>
-                  <td className="tabular py-2 text-right text-muted-foreground">{bucket.reachedInstall}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-
       {/* Kept apart on purpose. The deposit total is money being held on other
           people's behalf and expected to go back to them; only the fee is
           income. Showing one number for both would overstate revenue roughly
@@ -833,14 +806,6 @@ export default function Stats() {
               what happens when a challenge ends — this is the clock on that.
             </p>
           </>
-        )}
-      </Card>
-
-      <Card title="Every step">
-        {signedUp === 0 ? (
-          <p className="text-sm text-muted-foreground">Nobody signed up in this range.</p>
-        ) : (
-          <Funnel stages={data.stages} steps={data.steps} />
         )}
       </Card>
 
