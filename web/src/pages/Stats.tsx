@@ -356,7 +356,9 @@ function Funnel({ stages, steps }: { stages: Stage[]; steps: Step[] }) {
   const worstIndex = steps.findIndex((step) => step.lost === worstLost && step.lost > 0);
 
   return (
-    <div>
+    // The space-y keeps each bar visually attached to its own label above it —
+    // without it the next metric crowds straight up against the bar.
+    <div className="space-y-5">
       {stages.map((stage, index) => (
         <div key={stage.key}>
           <StageBar stage={stage} top={top} />
@@ -629,7 +631,7 @@ export default function Stats() {
           <>
             <Funnel stages={data.journey.stages} steps={data.journey.steps} />
             <p className="mt-4 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
-              The first five rows count browsers; “Started onboarding” and “Saw the paywall” count browsers plus the
+              The first six rows count browsers; “Started onboarding” and “Saw the paywall” count browsers plus the
               installed app, where those screens also appear; the rest count accounts. The join between them is the
               install, and an installed app gets its own private storage on iPhone, so someone who installs comes back
               looking like a brand new visitor and cannot be matched to the advert they arrived from.

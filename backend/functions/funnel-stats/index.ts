@@ -475,7 +475,7 @@ function buildArrivals(visits: VisitRow[]) {
  * The whole journey on one ladder, from landing-page tap to deposit paid.
  *
  * Deliberately spans two different measuring systems, because no single one can
- * see the whole thing. The first five rungs count anonymous browsers; "started
+ * see the whole thing. The first six rungs count anonymous browsers; "started
  * onboarding" and "saw the paywall" count browsers plus the installed app
  * (both happen inside it too); the rest count accounts. The join between them
  * is the install, and on iPhone an installed app is given its own private
@@ -491,6 +491,11 @@ function buildJourney(visits: VisitRow[], rows: FunnelRow[], chosePlan: Set<stri
   const browser = visits.filter((visit) => !visit.is_standalone);
 
   const stages: Stage[] = [
+    {
+      key: "landed",
+      label: "Saw the landing page",
+      count: browser.filter((v) => v.landed_at !== null).length,
+    },
     { key: "tapped_join", label: "Clicked join", count: browser.filter((v) => v.tapped_join_at !== null).length },
     {
       key: "get_app",
