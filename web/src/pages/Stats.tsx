@@ -101,11 +101,14 @@ type Stats = {
   people: Person[];
 };
 
-const RANGES: { days: number; label: string }[] = [
-  { days: 1, label: "Today" },
-  { days: 7, label: "7 days" },
-  { days: 30, label: "30 days" },
-  { days: 0, label: "All" },
+type RangeKey = "daily" | "seven" | "thirty" | "all" | "custom";
+
+const RANGES: { key: RangeKey; days: number; label: string }[] = [
+  { key: "daily", days: 1, label: "Daily" },
+  { key: "seven", days: 7, label: "7 days" },
+  { key: "thirty", days: 30, label: "30 days" },
+  { key: "all", days: 0, label: "All" },
+  { key: "custom", days: -1, label: "Custom" },
 ];
 
 const STAGE_NAMES: Record<string, string> = {
@@ -271,6 +274,27 @@ function dateLabel(iso: string): string {
   }).format(new Date(iso));
 }
 
+/** "4 Oct" — one end of the custom range, under the title. */
+function shortDate(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(
+    new Date(`${iso}T12:00:00Z`),
+  );
+}
+
+/**
+ * A London calendar date, YYYY-MM-DD, `offset` days back from today.
+ *
+ * Defaults for the custom range pickers — computed in the report zone so the
+ * inputs open on the same days the endpoint treats as "today".
+ */
+function londonDate(offset: number): string {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+  const [year, month, day] = today.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day - offset));
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+}
+
 /** One bar in a funnel, sized against the number who entered the funnel. */
 function StageBar({ stage, top }: { stage: Stage; top: number }) {
   const share = top === 0 ? 0 : Math.round((stage.count / top) * 100);
@@ -370,11 +394,20 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
  * rather than other people's email addresses.
  */
 export default function Stats() {
-  const [days, setDays] = useState<number>(1);
+  const [range, setRange] = useState<RangeKey>("daily");
+  const [from, setFrom] = useState<string>(() => londonDate(29));
+  const [to, setTo] = useState<string>(() => londonDate(0));
+  const customReady = from !== "" && to !== "" && from <= to;
+
+  const requestBody =
+    range === "custom"
+      ? { from, to }
+      : { days: RANGES.find((entry) => entry.key === range)?.days ?? 1 };
 
   const { data: raw, isLoading, isError } = useQuery({
-    queryKey: ["funnel", days],
-    queryFn: () => callFunction<Partial<Stats>>("funnel-stats", { days }),
+    queryKey: ["funnel", range, from, to],
+    queryFn: () => callFunction<Partial<Stats>>("funnel-stats", requestBody),
+    enabled: range !== "custom" || customReady,
     staleTime: 60_000,
     retry: 0,
   });
@@ -468,7 +501,7 @@ export default function Stats() {
     URL.revokeObjectURL(url);
   }, [people]);
 
-  if (isLoading) {
+  if (isLoading || (range === "custom" && !customReady)) {
     return (
       <Screen>
         <div className="flex flex-1 items-center justify-center">
@@ -513,28 +546,55 @@ export default function Stats() {
     <Screen className="pb-12">
       <header className="py-4">
         <ScreenTitle className="text-title">Funnel</ScreenTitle>
-        <p className="mt-1 text-sm text-muted-foreground">London time · updates on open</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {range === "custom" && customReady
+            ? `${shortDate(from)} to ${shortDate(to)} · London time`
+            : "London time · updates on open"}
+        </p>
       </header>
 
       <div className="flex gap-2" role="tablist" aria-label="Date range">
-        {RANGES.map((range) => (
+        {RANGES.map((entry) => (
           <button
-            key={range.days}
+            key={entry.key}
             type="button"
             role="tab"
-            aria-selected={days === range.days}
-            onClick={() => setDays(range.days)}
+            aria-selected={range === entry.key}
+            onClick={() => setRange(entry.key)}
             className={cn(
               "flex-1 rounded-md py-2 text-sm font-semibold transition-colors",
-              days === range.days
+              range === entry.key
                 ? "bg-foreground text-background"
                 : "bg-card text-muted-foreground hover:text-foreground",
             )}
           >
-            {range.label}
+            {entry.label}
           </button>
         ))}
       </div>
+
+      {range === "custom" ? (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="date"
+            value={from}
+            max={to}
+            onChange={(event) => setFrom(event.target.value)}
+            aria-label="From date"
+            className="min-w-0 flex-1 rounded-md bg-card px-3 py-2 text-sm text-foreground [color-scheme:dark]"
+          />
+          <span className="shrink-0 text-xs text-muted-foreground">to</span>
+          <input
+            type="date"
+            value={to}
+            min={from}
+            max={londonDate(0)}
+            onChange={(event) => setTo(event.target.value)}
+            aria-label="To date"
+            className="min-w-0 flex-1 rounded-md bg-card px-3 py-2 text-sm text-foreground [color-scheme:dark]"
+          />
+        </div>
+      ) : null}
 
       <div className="mt-6 grid grid-cols-4 gap-2">
         <div className="rounded-lg bg-card p-3 text-center">

@@ -71,18 +71,25 @@ function zoneOffsetMs(instant: Date, timeZone: string): number {
 }
 
 /**
- * Midnight in London, `daysBack` days ago.
+ * Midnight in London on a calendar date. Day numbers outside the month roll over
+ * the way `Date.UTC` always has, so "the 1st minus one" is the last of the
+ * previous month.
  *
  * Resolved twice because the first correction can land on the other side of a
  * clock change, which would otherwise put the boundary an hour out twice a year.
  */
-function londonMidnightDaysAgo(daysBack: number): Date {
-  const now = new Date();
-  const p = zonedParts(now, REPORT_ZONE);
-  const wall = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)) - daysBack * 86_400_000;
+function londonMidnight(year: number, month: number, day: number): Date {
+  const wall = Date.UTC(year, month - 1, day);
   let instant = wall - zoneOffsetMs(new Date(wall), REPORT_ZONE);
   instant = wall - zoneOffsetMs(new Date(instant), REPORT_ZONE);
   return new Date(instant);
+}
+
+/** Midnight in London, `daysBack` days ago. */
+function londonMidnightDaysAgo(daysBack: number): Date {
+  const now = new Date();
+  const p = zonedParts(now, REPORT_ZONE);
+  return londonMidnight(Number(p.year), Number(p.month), Number(p.day) - daysBack);
 }
 
 /** The London calendar date an instant falls on, as YYYY-MM-DD. */
@@ -544,7 +551,10 @@ function buildPlaces(rows: FunnelRow[]): { place: string; count: number }[] {
     .sort((a, b) => b.count - a.count);
 }
 
-type StatsRequest = { days?: number };
+type StatsRequest = { days?: number; from?: string; to?: string };
+
+/** A strict YYYY-MM-DD calendar date, as the browser date inputs send them. */
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -561,10 +571,33 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json().catch(() => ({}))) as StatsRequest;
-    // 1 means "today so far". 0 means everything, which is what a launch-week
-    // operator actually wants as a baseline.
-    const days = [0, 1, 7, 30].includes(Number(body.days)) ? Number(body.days) : 1;
-    const since = days === 0 ? new Date(0) : londonMidnightDaysAgo(days - 1);
+
+    // A custom range carries its own bounds: both ends are London calendar
+    // dates, `since` is midnight on the first and `until` is midnight the day
+    // after the last, so the end day itself is counted. A nonsense `to` (earlier
+    // than `from`, or absent) collapses the range to the single `from` day
+    // rather than erroring — the client prevents it anyway.
+    const fromDate = typeof body.from === "string" && DATE_PATTERN.test(body.from) ? body.from : null;
+    const toDate = typeof body.to === "string" && DATE_PATTERN.test(body.to) ? body.to : null;
+
+    let since: Date;
+    let until: Date | null = null;
+    let days: number;
+
+    if (fromDate) {
+      const [fromYear, fromMonth, fromDay] = fromDate.split("-").map(Number);
+      since = londonMidnight(fromYear, fromMonth, fromDay);
+      const endDate = toDate && toDate >= fromDate ? toDate : fromDate;
+      const [toYear, toMonth, toDay] = endDate.split("-").map(Number);
+      until = londonMidnight(toYear, toMonth, toDay + 1);
+      days = -1;
+    } else {
+      // 1 means "today so far". 0 means everything, which is what a launch-week
+      // operator actually wants as a baseline.
+      days = [0, 1, 7, 30].includes(Number(body.days)) ? Number(body.days) : 1;
+      since = days === 0 ? new Date(0) : londonMidnightDaysAgo(days - 1);
+    }
+    const bound = until;
 
     const admin = createAdminClient();
     const { data, error } = await admin.rpc("admin_funnel_rows", { p_since: since.toISOString() });
@@ -574,7 +607,12 @@ Deno.serve(async (req) => {
       return json({ error: "query_failed" }, 500);
     }
 
-    const rows = (data ?? []) as FunnelRow[];
+    // The reporting function only takes a start, so a custom range's end is
+    // applied here on the same column it starts on. Every stage, the day buckets
+    // and the people list all derive from `rows`, so one filter covers them all.
+    const rows = ((data ?? []) as FunnelRow[]).filter(
+      bound ? (row) => new Date(row.signed_up_at).getTime() < bound.getTime() : () => true,
+    );
 
     // The money split and the plan choice both live on the participation row.
     // Read separately rather than widening the reporting function, so a failure
@@ -583,14 +621,18 @@ Deno.serve(async (req) => {
     const moneyRows = await readAll<MoneyRow>(
       admin,
       "money query",
-      (range) =>
-        admin
+      (range) => {
+        // Supabase query builders are immutable, so a conditional `.lt`
+        // rebuilds the chain rather than mutating one in place.
+        let query = admin
           .from("user_challenges")
           .select(
             "user_id, plan, deposit_minor, fee_minor, currency, payment_status, goal_workouts_per_week, challenges(number_of_weeks, reward_per_workout)",
           )
-          .gte("created_at", since.toISOString())
-          .range(range.from, range.to),
+          .gte("created_at", since.toISOString());
+        if (bound) query = query.lt("created_at", bound.toISOString());
+        return query.range(range.from, range.to);
+      },
     );
 
     // Challenges live right now, read independently of the range. The candidate
@@ -681,14 +723,16 @@ Deno.serve(async (req) => {
     const visits = await readAll<VisitRow>(
       admin,
       "visits query",
-      (range) =>
-        admin
+      (range) => {
+        let query = admin
           .from("visits")
           .select(
             "visitor_id, first_seen_at, landed_at, tapped_join_at, reached_install_at, reached_signup_at, signed_up_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
           )
-          .gte("first_seen_at", since.toISOString())
-          .range(range.from, range.to),
+          .gte("first_seen_at", since.toISOString());
+        if (bound) query = query.lt("first_seen_at", bound.toISOString());
+        return query.range(range.from, range.to);
+      },
     );
 
     // The first visit ever recorded, regardless of the range being viewed.
@@ -712,6 +756,7 @@ Deno.serve(async (req) => {
 
     return json({
       since: since.toISOString(),
+      until: bound ? bound.toISOString() : null,
       days,
       stages,
       steps,
