@@ -22,6 +22,7 @@ import {
   type PlanId,
 } from "@/lib/plans";
 import { queryKeys, useCurrentChallenge, useParticipation, useProfile } from "@/lib/queries";
+import { recordVisit } from "@/lib/visitor";
 import { cn } from "@/lib/utils";
 
 /**
@@ -83,6 +84,9 @@ export default function PlanPicker() {
     // plans, and the funnel must not count a paywall view that never showed.
     if (!isProfileLoading && !isDecisionLoading && !showIntro && !isTrial) {
       trackIntent("InitiateCheckout");
+      // The journey's "saw paywall": anchored to the same moment as the pixel,
+      // so the two tools can never disagree about what was counted.
+      void recordVisit("saw_paywall");
     }
   }, [isProfileLoading, isDecisionLoading, showIntro, isTrial]);
 

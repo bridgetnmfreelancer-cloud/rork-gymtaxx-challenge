@@ -20,7 +20,17 @@ const VISITOR_KEY = "gymtaxx.visitor";
 const ATTRIBUTION_KEY = "gymtaxx.visitor.attribution";
 
 /** The stages an arrival passes through before an account exists. */
-export type VisitStep = "landing" | "join_tapped" | "install" | "signup_form" | "signed_up";
+export type VisitStep =
+  | "landing"
+  | "join_tapped"
+  | "get_app"
+  | "android_tally"
+  | "install"
+  | "continue_browser"
+  | "onboarding"
+  | "signup_form"
+  | "signed_up"
+  | "saw_paywall";
 
 /** This browser's anonymous id plus where it came from. */
 export type VisitorContext = {

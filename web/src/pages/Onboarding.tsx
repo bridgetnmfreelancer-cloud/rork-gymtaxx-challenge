@@ -1,5 +1,5 @@
 import { Banknote, Camera, Target, XCircle } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ChoiceButton } from "@/components/ChoiceButton";
@@ -30,6 +30,7 @@ import {
   type OnboardingAnswers,
   type StrugglingId,
 } from "@/lib/onboarding";
+import { recordVisit } from "@/lib/visitor";
 
 type Stage = "problem" | "mechanism" | "habit" | "goal" | "blocker" | "motivation" | "struggling" | "summary";
 
@@ -70,6 +71,12 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<OnboardingAnswers>(() => loadAnswers());
   const [stage, setStage] = useState<Stage>(() => resumeStage(loadAnswers()));
+
+  // The start of the conversation — the first question screen appearing. The
+  // database keeps only the first timestamp, so resuming never re-counts.
+  useEffect(() => {
+    void recordVisit("onboarding");
+  }, []);
 
   const index = ORDER.indexOf(stage);
 

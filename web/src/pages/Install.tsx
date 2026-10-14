@@ -279,6 +279,10 @@ export default function Install() {
           type="button"
           className="w-full py-2 text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
           onClick={() => {
+            // The tap itself, not a proxy: the journey needs the people who
+            // chose the browser here, including the ones who never reach the
+            // signup form afterwards.
+            void recordVisit("continue_browser");
             // The flag's last read: the destination is chosen, so this is
             // exactly where its life ends. The label is the same on both
             // journeys; only where it leads differs — a Join user goes to

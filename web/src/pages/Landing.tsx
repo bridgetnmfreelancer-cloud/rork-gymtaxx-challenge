@@ -14,7 +14,7 @@ import {
   formatMoney,
 } from "@/lib/money";
 import { isAndroid, isStandalone } from "@/lib/pwa";
-import { recordVisit } from "@/lib/visitor";
+import { recordVisit, type VisitStep } from "@/lib/visitor";
 
 /**
  * The worked example in step two — the shortest challenge at a common goal.
@@ -102,10 +102,14 @@ export default function Landing() {
    * because on iPhone only the installed app keeps a session — answers given
    * in the browser would not survive the install.
    */
-  const startGetApp = useCallback((): void => {
-    // Separates "read the page and left" from "read the page and wanted in",
-    // which are very different problems to fix.
-    void recordVisit("join_tapped");
+  /**
+   * The install-first flow, shared by the hero and the closing button. Only the
+   * measurement differs: the wording on the button decides which journey step a
+   * tap counts towards — "Download the app" is its own step, "Join the
+   * challenge" reads as a join tap.
+   */
+  const startAppFlow = useCallback((step: VisitStep): void => {
+    void recordVisit(step);
 
     setJourney("getapp");
 
@@ -113,6 +117,14 @@ export default function Landing() {
     else if (isStandalone()) navigate("/onboarding");
     else navigate("/install");
   }, [navigate, session]);
+
+  const startGetApp = useCallback((): void => {
+    startAppFlow("get_app");
+  }, [startAppFlow]);
+
+  const startClosing = useCallback((): void => {
+    startAppFlow("join_tapped");
+  }, [startAppFlow]);
 
   /**
    * The header pill: the onboarding-first experiment.
@@ -140,7 +152,9 @@ export default function Landing() {
    * without reading as iPhone install progress they will never become.
    */
   const joinAndroid = useCallback((): void => {
-    void recordVisit("join_tapped", "android_tally");
+    // Its own step rather than a tagged join tap: the report counts Android
+    // form exits separately from the iPhone flows they never become.
+    void recordVisit("android_tally");
     if (ANDROID_SIGNUP_URL.length > 0) window.open(ANDROID_SIGNUP_URL, "_blank", "noopener,noreferrer");
     else startGetApp();
   }, [startGetApp]);
@@ -148,6 +162,7 @@ export default function Landing() {
   /** The nav pill is the only tap that runs the Join journey. */
   const joinNav = onAndroid ? joinAndroid : startJoin;
   const joinApp = onAndroid ? joinAndroid : startGetApp;
+  const closingApp = onAndroid ? joinAndroid : startClosing;
 
   return (
     <div className="min-h-full bg-background">
@@ -303,7 +318,7 @@ export default function Landing() {
 
           <Button
             size="xl"
-            onClick={joinApp}
+            onClick={closingApp}
             className="mt-10 w-full rounded-full bg-accent uppercase tracking-wide text-success-ink hover:bg-accent/90 lg:w-auto lg:px-14"
           >
             Join the challenge

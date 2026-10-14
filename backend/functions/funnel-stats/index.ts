@@ -405,9 +405,14 @@ type VisitRow = {
   first_seen_at: string;
   landed_at: string | null;
   tapped_join_at: string | null;
+  get_app_at: string | null;
+  android_tally_at: string | null;
   reached_install_at: string | null;
+  continue_browser_at: string | null;
+  onboarding_at: string | null;
   reached_signup_at: string | null;
   signed_up_at: string | null;
+  saw_paywall_at: string | null;
   source: string | null;
   campaign: string | null;
   referrer_host: string | null;
@@ -467,43 +472,78 @@ function buildArrivals(visits: VisitRow[]) {
 }
 
 /**
- * The whole journey on one ladder, from advert click to deposit paid.
+ * The whole journey on one ladder, from landing-page tap to deposit paid.
  *
  * Deliberately spans two different measuring systems, because no single one can
- * see the whole thing. The first three rungs count anonymous browsers; the rest
- * count accounts. The join between them is the install, and on iPhone an
- * installed app is given its own private storage, so the person who installs
- * comes back indistinguishable from a stranger. Nothing can carry an id across
- * that gap.
+ * see the whole thing. The first five rungs count anonymous browsers; "started
+ * onboarding" and "saw the paywall" count browsers plus the installed app
+ * (both happen inside it too); the rest count accounts. The join between them
+ * is the install, and on iPhone an installed app is given its own private
+ * storage, so the person who installs comes back indistinguishable from a
+ * stranger. Nothing can carry an id across that gap.
  *
- * The practical consequence is that the step from "reached the install steps"
- * to "signed up" is the one number here that is an estimate rather than a
- * count, and it reads wrong whenever the two sides cover different periods —
- * visitor tracking started long after the first accounts existed. The client
- * says so on screen rather than letting it be read as a real leak.
+ * No drop-off rows are computed between rungs: the first three taps are
+ * alternative exits from the landing page — a person does one of them, not all
+ * three — so a "stopped here" between them would invent a leak that isn't
+ * there. The bars read as shares of the biggest rung instead.
  */
-function buildJourney(visits: VisitRow[], rows: FunnelRow[]): { stages: Stage[]; steps: Step[] } {
+function buildJourney(visits: VisitRow[], rows: FunnelRow[], chosePlan: Set<string>): { stages: Stage[]; steps: Step[] } {
   const browser = visits.filter((visit) => !visit.is_standalone);
 
   const stages: Stage[] = [
-    { key: "landed", label: "Saw the landing page", count: browser.filter((v) => v.landed_at !== null).length },
-    { key: "tapped_join", label: "Tapped Join", count: browser.filter((v) => v.tapped_join_at !== null).length },
+    { key: "tapped_join", label: "Clicked join", count: browser.filter((v) => v.tapped_join_at !== null).length },
+    {
+      key: "get_app",
+      label: "Clicked Download the app",
+      count: browser.filter((v) => v.get_app_at !== null).length,
+    },
+    {
+      key: "android_tally",
+      label: "Clicked the Android option",
+      count: browser.filter((v) => v.android_tally_at !== null).length,
+    },
     {
       key: "reached_install",
       label: "Reached the install steps",
       count: browser.filter((v) => v.reached_install_at !== null).length,
     },
-    { key: "signed_up", label: "Signed up", count: rows.length },
-    { key: "answered", label: "Answered the questions", count: rows.filter((r) => r.answered).length },
+    {
+      key: "continue_browser",
+      label: "Clicked continue in browser",
+      count: browser.filter((v) => v.continue_browser_at !== null).length,
+    },
+    {
+      key: "onboarding",
+      label: "Started onboarding",
+      // The installed app runs onboarding too, so this counts both kinds of
+      // visitor row — a first-time-only stamp, so one person never counts twice
+      // within a row.
+      count: visits.filter((v) => v.onboarding_at !== null).length,
+    },
+    { key: "answered", label: "Finished the questions", count: rows.filter((r) => r.answered).length },
     {
       key: "built",
-      label: "Started setting up their challenge",
+      label: "Built a challenge",
       count: rows.filter((r) => r.has_challenge).length,
     },
-    { key: "paid", label: "Paid the deposit", count: rows.filter(isPaid).length },
+    {
+      key: "saw_paywall",
+      label: "Saw the paywall",
+      // Same reason as onboarding: the paywall shows inside the installed app
+      // as well as the browser.
+      count: visits.filter((v) => v.saw_paywall_at !== null).length,
+    },
+    {
+      key: "chose_plan",
+      label: "Chose a plan",
+      count: rows.filter((r) => chosePlan.has(r.user_id)).length,
+    },
+    { key: "paid", label: "Paid a deposit", count: rows.filter(isPaid).length },
   ];
 
-  return { stages, steps: buildSteps(stages) };
+  // Steps stay empty on purpose: empty steps render no drop-off rows on the
+  // card, which is exactly right for a ladder whose top is alternative exits.
+  return { stages, steps: [] };
 }
 
 /** Which ad or link brought them, first touch only. */
@@ -727,7 +767,7 @@ Deno.serve(async (req) => {
         let query = admin
           .from("visits")
           .select(
-            "visitor_id, first_seen_at, landed_at, tapped_join_at, reached_install_at, reached_signup_at, signed_up_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
+            "visitor_id, first_seen_at, landed_at, tapped_join_at, get_app_at, android_tally_at, reached_install_at, continue_browser_at, onboarding_at, reached_signup_at, signed_up_at, saw_paywall_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
           )
           .gte("first_seen_at", since.toISOString());
         if (bound) query = query.lt("first_seen_at", bound.toISOString());
@@ -760,7 +800,7 @@ Deno.serve(async (req) => {
       days,
       stages,
       steps,
-      journey: buildJourney(visits, rows),
+      journey: buildJourney(visits, rows, chosePlan),
       trackingStartedAt: firstVisit?.first_seen_at ?? null,
       arrivals: buildArrivals(visits),
       sources: buildSources(visits),

@@ -287,15 +287,20 @@ export type Database = {
       }
       visits: {
         Row: {
+          android_tally_at: string | null
           campaign: string | null
+          continue_browser_at: string | null
           first_seen_at: string
+          get_app_at: string | null
           is_in_app_browser: boolean
           is_standalone: boolean
           landed_at: string | null
           last_seen_at: string
+          onboarding_at: string | null
           reached_install_at: string | null
           reached_signup_at: string | null
           referrer_host: string | null
+          saw_paywall_at: string | null
           signed_up_at: string | null
           source: string | null
           tapped_join_at: string | null
@@ -303,15 +308,20 @@ export type Database = {
           visitor_id: string
         }
         Insert: {
+          android_tally_at?: string | null
           campaign?: string | null
+          continue_browser_at?: string | null
           first_seen_at?: string
+          get_app_at?: string | null
           is_in_app_browser?: boolean
           is_standalone?: boolean
           landed_at?: string | null
           last_seen_at?: string
+          onboarding_at?: string | null
           reached_install_at?: string | null
           reached_signup_at?: string | null
           referrer_host?: string | null
+          saw_paywall_at?: string | null
           signed_up_at?: string | null
           source?: string | null
           tapped_join_at?: string | null
@@ -319,15 +329,20 @@ export type Database = {
           visitor_id: string
         }
         Update: {
+          android_tally_at?: string | null
           campaign?: string | null
+          continue_browser_at?: string | null
           first_seen_at?: string
+          get_app_at?: string | null
           is_in_app_browser?: boolean
           is_standalone?: boolean
           landed_at?: string | null
           last_seen_at?: string
+          onboarding_at?: string | null
           reached_install_at?: string | null
           reached_signup_at?: string | null
           referrer_host?: string | null
+          saw_paywall_at?: string | null
           signed_up_at?: string | null
           source?: string | null
           tapped_join_at?: string | null
