@@ -528,7 +528,6 @@ export default function Stats() {
   const signedUp = data.stages[0]?.count ?? 0;
   const paid = data.stages.find((stage) => stage.key === "paid")?.count ?? 0;
   const arrivals = data.arrivals;
-  const sawLanding = arrivals.stages[0]?.count ?? 0;
   const installedCount = data.stages.find((stage) => stage.key === "installed")?.count ?? 0;
   const { confirmed, inferredFromReminders } = data.installConfidence;
   const active = data.activeChallenges;
@@ -658,49 +657,19 @@ export default function Stats() {
         )}
       </Card>
 
-      <Card title="Before they sign up">
-        {arrivals.total === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nobody visited in this range. Visitor tracking only counts arrivals from the moment it went live, so older
-            days will read zero.
-          </p>
-        ) : (
-          <>
-            {sawLanding > 0 ? <Funnel stages={arrivals.stages} steps={arrivals.steps} /> : null}
-
-            <div className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
-              <Line label="Visitors in total" value={arrivals.total} />
-              {arrivals.skippedLanding > 0 ? (
-                <Line label="Skipped the landing page" value={arrivals.skippedLanding} muted />
-              ) : null}
-              <Line label="Carried on in the browser" value={arrivals.continuedInBrowser} muted />
-              <Line label="Signed up without installing" value={arrivals.signedUpInBrowser} muted />
-              <Line label="Signed up from the installed app" value={arrivals.fromInstalledApp.signedUp} muted />
-            </div>
-
-            {arrivals.inAppBrowser > 0 ? (
-              <div className="mt-4 rounded-md bg-destructive/15 px-4 py-3">
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-danger-ink">
-                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  {arrivals.inAppBrowser} opened inside TikTok or Instagram
-                </p>
-                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                  Those browsers have no “Add to Home Screen” at all, so these people cannot install however good the
-                  page is. They have to open it in Safari first.
-                </p>
-              </div>
-            ) : null}
-
-            <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-              The trail stops at the install steps. An installed app gets its own separate storage on iPhone, so someone
-              who installs comes back as a brand new visitor and cannot be matched to the ad they arrived from. That is
-              why sign-ups from the installed app are counted on their own line rather than inside the funnel.
-            </p>
-          </>
-        )}
-      </Card>
-
       <Card title="Where visitors came from">
+        {arrivals.inAppBrowser > 0 ? (
+          <div className="mb-4 rounded-md bg-destructive/15 px-4 py-3">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-danger-ink">
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {arrivals.inAppBrowser} opened inside TikTok or Instagram
+            </p>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              Those browsers have no “Add to Home Screen” at all, so these people cannot install however good the
+              page is. They have to open it in Safari first.
+            </p>
+          </div>
+        ) : null}
         {data.sources.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing yet.</p>
         ) : (
@@ -726,6 +695,10 @@ export default function Stats() {
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
           Taken from the link they arrived on. Add utm_source to your ad links to see each ad separately — without it,
           everything from one platform lands in the same row.
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          Attribution stops at the install: an installed app gets its own separate storage on iPhone, so someone who
+          installs comes back as a brand new visitor and cannot be matched to the ad they arrived from.
         </p>
       </Card>
 
