@@ -16,8 +16,10 @@ import {
   SquarePlus,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Bell, CreditCard, Dumbbell, Wallet } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { ChoiceButton } from "@/components/ChoiceButton";
 import { CountUpMoney } from "@/components/CountUp";
 import { Logo } from "@/components/Logo";
 import { Screen, ScreenActions } from "@/components/Screen";
@@ -59,7 +61,7 @@ import { cn } from "@/lib/utils";
  * (a chosen stake, a simulated payment, instant approval) and that difference
  * should be easy to find rather than sprinkled through the real screens.
  */
-type DemoStep = "intro" | "install" | "goal" | "stake" | "commit" | "allin" | "home" | "end";
+type DemoStep = "intro" | "ask" | "penalty" | "install" | "goal" | "stake" | "commit" | "allin" | "home" | "end";
 
 type DemoWorkout = { id: string; day: string; time: string };
 
@@ -103,6 +105,12 @@ function nowLabel(): { day: string; time: string } {
     time: new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit" }).format(now),
   };
 }
+
+/** The fixed price of a skipped session in the demo, matching the product's £5 stake. */
+const SKIP_PENALTY = REWARD_PER_WORKOUT;
+/** The balance the penalty screen starts from, and what the skip leaves. */
+const BALANCE_BEFORE = 80;
+const BALANCE_AFTER = BALANCE_BEFORE - SKIP_PENALTY;
 
 /**
  * Point the page at the demo's own home-screen manifest while it's open.
@@ -203,7 +211,13 @@ export default function CreatorDemo() {
           </div>
         ) : null}
 
-        {step === "intro" ? <Intro onStart={() => setStep("install")} /> : null}
+        {step === "intro" ? (
+          <Intro onStart={() => setStep("install")} onSkipped={() => setStep("ask")} />
+        ) : null}
+        {step === "ask" ? (
+          <GymCheck onYes={() => setStep("intro")} onNo={() => setStep("penalty")} />
+        ) : null}
+        {step === "penalty" ? <SkippedPenalty currency={currency} onDone={() => setStep("intro")} /> : null}
         {step === "install" ? <InstallSteps onNext={() => setStep("goal")} /> : null}
         {step === "goal" ? (
           <GoalPicker goal={goal} onChange={setGoal} onNext={() => setStep("stake")} />
@@ -241,7 +255,7 @@ export default function CreatorDemo() {
 }
 
 /** Shown to the creator, never on camera — what this is and what it isn't. */
-function Intro({ onStart }: { onStart: () => void }) {
+function Intro({ onStart, onSkipped }: { onStart: () => void; onSkipped: () => void }) {
   return (
     <Screen className="flex-1">
       <div className="flex flex-1 flex-col justify-center py-10">
@@ -260,7 +274,166 @@ function Intro({ onStart }: { onStart: () => void }) {
         <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={onStart}>
           Start the demo
         </Button>
+        <Button
+          size="xl"
+          variant="outline"
+          className="mt-3 h-14 w-full rounded-full text-base font-semibold"
+          onClick={onSkipped}
+        >
+          Skipped workout
+        </Button>
       </ScreenActions>
+    </Screen>
+  );
+}
+
+/**
+ * The morning question, leading into the skip penalty.
+ *
+ * A separate little story from the main walkthrough — filmed on its own, so it
+ * gets its own entry point on the intro and no camera controls of its own.
+ * "Yes" walks back to the intro; the penalty only ever follows a "No".
+ */
+function GymCheck({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
+  return (
+    <Screen className="flex-1">
+      <div className="flex flex-1 flex-col justify-center pb-10">
+        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent animate-pop-in">
+          <Dumbbell className="h-7 w-7 text-success-ink" aria-hidden="true" />
+        </div>
+
+        <h1 className="mt-6 text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
+          Are you going to the gym today?
+        </h1>
+
+        <div className="mt-10 space-y-3">
+          <ChoiceButton label="Yes" isSelected={false} onSelect={onYes} delayMs={80} />
+          <ChoiceButton label="No" isSelected={false} onSelect={onNo} delayMs={160} />
+        </div>
+      </div>
+    </Screen>
+  );
+}
+
+/**
+ * Counts a balance down from one figure to another, once, on film.
+ *
+ * The countdown is the shot the creator asked for: the number visibly moving
+ * rather than a before-and-after. It waits for `delayMs` (the notification
+ * lands first), then eases out over `durationMs`, and reports `done` exactly
+ * once so the rest of the screen can react to the money having landed.
+ */
+function useCountDown(from: number, to: number, durationMs: number, delayMs: number, onDone: () => void): number {
+  const [value, setValue] = useState<number>(from);
+
+  useEffect(() => {
+    let raf = 0;
+    let finished = false;
+    const timer = setTimeout(() => {
+      const start = performance.now();
+      const tick = (now: number): void => {
+        const t = Math.min((now - start) / durationMs, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const next = from + (to - from) * eased;
+        setValue(Math.round(next * 100) / 100);
+        if (t < 1) {
+          raf = requestAnimationFrame(tick);
+        } else if (!finished) {
+          finished = true;
+          onDone();
+        }
+      };
+      raf = requestAnimationFrame(tick);
+    }, delayMs);
+    return () => {
+      clearTimeout(timer);
+      cancelAnimationFrame(raf);
+    };
+  }, [from, to, durationMs, delayMs, onDone]);
+
+  return value;
+}
+
+/**
+ * The charge, played as three beats on one screen: the notification drops in
+ * the way a system notification does, the balance counts £80.00 down to
+ * £75.00, and the −£5 chip and the ledger line land once the money has.
+ * A motivational line closes it, because the creator wanted the sting to
+ * push, not just punish.
+ */
+function SkippedPenalty({ currency, onDone }: { currency: CurrencyCode; onDone: () => void }) {
+  const [settled, setSettled] = useState<boolean>(false);
+  const symbol = currencySymbol(currency);
+
+  const handleSettled = useCallback(() => setSettled(true), []);
+  const balance = useCountDown(BALANCE_BEFORE, BALANCE_AFTER, 1600, 1100, handleSettled);
+
+  const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+
+  return (
+    <Screen className="flex-1">
+      {/* Beat one: the notification, dropping from the top the way iOS
+          presents its own — the creator asked for exactly this. */}
+      <div className="mt-4 rounded-xl bg-card p-5 shadow-lg shadow-black/5 animate-drop-in">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
+            <Bell className="h-5 w-5 text-accent" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-bold leading-snug text-foreground">Payment notification</p>
+            <p className="text-sm text-muted-foreground">GymTaxx · Now</p>
+          </div>
+          <Wallet className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <p className="mt-4 text-lg font-semibold leading-snug text-foreground">
+          {formatMoney(SKIP_PENALTY, currency)} charged for skipping the gym
+        </p>
+      </div>
+
+      {/* Beat two: the balance, counting down on its own. */}
+      <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">Your balance</p>
+        <div className="mt-2 flex items-center gap-3">
+          <span className="tabular text-[3.5rem] font-extrabold leading-none tracking-[-0.03em] text-foreground">
+            {symbol}
+            {balance.toFixed(2)}
+          </span>
+          {settled ? (
+            <span className="rounded-full bg-destructive/15 px-2.5 py-1 text-sm font-bold text-danger-ink animate-pop-in">
+              −{formatMoney(SKIP_PENALTY, currency)}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-3 text-base text-muted-foreground">
+          Previous balance {symbol}
+          {BALANCE_BEFORE.toFixed(2)}
+        </p>
+      </div>
+
+      {/* Beat three: the ledger, and the push. */}
+      {settled ? (
+        <div className="space-y-4 pb-2">
+          <div className="flex items-center justify-between rounded-xl bg-card px-5 py-4 animate-rise-in">
+            <div>
+              <p className="font-semibold text-foreground">Missed workout</p>
+              <p className="text-sm text-muted-foreground">{today}</p>
+            </div>
+            <span className="tabular text-lg font-bold text-danger-ink">
+              −{formatMoney(SKIP_PENALTY, currency)}
+            </span>
+          </div>
+
+          <p className="px-2 text-center text-sm leading-relaxed text-muted-foreground animate-rise-in [animation-delay:200ms]">
+            Tomorrow is a clean slate. One workout and you stop the bleed — don't let it take another{' '}
+            {formatMoney(SKIP_PENALTY, currency)}.
+          </p>
+
+          <Button size="xl" className="h-14 w-full rounded-full text-base font-bold" onClick={onDone}>
+            <CreditCard className="h-5 w-5" aria-hidden="true" />
+            Done
+          </Button>
+        </div>
+      ) : null}
     </Screen>
   );
 }
