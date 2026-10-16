@@ -334,8 +334,8 @@ function useCountDown(from: number, to: number, durationMs: number, delayMs: num
       const tick = (now: number): void => {
         const t = Math.min((now - start) / durationMs, 1);
         const eased = 1 - Math.pow(1 - t, 3);
-        const next = from + (to - from) * eased;
-        setValue(Math.round(next * 100) / 100);
+        // Whole pounds, so the countdown reads 80, 79, 78… and lands on 75.
+        setValue(Math.round(from + (to - from) * eased));
         if (t < 1) {
           raf = requestAnimationFrame(tick);
         } else if (!finished) {
@@ -356,10 +356,8 @@ function useCountDown(from: number, to: number, durationMs: number, delayMs: num
 
 /**
  * The charge, played as three beats on one screen: the notification drops in
- * the way a system notification does, the balance counts £80.00 down to
- * £75.00, and the −£5 chip and the ledger line land once the money has.
- * A motivational line closes it, because the creator wanted the sting to
- * push, not just punish.
+ * the way a system notification does, the balance counts £80 down to £75 in
+ * whole pounds, and the −£5 chip and the ledger line land once the money has.
  */
 function SkippedPenalty({ currency, onDone }: { currency: CurrencyCode; onDone: () => void }) {
   const [settled, setSettled] = useState<boolean>(false);
@@ -374,7 +372,7 @@ function SkippedPenalty({ currency, onDone }: { currency: CurrencyCode; onDone: 
     <Screen className="flex-1">
       {/* Beat one: the notification, dropping from the top the way iOS
           presents its own — the creator asked for exactly this. */}
-      <div className="mt-4 rounded-xl bg-card p-5 shadow-lg shadow-black/5 animate-drop-in">
+      <div className="mt-6 rounded-xl bg-card p-6 shadow-lg shadow-black/5 animate-drop-in">
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
             <Bell className="h-5 w-5 text-accent" aria-hidden="true" />
@@ -391,12 +389,12 @@ function SkippedPenalty({ currency, onDone }: { currency: CurrencyCode; onDone: 
       </div>
 
       {/* Beat two: the balance, counting down on its own. */}
-      <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">Your balance</p>
-        <div className="mt-2 flex items-center gap-3">
-          <span className="tabular text-[3.5rem] font-extrabold leading-none tracking-[-0.03em] text-foreground">
+        <div className="mt-4 flex items-center gap-3">
+          <span className="tabular text-[4rem] font-extrabold leading-none tracking-[-0.03em] text-foreground">
             {symbol}
-            {balance.toFixed(2)}
+            {balance}
           </span>
           {settled ? (
             <span className="rounded-full bg-destructive/15 px-2.5 py-1 text-sm font-bold text-danger-ink animate-pop-in">
@@ -404,16 +402,16 @@ function SkippedPenalty({ currency, onDone }: { currency: CurrencyCode; onDone: 
             </span>
           ) : null}
         </div>
-        <p className="mt-3 text-base text-muted-foreground">
+        <p className="mt-4 text-base text-muted-foreground">
           Previous balance {symbol}
-          {BALANCE_BEFORE.toFixed(2)}
+          {BALANCE_BEFORE}
         </p>
       </div>
 
-      {/* Beat three: the ledger, and the push. */}
+      {/* Beat three: the ledger. */}
       {settled ? (
-        <div className="space-y-4 pb-2">
-          <div className="flex items-center justify-between rounded-xl bg-card px-5 py-4 animate-rise-in">
+        <div className="space-y-5 pb-4">
+          <div className="flex items-center justify-between rounded-xl bg-card px-6 py-5 animate-rise-in">
             <div>
               <p className="font-semibold text-foreground">Missed workout</p>
               <p className="text-sm text-muted-foreground">{today}</p>
@@ -422,11 +420,6 @@ function SkippedPenalty({ currency, onDone }: { currency: CurrencyCode; onDone: 
               −{formatMoney(SKIP_PENALTY, currency)}
             </span>
           </div>
-
-          <p className="px-2 text-center text-sm leading-relaxed text-muted-foreground animate-rise-in [animation-delay:200ms]">
-            Tomorrow is a clean slate. One workout and you stop the bleed — don't let it take another{' '}
-            {formatMoney(SKIP_PENALTY, currency)}.
-          </p>
 
           <Button size="xl" className="h-14 w-full rounded-full text-base font-bold" onClick={onDone}>
             <CreditCard className="h-5 w-5" aria-hidden="true" />
