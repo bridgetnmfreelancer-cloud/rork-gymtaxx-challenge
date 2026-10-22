@@ -87,8 +87,9 @@ const MAX_GOAL = 5;
 const MIN_STAKE = 1;
 const MAX_STAKE = REWARD_PER_WORKOUT;
 
-/** The steps a creator can walk back through, in order. */
-const BACKABLE: DemoStep[] = ["install", "goal", "stake", "commit"];
+/** The steps a creator can walk back through, in order — install after payment,
+ *  matching the real flow since 22 Oct 2026. */
+const BACKABLE: DemoStep[] = ["goal", "stake", "commit", "install"];
 
 /** Two workouts already banked, so the dashboard opens with money on it. */
 function seedWorkouts(): DemoWorkout[] {
@@ -212,13 +213,13 @@ export default function CreatorDemo() {
         ) : null}
 
         {step === "intro" ? (
-          <Intro onStart={() => setStep("install")} onSkipped={() => setStep("ask")} />
+          <Intro onStart={() => setStep("goal")} onSkipped={() => setStep("ask")} />
         ) : null}
         {step === "ask" ? (
           <GymCheck onYes={() => setStep("intro")} onNo={() => setStep("penalty")} />
         ) : null}
         {step === "penalty" ? <SkippedPenalty currency={currency} onDone={() => setStep("intro")} /> : null}
-        {step === "install" ? <InstallSteps onNext={() => setStep("goal")} /> : null}
+        {step === "install" ? <InstallSteps onNext={() => setStep("allin")} /> : null}
         {step === "goal" ? (
           <GoalPicker goal={goal} onChange={setGoal} onNext={() => setStep("stake")} />
         ) : null}
@@ -231,7 +232,7 @@ export default function CreatorDemo() {
             stake={stake}
             currency={currency}
             deposit={deposit}
-            onPaid={() => setStep("allin")}
+            onPaid={() => setStep("install")}
           />
         ) : null}
         {step === "allin" ? <AllIn onNext={() => setStep("home")} /> : null}
@@ -1219,9 +1220,9 @@ function DemoCameraCapture({ onUse, onClose }: { onUse: () => void; onClose: () 
 /** The wrap card: what was filmed, and where the real thing lives. */
 function End({ onRestart }: { onRestart: () => void }) {
   const moments = [
-    "The install — it goes on the home screen",
     "The stake — thumbing it up to £5 a session",
     "The payment — Face ID, and the money is on the line",
+    "The install — it goes on the home screen",
     "The payoff — verified, and the money counting up",
   ];
 

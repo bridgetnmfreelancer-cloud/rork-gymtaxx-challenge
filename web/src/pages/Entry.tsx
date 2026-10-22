@@ -2,14 +2,14 @@ import { Navigate } from "react-router-dom";
 
 import { FullScreenLoader } from "@/components/RequireAuth";
 import { useAuth } from "@/context/AuthProvider";
-import { isStandalone } from "@/lib/pwa";
 
 /**
  * The front door at "/".
  *
  * Someone opening GymTaxx from their Home Screen should land in the app, not be
- * shown install instructions they've already followed. A first-time visitor
- * arriving from the marketing site gets the install page.
+ * shown install instructions they've already followed. Since 22 Oct 2026 a
+ * first-time browser visitor goes straight to the onboarding questions — the
+ * install steps wait until after signup, where they belong.
  *
  * The freshly installed case goes to the onboarding run rather than the account
  * screen: the whole point of the rebuild is that nobody is asked to identify
@@ -20,7 +20,5 @@ export default function Entry() {
 
   if (isLoading) return <FullScreenLoader />;
   if (session) return <Navigate to="/home" replace />;
-  if (isStandalone()) return <Navigate to="/onboarding" replace />;
-
-  return <Navigate to="/install" replace />;
+  return <Navigate to="/onboarding" replace />;
 }

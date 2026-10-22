@@ -13,7 +13,7 @@ import {
   depositFor,
   formatMoney,
 } from "@/lib/money";
-import { isAndroid, isStandalone } from "@/lib/pwa";
+import { isAndroid } from "@/lib/pwa";
 import { recordVisit, type VisitStep } from "@/lib/visitor";
 
 /**
@@ -94,28 +94,21 @@ export default function Landing() {
   const onAndroid = useMemo(() => isAndroid(), []);
 
   /**
-   * The hero and closing buttons: today's journey, untouched.
+   * Every button on the landing page runs the same journey now.
    *
-   * Most arrivals are cold Safari traffic that needs the install steps, but the
-   * same link gets shared and reopened, so someone already signed in shouldn't
-   * be told to install an app they're standing inside. Install comes first
-   * because on iPhone only the installed app keeps a session — answers given
-   * in the browser would not survive the install.
-   */
-  /**
-   * The install-first flow, shared by the hero and the closing button. Only the
-   * measurement differs: the wording on the button decides which journey step a
-   * tap counts towards — "Download the app" is its own step, "Join the
-   * challenge" reads as a join tap.
+   * The install steps used to sit mid-flow, on the theory that answers given in
+   * the browser would be lost by the install. The account is created before the
+   * install page appears, so nothing is lost: the person signs in once from the
+   * installed app and everything follows. Since 22 Oct 2026 the buttons only
+   * differ in which step a tap counts towards; the destination is the same.
    */
   const startAppFlow = useCallback((step: VisitStep): void => {
     void recordVisit(step);
 
-    setJourney("getapp");
+    setJourney("join");
 
     if (session) navigate("/home");
-    else if (isStandalone()) navigate("/onboarding");
-    else navigate("/install");
+    else navigate("/onboarding");
   }, [navigate, session]);
 
   const startGetApp = useCallback((): void => {
@@ -125,24 +118,6 @@ export default function Landing() {
   const startClosing = useCallback((): void => {
     startAppFlow("join_tapped");
   }, [startAppFlow]);
-
-  /**
-   * The header pill: the onboarding-first experiment.
-   *
-   * The hypothesis under test — someone who taps the small pill may want to
-   * explore before installing, so they build the challenge and create the
-   * account first and meet the install page on the way to payment. Already
-   * installed, there is nothing to install: straight into onboarding as
-   * today.
-   */
-  const startJoin = useCallback((): void => {
-    void recordVisit("join_tapped");
-
-    setJourney("join");
-
-    if (session) navigate("/home");
-    else navigate("/onboarding");
-  }, [navigate, session]);
 
   /**
    * The Android version of the same tap.
@@ -159,8 +134,8 @@ export default function Landing() {
     else startGetApp();
   }, [startGetApp]);
 
-  /** The nav pill is the only tap that runs the Join journey. */
-  const joinNav = onAndroid ? joinAndroid : startJoin;
+  // One journey, three buttons: only the tracked step differs by wording.
+  const joinNav = onAndroid ? joinAndroid : startClosing;
   const joinApp = onAndroid ? joinAndroid : startGetApp;
   const closingApp = onAndroid ? joinAndroid : startClosing;
 

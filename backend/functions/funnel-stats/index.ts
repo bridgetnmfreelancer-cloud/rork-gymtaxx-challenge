@@ -475,17 +475,21 @@ function buildArrivals(visits: VisitRow[]) {
  * The whole journey on one ladder, from landing-page tap to deposit paid.
  *
  * Deliberately spans two different measuring systems, because no single one can
- * see the whole thing. The first six rungs count anonymous browsers; "started
- * onboarding" and "saw the paywall" count browsers plus the installed app
- * (both happen inside it too); the rest count accounts. The join between them
- * is the install, and on iPhone an installed app is given its own private
- * storage, so the person who installs comes back indistinguishable from a
- * stranger. Nothing can carry an id across that gap.
+ * see the whole thing. The landing and button rows and the two install rows
+ * count anonymous browsers; "started onboarding" and "saw the paywall" count
+ * browsers plus the installed app (both happen inside it too); the rest count
+ * accounts. The join between them is the signup, and on iPhone an installed app
+ * is given its own private storage, so the person who installs comes back
+ * indistinguishable from a stranger. Nothing can carry an id across that gap.
  *
  * No drop-off rows are computed between rungs: the first three taps are
  * alternative exits from the landing page — a person does one of them, not all
  * three — so a "stopped here" between them would invent a leak that isn't
  * there. The bars read as shares of the biggest rung instead.
+ *
+ * Since 22 Oct 2026 the install steps sit after the questions (onboarding-first
+ * became the only journey); before that they sat mid-flow, so ranges reaching
+ * back over the change read as a blend of both orders.
  */
 function buildJourney(visits: VisitRow[], rows: FunnelRow[], chosePlan: Set<string>): { stages: Stage[]; steps: Step[] } {
   const browser = visits.filter((visit) => !visit.is_standalone);
@@ -508,16 +512,6 @@ function buildJourney(visits: VisitRow[], rows: FunnelRow[], chosePlan: Set<stri
       count: browser.filter((v) => v.android_tally_at !== null).length,
     },
     {
-      key: "reached_install",
-      label: "Reached the install steps",
-      count: browser.filter((v) => v.reached_install_at !== null).length,
-    },
-    {
-      key: "continue_browser",
-      label: "Clicked continue in browser",
-      count: browser.filter((v) => v.continue_browser_at !== null).length,
-    },
-    {
       key: "onboarding",
       label: "Started onboarding",
       // The installed app runs onboarding too, so this counts both kinds of
@@ -530,6 +524,16 @@ function buildJourney(visits: VisitRow[], rows: FunnelRow[], chosePlan: Set<stri
       key: "built",
       label: "Built a challenge",
       count: rows.filter((r) => r.has_challenge).length,
+    },
+    {
+      key: "reached_install",
+      label: "Reached the install steps",
+      count: browser.filter((v) => v.reached_install_at !== null).length,
+    },
+    {
+      key: "continue_browser",
+      label: "Clicked continue in browser",
+      count: browser.filter((v) => v.continue_browser_at !== null).length,
     },
     {
       key: "saw_paywall",

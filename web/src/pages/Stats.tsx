@@ -630,20 +630,22 @@ export default function Stats() {
           <>
             <Funnel stages={data.journey.stages} steps={data.journey.steps} />
             <p className="mt-4 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
-              The first six rows count browsers; “Started onboarding” and “Saw the paywall” count browsers plus the
-              installed app, where those screens also appear; the rest count accounts. The join between them is the
-              install, and an installed app gets its own private storage on iPhone, so someone who installs comes back
-              looking like a brand new visitor and cannot be matched to the advert they arrived from.
+              The landing and button rows and the two install rows count browsers; “Started onboarding” and “Saw the
+              paywall” count browsers plus the installed app, where those screens also appear; the rest count accounts.
+              The join between them is the signup, and an installed app gets its own private storage on iPhone, so
+              someone who installs comes back looking like a brand new visitor and cannot be matched to the page they
+              arrived from.
             </p>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
               The first three buttons are alternative exits from the landing page — a person taps one of them, not all
               three — so the bars read as shares of the biggest row, not step-by-step conversion. Install-page bounce:
-              of the people who reached the install steps, those who left installed plus those who tapped continue in
+              of the people who reached the install steps, those who installed plus those who tapped continue in
               browser; the difference is who closed the page.
             </p>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              The split counting began 14 Oct 2026. Before then “Clicked join” includes the hero and Android taps now
-              shown on their own rows, and the other new rows read zero however far back the range reaches.
+              Since 22 Oct 2026 the install steps sit after the questions; before then they sat mid-flow, so ranges
+              reaching back over that date blend two orders. The split counting began 14 Oct 2026: before then “Clicked
+              join” includes the hero and Android taps now shown on their own rows, and the other new rows read zero.
             </p>
             {trackingNote ? (
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{trackingNote}</p>
