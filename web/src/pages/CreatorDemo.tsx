@@ -76,6 +76,8 @@ type DemoStep =
   | "w_stake"
   | "w_commit"
   | "w_home"
+  | "w_ask"
+  | "w_penalty"
   | "allin"
   | "home"
   | "end";
@@ -130,6 +132,9 @@ const SKIP_PENALTY = REWARD_PER_WORKOUT;
 /** The balance the penalty screen starts from, and what the skip leaves. */
 const BALANCE_BEFORE = 80;
 const BALANCE_AFTER = BALANCE_BEFORE - SKIP_PENALTY;
+/** The weekly story's balance: one week's stake pot, £5 lighter after a skip. */
+const WEEKLY_BALANCE_BEFORE = 20;
+const WEEKLY_BALANCE_AFTER = WEEKLY_BALANCE_BEFORE - SKIP_PENALTY;
 
 /**
  * Point the page at the demo's own home-screen manifest while it's open.
@@ -251,12 +256,35 @@ export default function CreatorDemo() {
         ) : null}
 
         {step === "intro" ? (
-          <Intro onStart={() => setStep("goal")} onSkipped={() => setStep("ask")} onWeekly={() => setStep("w_goal")} />
+          <Intro
+            onStart={() => setStep("goal")}
+            onSkipped={() => setStep("ask")}
+            onWeekly={() => setStep("w_goal")}
+            onWeeklySkipped={() => setStep("w_ask")}
+          />
         ) : null}
         {step === "ask" ? (
           <GymCheck onYes={() => setStep("intro")} onNo={() => setStep("penalty")} />
         ) : null}
-        {step === "penalty" ? <SkippedPenalty currency={currency} onDone={() => setStep("intro")} /> : null}
+        {step === "penalty" ? (
+          <SkippedPenalty
+            currency={currency}
+            before={BALANCE_BEFORE}
+            after={BALANCE_AFTER}
+            onDone={() => setStep("intro")}
+          />
+        ) : null}
+        {step === "w_ask" ? (
+          <GymCheck onYes={() => setStep("intro")} onNo={() => setStep("w_penalty")} />
+        ) : null}
+        {step === "w_penalty" ? (
+          <SkippedPenalty
+            currency={currency}
+            before={WEEKLY_BALANCE_BEFORE}
+            after={WEEKLY_BALANCE_AFTER}
+            onDone={() => setStep("intro")}
+          />
+        ) : null}
         {step === "install" ? <InstallSteps onNext={() => setStep("allin")} /> : null}
         {step === "goal" ? (
           <GoalPicker goal={goal} onChange={setGoal} onNext={() => setStep("stake")} />
@@ -346,7 +374,17 @@ export default function CreatorDemo() {
 }
 
 /** Shown to the creator, never on camera — what this is and what it isn't. */
-function Intro({ onStart, onSkipped, onWeekly }: { onStart: () => void; onSkipped: () => void; onWeekly: () => void }) {
+function Intro({
+  onStart,
+  onSkipped,
+  onWeekly,
+  onWeeklySkipped,
+}: {
+  onStart: () => void;
+  onSkipped: () => void;
+  onWeekly: () => void;
+  onWeeklySkipped: () => void;
+}) {
   return (
     <Screen className="flex-1">
       <div className="flex flex-1 flex-col justify-center py-10">
@@ -381,6 +419,14 @@ function Intro({ onStart, onSkipped, onWeekly }: { onStart: () => void; onSkippe
         >
           Weekly challenges
         </Button>
+        <Button
+          size="xl"
+          variant="outline"
+          className="mt-3 h-14 w-full rounded-full text-base font-semibold"
+          onClick={onWeeklySkipped}
+        >
+          Skipped a weekly workout
+        </Button>
       </ScreenActions>
     </Screen>
   );
@@ -396,7 +442,9 @@ function Intro({ onStart, onSkipped, onWeekly }: { onStart: () => void; onSkippe
 function GymCheck({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
   return (
     <Screen className="flex-1">
-      <div className="flex flex-1 flex-col justify-center pb-10">
+      {/* Everything centred — icon, question and both options on the middle
+          of the screen, not crowded up against the camera controls above. */}
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent animate-pop-in">
           <Dumbbell className="h-7 w-7 text-success-ink" aria-hidden="true" />
         </div>
@@ -405,7 +453,7 @@ function GymCheck({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
           Are you going to the gym today?
         </h1>
 
-        <div className="mt-10 space-y-3">
+        <div className="mt-10 w-full space-y-3">
           <ChoiceButton label="Yes" isSelected={false} onSelect={onYes} delayMs={80} />
           <ChoiceButton label="No" isSelected={false} onSelect={onNo} delayMs={160} />
         </div>
@@ -455,15 +503,27 @@ function useCountDown(from: number, to: number, durationMs: number, delayMs: num
 
 /**
  * The charge, played as three beats on one screen: the notification drops in
- * the way a system notification does, the balance counts £80 down to £75 in
- * whole pounds, and the −£5 chip and the ledger line land once the money has.
+ * the way a system notification does, the balance counts down in whole
+ * pounds, and the −£5 chip and the ledger line land once the money has. The
+ * starting balance is passed in — £80 for the monthly story, £20 for the
+ * weekly one — but the skip always costs the same £5.
  */
-function SkippedPenalty({ currency, onDone }: { currency: CurrencyCode; onDone: () => void }) {
+function SkippedPenalty({
+  currency,
+  before,
+  after,
+  onDone,
+}: {
+  currency: CurrencyCode;
+  before: number;
+  after: number;
+  onDone: () => void;
+}) {
   const [settled, setSettled] = useState<boolean>(false);
   const symbol = currencySymbol(currency);
 
   const handleSettled = useCallback(() => setSettled(true), []);
-  const balance = useCountDown(BALANCE_BEFORE, BALANCE_AFTER, 1600, 1100, handleSettled);
+  const balance = useCountDown(before, after, 1600, 1100, handleSettled);
 
   const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
@@ -503,7 +563,7 @@ function SkippedPenalty({ currency, onDone }: { currency: CurrencyCode; onDone: 
         </div>
         <p className="mt-4 text-base text-muted-foreground">
           Previous balance {symbol}
-          {BALANCE_BEFORE}
+          {before}
         </p>
       </div>
 
