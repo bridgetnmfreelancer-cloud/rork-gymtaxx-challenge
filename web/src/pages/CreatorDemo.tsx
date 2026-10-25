@@ -50,7 +50,8 @@ import { cn } from "@/lib/utils";
  * stranger, and a creator filming the product doesn't need convincing. So the
  * demo goes install, set up the challenge, put money behind it, earn it back.
  * Two shorter side stories film the other beats: a skipped workout taking its
- * £5, and the weekly challenge — one week's goal and stake, paid, done.
+ * £5, and the weekly challenge — one week's goal and stake, paid, then the
+ * first workout earned back from a standing start.
  * Nothing on screen announces itself as a mock-up either: anyone watching a
  * video can see that it is one, and the disclaimers were landing in shot.
  *
@@ -74,6 +75,7 @@ type DemoStep =
   | "w_goal"
   | "w_stake"
   | "w_commit"
+  | "w_home"
   | "allin"
   | "home"
   | "end";
@@ -170,8 +172,11 @@ export default function CreatorDemo() {
   const [didVerify, setDidVerify] = useState<boolean>(false);
   const [workouts, setWorkouts] = useState<DemoWorkout[]>(seedWorkouts);
   // The weekly challenge's own picks — one week, so the total is goal × stake.
+  // It starts with nothing banked: the story is earning the first £5 back.
   const [weeklyGoal, setWeeklyGoal] = useState<number>(DEFAULT_GOAL);
   const [weeklyStake, setWeeklyStake] = useState<number>(MIN_STAKE);
+  const [weeklyWorkouts, setWeeklyWorkouts] = useState<DemoWorkout[]>([]);
+  const [weeklyLogged, setWeeklyLogged] = useState<boolean>(false);
 
   // The same sum the server does, with the stake chosen rather than fixed.
   const deposit = goal * CHALLENGE_WEEKS * stake;
@@ -185,6 +190,8 @@ export default function CreatorDemo() {
     setStake(MIN_STAKE);
     setWeeklyGoal(DEFAULT_GOAL);
     setWeeklyStake(MIN_STAKE);
+    setWeeklyWorkouts([]);
+    setWeeklyLogged(false);
     setDidVerify(false);
     setWorkouts(seedWorkouts());
     setStep("intro");
@@ -203,6 +210,13 @@ export default function CreatorDemo() {
     setDidVerify(true);
     const { day, time } = nowLabel();
     setWorkouts((current) => [{ id: `demo-now-${Date.now()}`, day, time }, ...current]);
+  }
+
+  /** Same moment for the weekly challenge, but onto its own empty list. */
+  function handleWeeklyVerified(): void {
+    setWeeklyLogged(true);
+    const { day, time } = nowLabel();
+    setWeeklyWorkouts((current) => [{ id: `demo-weekly-now-${Date.now()}`, day, time }, ...current]);
   }
 
   return (
@@ -287,7 +301,23 @@ export default function CreatorDemo() {
             stake={weeklyStake}
             currency={currency}
             total={weeklyTotal}
-            onPaid={restart}
+            onPaid={() => setStep("w_home")}
+          />
+        ) : null}
+        {step === "w_home" ? (
+          <Dashboard
+            currency={currency}
+            deposit={weeklyTotal}
+            goal={weeklyGoal}
+            stake={weeklyStake}
+            verified={weeklyWorkouts.length}
+            didVerify={weeklyLogged}
+            workouts={weeklyWorkouts}
+            headerLeft="Weekly challenge"
+            headerRight="GymTaxx"
+            emptyWorkouts="Nothing logged yet. The first verified workout starts the money coming home."
+            onVerified={handleWeeklyVerified}
+            onFinish={restart}
           />
         ) : null}
         {step === "allin" ? <AllIn onNext={() => setStep("home")} /> : null}
@@ -300,6 +330,11 @@ export default function CreatorDemo() {
             verified={verified}
             didVerify={didVerify}
             workouts={workouts}
+            headerLeft={
+              <>
+                Week <span className="tabular">1</span> of <span className="tabular">{CHALLENGE_WEEKS}</span>
+              </>
+            }
             onVerified={handleVerified}
             onFinish={() => setStep("end")}
           />
@@ -961,9 +996,9 @@ function WeeklyCounter({
  * The same hero-number moment as the monthly Commit, but the sum is one
  * week's arithmetic — goal × stake — and the button says Pay, since there is
  * no four-week stake to spell out. Payment runs through the same simulated
- * Apple Pay sheet, and paying ends the take: the whole story was the stakes
- * going on, so the confirmed sheet drops straight back to the intro, ready
- * for the next take.
+ * Apple Pay sheet, and paying runs into the dashboard at zero: the money is
+ * on the line, and the next thing worth filming is earning the first stake
+ * back.
  */
 function WeeklyCommit({
   goal,
@@ -1144,6 +1179,10 @@ function AllIn({ onNext }: { onNext: () => void }) {
  * The dashboard, mirroring the real one closely enough that footage reads as
  * the product: navy money card, the week's ticks, the deadline, recent
  * workouts, one large verify button.
+ *
+ * Both stories end here. The monthly one opens with two workouts banked; the
+ * weekly one opens at zero and earns its first stake back on camera, so the
+ * header wording and the empty-workouts note are passed in per story.
  */
 function Dashboard({
   currency,
@@ -1155,6 +1194,9 @@ function Dashboard({
   workouts,
   onVerified,
   onFinish,
+  headerLeft,
+  headerRight = "GymTaxx Challenge",
+  emptyWorkouts,
 }: {
   currency: CurrencyCode;
   deposit: number;
@@ -1165,6 +1207,13 @@ function Dashboard({
   workouts: DemoWorkout[];
   onVerified: () => void;
   onFinish: () => void;
+  /** The headline over the money card — "Week 1 of 4" for the monthly story,
+   *  "Weekly challenge" for the one-week one. */
+  headerLeft: ReactNode;
+  headerRight?: string;
+  /** Shown in place of an empty recent-workouts list; omitted when the story
+   *  already has banked workouts on arrival. */
+  emptyWorkouts?: string;
 }) {
   const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
   const [showPayoff, setShowPayoff] = useState<boolean>(false);
@@ -1184,10 +1233,8 @@ function Dashboard({
     <>
       <Screen className="flex-1">
         <header className="flex items-baseline justify-between py-4">
-          <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            Week <span className="tabular">1</span> of <span className="tabular">{CHALLENGE_WEEKS}</span>
-          </p>
-          <p className="text-sm font-medium text-muted-foreground">GymTaxx Challenge</p>
+          <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">{headerLeft}</p>
+          <p className="text-sm font-medium text-muted-foreground">{headerRight}</p>
         </header>
 
         <section className="rounded-lg bg-primary p-6 animate-rise-in">
@@ -1242,19 +1289,25 @@ function Dashboard({
             <h2 className="font-semibold text-foreground">Recent workouts</h2>
           </div>
 
-          <ul className="mt-3 space-y-2">
-            {workouts.map((workout) => (
-              <li key={workout.id} className="flex items-center justify-between rounded-md bg-card px-4 py-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground">{workout.day}</p>
-                  <p className="text-xs text-muted-foreground">{workout.time}</p>
-                </div>
-                <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-success-ink">
-                  Verified
-                </span>
-              </li>
-            ))}
-          </ul>
+          {workouts.length > 0 ? (
+            <ul className="mt-3 space-y-2">
+              {workouts.map((workout) => (
+                <li key={workout.id} className="flex items-center justify-between rounded-md bg-card px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">{workout.day}</p>
+                    <p className="text-xs text-muted-foreground">{workout.time}</p>
+                  </div>
+                  <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-success-ink">
+                    Verified
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : emptyWorkouts ? (
+            <p className="mt-3 rounded-md bg-card px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+              {emptyWorkouts}
+            </p>
+          ) : null}
         </section>
 
         <ScreenActions className="bg-transparent">
