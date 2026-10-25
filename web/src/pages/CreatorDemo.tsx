@@ -49,6 +49,8 @@ import { cn } from "@/lib/utils";
  * works, the questions, the four-week comparison — is there to convince a
  * stranger, and a creator filming the product doesn't need convincing. So the
  * demo goes install, set up the challenge, put money behind it, earn it back.
+ * Two shorter side stories film the other beats: a skipped workout taking its
+ * £5, and the weekly challenge — one week's goal and stake, paid, done.
  * Nothing on screen announces itself as a mock-up either: anyone watching a
  * video can see that it is one, and the disclaimers were landing in shot.
  *
@@ -61,7 +63,20 @@ import { cn } from "@/lib/utils";
  * (a chosen stake, a simulated payment, instant approval) and that difference
  * should be easy to find rather than sprinkled through the real screens.
  */
-type DemoStep = "intro" | "ask" | "penalty" | "install" | "goal" | "stake" | "commit" | "allin" | "home" | "end";
+type DemoStep =
+  | "intro"
+  | "ask"
+  | "penalty"
+  | "install"
+  | "goal"
+  | "stake"
+  | "commit"
+  | "w_goal"
+  | "w_stake"
+  | "w_commit"
+  | "allin"
+  | "home"
+  | "end";
 
 type DemoWorkout = { id: string; day: string; time: string };
 
@@ -88,8 +103,9 @@ const MIN_STAKE = 1;
 const MAX_STAKE = REWARD_PER_WORKOUT;
 
 /** The steps a creator can walk back through, in order — install after payment,
- *  matching the real flow since 22 Oct 2026. */
-const BACKABLE: DemoStep[] = ["goal", "stake", "commit", "install"];
+ *  matching the real flow since 22 Oct 2026. The w_ steps are the weekly
+ *  challenge's own run of the same story. */
+const BACKABLE: DemoStep[] = ["goal", "stake", "commit", "install", "w_goal", "w_stake", "w_commit"];
 
 /** Two workouts already banked, so the dashboard opens with money on it. */
 function seedWorkouts(): DemoWorkout[] {
@@ -153,16 +169,22 @@ export default function CreatorDemo() {
   const [stake, setStake] = useState<number>(MIN_STAKE);
   const [didVerify, setDidVerify] = useState<boolean>(false);
   const [workouts, setWorkouts] = useState<DemoWorkout[]>(seedWorkouts);
+  // The weekly challenge's own picks — one week, so the total is goal × stake.
+  const [weeklyGoal, setWeeklyGoal] = useState<number>(DEFAULT_GOAL);
+  const [weeklyStake, setWeeklyStake] = useState<number>(MIN_STAKE);
 
   // The same sum the server does, with the stake chosen rather than fixed.
   const deposit = goal * CHALLENGE_WEEKS * stake;
+  const weeklyTotal = weeklyGoal * weeklyStake;
   // Two banked before filming starts, three once the camera moment lands.
   const verified = didVerify ? 3 : 2;
 
-  /** Restarts the whole story — the fastest way to film a second take. Both counters rewind to one. */
+  /** Restarts the whole story — the fastest way to film a second take. All counters rewind to one. */
   function restart(): void {
     setGoal(DEFAULT_GOAL);
     setStake(MIN_STAKE);
+    setWeeklyGoal(DEFAULT_GOAL);
+    setWeeklyStake(MIN_STAKE);
     setDidVerify(false);
     setWorkouts(seedWorkouts());
     setStep("intro");
@@ -172,7 +194,9 @@ export default function CreatorDemo() {
   function back(): void {
     const index = BACKABLE.indexOf(step);
     if (index <= 0) return;
-    setStep(BACKABLE[index - 1]);
+    // The weekly story never crosses into the monthly one: walking back from
+    // the weekly goal leaves that story, not the four-week one.
+    setStep(step === "w_goal" ? "intro" : BACKABLE[index - 1]);
   }
 
   function handleVerified(): void {
@@ -213,7 +237,7 @@ export default function CreatorDemo() {
         ) : null}
 
         {step === "intro" ? (
-          <Intro onStart={() => setStep("goal")} onSkipped={() => setStep("ask")} />
+          <Intro onStart={() => setStep("goal")} onSkipped={() => setStep("ask")} onWeekly={() => setStep("w_goal")} />
         ) : null}
         {step === "ask" ? (
           <GymCheck onYes={() => setStep("intro")} onNo={() => setStep("penalty")} />
@@ -233,6 +257,37 @@ export default function CreatorDemo() {
             currency={currency}
             deposit={deposit}
             onPaid={() => setStep("install")}
+          />
+        ) : null}
+        {step === "w_goal" ? (
+          <WeeklyCounter
+            heading="Next week's gym goal."
+            caption="times next week"
+            value={weeklyGoal}
+            withSymbol={false}
+            currency={currency}
+            onChange={setWeeklyGoal}
+            onNext={() => setStep("w_stake")}
+          />
+        ) : null}
+        {step === "w_stake" ? (
+          <WeeklyCounter
+            heading="Consequence for skipping."
+            caption="per skipped session"
+            value={weeklyStake}
+            withSymbol={true}
+            currency={currency}
+            onChange={setWeeklyStake}
+            onNext={() => setStep("w_commit")}
+          />
+        ) : null}
+        {step === "w_commit" ? (
+          <WeeklyCommit
+            goal={weeklyGoal}
+            stake={weeklyStake}
+            currency={currency}
+            total={weeklyTotal}
+            onPaid={restart}
           />
         ) : null}
         {step === "allin" ? <AllIn onNext={() => setStep("home")} /> : null}
@@ -256,7 +311,7 @@ export default function CreatorDemo() {
 }
 
 /** Shown to the creator, never on camera — what this is and what it isn't. */
-function Intro({ onStart, onSkipped }: { onStart: () => void; onSkipped: () => void }) {
+function Intro({ onStart, onSkipped, onWeekly }: { onStart: () => void; onSkipped: () => void; onWeekly: () => void }) {
   return (
     <Screen className="flex-1">
       <div className="flex flex-1 flex-col justify-center py-10">
@@ -282,6 +337,14 @@ function Intro({ onStart, onSkipped }: { onStart: () => void; onSkipped: () => v
           onClick={onSkipped}
         >
           Skipped workout
+        </Button>
+        <Button
+          size="xl"
+          variant="outline"
+          className="mt-3 h-14 w-full rounded-full text-base font-semibold"
+          onClick={onWeekly}
+        >
+          Weekly challenges
         </Button>
       </ScreenActions>
     </Screen>
@@ -794,6 +857,171 @@ function Commit({
           onCancel={() => setIsSheetOpen(false)}
           onDone={onPaid}
         />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The weekly challenge's two counters, one component for both.
+ *
+ * Same gesture as the monthly pickers — a counter opening at one, a soft
+ * bloom behind it, Continue — but with the weekly wording, and the money
+ * counter carries a currency symbol where the goal counter shows a bare
+ * number. The stake stays capped at the product's £5, for the same reason
+ * the monthly one does.
+ */
+function WeeklyCounter({
+  heading,
+  caption,
+  value,
+  withSymbol,
+  currency,
+  onChange,
+  onNext,
+}: {
+  heading: string;
+  caption: string;
+  value: number;
+  withSymbol: boolean;
+  currency: CurrencyCode;
+  onChange: (value: number) => void;
+  onNext: () => void;
+}) {
+  const min = withSymbol ? MIN_STAKE : MIN_GOAL;
+  const max = withSymbol ? MAX_STAKE : MAX_GOAL;
+
+  function nudge(by: number): void {
+    const next = value + by;
+    if (next < min || next > max) return;
+    onChange(next);
+  }
+
+  return (
+    <Screen className="flex-1">
+      <h1 className="mx-auto mt-14 max-w-[20ch] text-center text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
+        {heading}
+      </h1>
+
+      <div className="relative flex flex-1 flex-col items-center justify-center py-14">
+        {/* The same soft mint bloom as the monthly counters, so the repeated
+            gesture reads as the product, not as two different screens. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_55%_40%_at_50%_45%,rgba(134,239,172,0.22),transparent_70%)]"
+        />
+
+        <div className="relative flex items-center justify-center gap-8 animate-rise-in [animation-delay:80ms]">
+          <StepperButton
+            label={withSymbol ? "Lower the stake" : "Fewer workouts next week"}
+            onClick={() => nudge(-1)}
+            disabled={value <= min}
+            icon={Minus}
+          />
+          {withSymbol ? (
+            <span className="tabular flex w-[3.5ch] items-start justify-center text-[5rem] font-extrabold leading-none tracking-[-0.03em] text-foreground">
+              <span className="mt-2 text-[2.5rem] font-bold">{currencySymbol(currency)}</span>
+              {value}
+            </span>
+          ) : (
+            <span
+              className="tabular flex w-[2ch] items-center justify-center text-[5rem] font-extrabold leading-none tracking-[-0.03em] text-foreground"
+              role="status"
+              aria-label={`${value} times next week`}
+            >
+              {value}
+            </span>
+          )}
+          <StepperButton
+            label={withSymbol ? "Raise the stake" : "More workouts next week"}
+            onClick={() => nudge(1)}
+            disabled={value >= max}
+            icon={Plus}
+            filled
+          />
+        </div>
+
+        <p className="relative mt-8 text-base font-medium text-muted-foreground animate-rise-in [animation-delay:160ms]">
+          {caption}
+        </p>
+      </div>
+
+      <ScreenActions>
+        <Button size="xl" className="h-16 w-full rounded-full text-lg font-bold" onClick={onNext}>
+          Continue
+        </Button>
+      </ScreenActions>
+    </Screen>
+  );
+}
+
+/**
+ * The weekly total, and the payment.
+ *
+ * The same hero-number moment as the monthly Commit, but the sum is one
+ * week's arithmetic — goal × stake — and the button says Pay, since there is
+ * no four-week stake to spell out. Payment runs through the same simulated
+ * Apple Pay sheet, and paying ends the take: the whole story was the stakes
+ * going on, so the confirmed sheet drops straight back to the intro, ready
+ * for the next take.
+ */
+function WeeklyCommit({
+  goal,
+  stake,
+  currency,
+  total,
+  onPaid,
+}: {
+  goal: number;
+  stake: number;
+  currency: CurrencyCode;
+  total: number;
+  onPaid: () => void;
+}) {
+  const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
+
+  return (
+    <>
+      <Screen className="flex-1">
+        <div className="flex flex-1 flex-col justify-center pb-6 text-center">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground animate-rise-in">
+            Total stake
+          </p>
+          <CountUpMoney
+            value={total}
+            currency={currency}
+            className="mt-3 block text-[4.5rem] font-extrabold leading-none tracking-tight text-foreground animate-rise-in [animation-delay:60ms]"
+          />
+
+          <div className="mx-auto mt-8 w-full rounded-xl bg-card px-5 py-5 animate-rise-in [animation-delay:140ms]">
+            <p className="tabular text-xl font-semibold text-foreground">
+              {goal} × {formatMoney(stake, currency)}
+            </p>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              workouts next week × what each skip costs
+            </p>
+          </div>
+
+          <p className="mx-auto mt-8 max-w-[32ch] text-sm leading-relaxed text-muted-foreground animate-rise-in [animation-delay:200ms]">
+            Every workout you prove earns {formatMoney(stake, currency)} back. Finish the week and the whole
+            {" "}
+            {formatMoney(total, currency)} comes home.
+          </p>
+        </div>
+
+        <ScreenActions>
+          <Button
+            size="xl"
+            className="h-16 w-full rounded-full text-lg font-bold"
+            onClick={() => setIsSheetOpen(true)}
+          >
+            Pay
+          </Button>
+        </ScreenActions>
+      </Screen>
+
+      {isSheetOpen ? (
+        <ApplePaySheet amount={total} currency={currency} onCancel={() => setIsSheetOpen(false)} onDone={onPaid} />
       ) : null}
     </>
   );
