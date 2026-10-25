@@ -226,11 +226,22 @@ export default function CreatorDemo() {
 
   return (
     <div className="min-h-full bg-background">
-      <div className="mx-auto flex min-h-full w-full max-w-md flex-col px-5 pt-safe pb-safe">
+      <div className="relative mx-auto flex min-h-full w-full max-w-md flex-col px-5 pt-safe pb-safe">
         {/* The filming controls, kept deliberately small — discreet enough to
             crop out of a recording, present enough to find on take three.
-            Back re-films one screen; restart re-films the whole story. */}
-        {step !== "intro" && step !== "end" ? (
+            Back re-films one screen; restart re-films the whole story. On the
+            question screen they float clear of the content, so the question
+            centres in the whole screen rather than the space below them. */}
+        {step === "ask" || step === "w_ask" ? (
+          <button
+            type="button"
+            onClick={restart}
+            className="absolute right-5 top-3 z-10 flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
+          >
+            <RotateCcw className="h-3 w-3" aria-hidden="true" />
+            Restart demo
+          </button>
+        ) : step !== "intro" && step !== "end" ? (
           <div className="flex items-center justify-between pt-2">
             {BACKABLE.indexOf(step) > 0 ? (
               <button
@@ -450,7 +461,7 @@ function GymCheck({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
         </div>
 
         <h1 className="mt-6 text-[2rem] font-bold leading-[1.2] tracking-[-0.02em] text-foreground animate-rise-in">
-          Are you going to the gym today?
+          Going to the gym today?
         </h1>
 
         <div className="mt-10 w-full space-y-3">
