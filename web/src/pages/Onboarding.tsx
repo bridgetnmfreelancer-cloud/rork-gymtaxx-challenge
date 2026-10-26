@@ -37,13 +37,13 @@ type Stage = "problem" | "mechanism" | "habit" | "goal" | "blocker" | "motivatio
 const ORDER: Stage[] = ["problem", "mechanism", "habit", "goal", "blocker", "motivation", "struggling", "summary"];
 
 /**
- * The opening line — the very first words a visitor reads, before anything is
- * asked or promised.
+ * The opening question — the very first words a visitor reads, dictated
+ * 26 Oct 2026. Its two answers are tracked as separate funnel steps, so the
+ * stats page shows the split (see answerOpening).
  *
  * Kept as one constant at the top of the file so a rewrite is a one-line swap.
- * PLACEHOLDER: the real line is dictated copy and lands here when written.
  */
-const OPENING_HEADLINE = "Telling yourself you'll be consistent with the gym — again?";
+const OPENING_QUESTION = "Hey there, are you happy with how often you go to the gym?";
 
 /** Each screen's step in the same anonymous pipeline as the rest of the funnel. */
 const STEP_FOR_STAGE: Record<Stage, VisitStep> = {
@@ -140,6 +140,20 @@ export default function Onboarding() {
     [update, goNext],
   );
 
+  /**
+   * The opening question's answer is its own funnel step — the yes/no split the
+   * stats page shows. Both answers continue to the same next screen; only the
+   * stamp differs. The 220ms beat matches the other questions, so the tap
+   * registers visually before the screen turns.
+   */
+  const answerOpening = useCallback(
+    (step: VisitStep): void => {
+      void recordVisit(step);
+      window.setTimeout(goNext, 220);
+    },
+    [goNext],
+  );
+
   const currentPerWeek = useMemo(() => habitPerWeek(answers.habit), [answers.habit]);
   const goalPerWeek = answers.goal ?? 4;
 
@@ -156,29 +170,24 @@ export default function Onboarding() {
 
       {stage === "problem" ? (
         <div className="flex flex-1 flex-col">
-          {/* The whole panel is the control. There is nothing to decide here, and a
-              button would imply there was. */}
-          <button
-            type="button"
-            onClick={goNext}
-            className="flex flex-1 flex-col text-left active:opacity-70 transition-opacity"
-          >
-            <div className="pt-10">
-              <p className="text-display leading-[1.1] text-foreground animate-rise-in">
-                {OPENING_HEADLINE}
-              </p>
-              <p className="mt-8 text-2xl font-semibold leading-snug text-foreground animate-rise-in [animation-delay:700ms]">
-                You're not alone.
-              </p>
-              <p className="mt-3 text-2xl font-semibold leading-snug text-muted-foreground animate-rise-in [animation-delay:1100ms]">
-                90% of people stop going to the gym consistently after only 3 months.
-              </p>
-            </div>
+          <div className="pt-8">
+            <ScreenTitle className="animate-rise-in">{OPENING_QUESTION}</ScreenTitle>
+          </div>
 
-            <span className="mt-auto py-8 text-center text-sm font-medium text-muted-foreground animate-rise-in [animation-delay:1900ms]">
-              Tap to continue
-            </span>
-          </button>
+          <div className="mt-8 space-y-3">
+            <ChoiceButton
+              label="Yes, I'm consistent."
+              isSelected={false}
+              onSelect={() => answerOpening("ob_opening_yes")}
+              delayMs={100}
+            />
+            <ChoiceButton
+              label="No, I keep falling off."
+              isSelected={false}
+              onSelect={() => answerOpening("ob_opening_no")}
+              delayMs={160}
+            />
+          </div>
 
           {/* The way in for someone who already has an account — most relevant
               after an install, where the app's storage is fresh and the person
@@ -188,7 +197,7 @@ export default function Onboarding() {
           <button
             type="button"
             onClick={() => navigate("/welcome", { state: { fromFlow: true } })}
-            className="mb-5 w-full py-3 text-center text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            className="mt-auto mb-5 w-full py-3 text-center text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             Already have an account? <span className="font-semibold text-foreground">Log in</span>
           </button>

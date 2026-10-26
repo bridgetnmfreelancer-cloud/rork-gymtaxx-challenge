@@ -33,6 +33,9 @@ export type VisitStep =
   | "saw_paywall"
   /** Onboarding, screen by screen — the first view of each, in flow order. */
   | "ob_opening"
+  /** The opening question's two answers, tracked apart for the split. */
+  | "ob_opening_yes"
+  | "ob_opening_no"
   | "ob_mechanism"
   | "ob_habit"
   | "ob_goal"

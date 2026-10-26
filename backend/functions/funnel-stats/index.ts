@@ -411,6 +411,8 @@ type VisitRow = {
   continue_browser_at: string | null;
   onboarding_at: string | null;
   ob_opening_at: string | null;
+  ob_opening_yes_at: string | null;
+  ob_opening_no_at: string | null;
   ob_mechanism_at: string | null;
   ob_habit_at: string | null;
   ob_goal_at: string | null;
@@ -580,6 +582,11 @@ function buildOnboardingScreens(visits: VisitRow[]): Stage[] {
       label: "Saw the opening screen",
       count: visits.filter((v) => v.ob_opening_at !== null).length,
     },
+    // The opening question's two answers do NOT sit in this ladder — they are
+    // alternative exits from the opening screen, like the landing-page buttons:
+    // a person picks one, not both. They travel as a separate split and the
+    // card renders them under the opening row.
+    //
     {
       key: "mechanism",
       label: "Saw how it works",
@@ -616,6 +623,20 @@ function buildOnboardingScreens(visits: VisitRow[]): Stage[] {
       count: visits.filter((v) => v.ob_summary_at !== null).length,
     },
   ];
+}
+
+/**
+ * The opening question's split, as raw counts — the card does the percentages.
+ *
+ * A visitor can only answer once and both stamps are first-touch, so yes + no
+ * never exceeds the opening screen's own count. The gap between the two is
+ * everyone who saw the question and backed out of it entirely.
+ */
+function buildOpeningAnswers(visits: VisitRow[]): { yes: number; no: number } {
+  return {
+    yes: visits.filter((v) => v.ob_opening_yes_at !== null).length,
+    no: visits.filter((v) => v.ob_opening_no_at !== null).length,
+  };
 }
 
 /** Which ad or link brought them, first touch only. */
@@ -839,7 +860,7 @@ Deno.serve(async (req) => {
         let query = admin
           .from("visits")
           .select(
-            "visitor_id, first_seen_at, landed_at, tapped_join_at, get_app_at, android_tally_at, reached_install_at, continue_browser_at, onboarding_at, ob_opening_at, ob_mechanism_at, ob_habit_at, ob_goal_at, ob_blocker_at, ob_motivation_at, ob_struggling_at, ob_summary_at, reached_signup_at, signed_up_at, saw_paywall_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
+            "visitor_id, first_seen_at, landed_at, tapped_join_at, get_app_at, android_tally_at, reached_install_at, continue_browser_at, onboarding_at, ob_opening_at, ob_opening_yes_at, ob_opening_no_at, ob_mechanism_at, ob_habit_at, ob_goal_at, ob_blocker_at, ob_motivation_at, ob_struggling_at, ob_summary_at, reached_signup_at, signed_up_at, saw_paywall_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
           )
           .gte("first_seen_at", since.toISOString());
         if (bound) query = query.lt("first_seen_at", bound.toISOString());
@@ -874,6 +895,7 @@ Deno.serve(async (req) => {
       steps,
       journey: buildJourney(visits, rows, chosePlan),
       onboardingScreens: buildOnboardingScreens(visits),
+      onboardingOpening: buildOpeningAnswers(visits),
       trackingStartedAt: firstVisit?.first_seen_at ?? null,
       arrivals: buildArrivals(visits),
       sources: buildSources(visits),

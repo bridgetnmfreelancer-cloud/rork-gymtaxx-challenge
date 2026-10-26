@@ -57,6 +57,9 @@ type Journey = { stages: Stage[]; steps: Step[] };
 /** The onboarding funnel, one row per screen. Same shape as a journey stage. */
 type OnboardingScreens = Stage[];
 
+/** The opening question's split, first-touch stamps both ways. */
+type OpeningAnswers = { yes: number; no: number };
+
 type MoneyTotals = { gbp: number; usd: number };
 
 type Money = {
@@ -85,6 +88,7 @@ type Stats = {
   days: number;
   journey: Journey;
   onboardingScreens: OnboardingScreens;
+  onboardingOpening: OpeningAnswers;
   trackingStartedAt: string | null;
   stages: Stage[];
   steps: Step[];
@@ -223,6 +227,7 @@ function normalise(data: Partial<Stats> | undefined): Stats {
       steps: data?.journey?.steps ?? [],
     },
     onboardingScreens: data?.onboardingScreens ?? [],
+    onboardingOpening: data?.onboardingOpening ?? { yes: 0, no: 0 },
     trackingStartedAt: data?.trackingStartedAt ?? null,
     stages: data?.stages ?? [],
     steps: data?.steps ?? [],
@@ -293,8 +298,15 @@ function shortDate(iso: string): string {
  * down the page; the red number beside each count is who left since the
  * previous screen — the size of the leak, not just where it is.
  */
-function OnboardingFunnel({ screens }: { screens: OnboardingScreens }) {
+function OnboardingFunnel({
+  screens,
+  opening,
+}: {
+  screens: OnboardingScreens;
+  opening: OpeningAnswers;
+}) {
   const top = screens[0]?.count ?? 0;
+  const answered = opening.yes + opening.no;
   return (
     <div className="space-y-4">
       {screens.map((screen, position) => {
@@ -325,10 +337,37 @@ function OnboardingFunnel({ screens }: { screens: OnboardingScreens }) {
                 style={{ width: `${share}%` }}
               />
             </div>
+            {position === 0 && answered > 0 ? (
+              <div className="mt-2 space-y-1 border-l border-border pl-3">
+                <OpeningSplit label="Yes, I'm consistent" count={opening.yes} total={answered} />
+                <OpeningSplit label="No, I keep falling off" count={opening.no} total={answered} />
+              </div>
+            ) : null}
           </div>
         );
       })}
     </div>
+  );
+}
+
+/**
+ * One side of the opening question's split, as a share of those who answered.
+ *
+ * The denominator is answerers, not viewers: the question this split answers is
+ * "of the people who took the bait, which way did they go". Everyone who saw
+ * the question and answered neither way is already the opening row's red
+ * drop-off number.
+ */
+function OpeningSplit({ label, count, total }: { label: string; count: number; total: number }) {
+  const share = total === 0 ? 0 : Math.round((count / total) * 100);
+  return (
+    <p className="flex items-baseline justify-between gap-3 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-muted-foreground">
+        <span className="tabular font-semibold text-foreground">{count}</span>
+        {total > 0 ? <span className="tabular"> · {share}%</span> : null}
+      </span>
+    </p>
   );
 }
 
@@ -715,11 +754,13 @@ export default function Stats() {
           <p className="text-sm text-muted-foreground">Nothing recorded in this range.</p>
         ) : (
           <>
-            <OnboardingFunnel screens={data.onboardingScreens} />
+            <OnboardingFunnel screens={data.onboardingScreens} opening={data.onboardingOpening} />
             <p className="mt-4 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
               Per-screen counting began 26 Oct 2026, the day the opening screen was rewritten — nothing was back-filled,
               so earlier traffic reads zero here. Bars are shares of the opening screen; the red number is who left since
-              the previous screen. Browsers and the installed app both count, because the questions run in both.
+              the previous screen. The opening screen became a question that day too: its yes/no split counts from then,
+              as a share of those who answered. Browsers and the installed app both count, because the questions run in
+              both.
             </p>
           </>
         )}
