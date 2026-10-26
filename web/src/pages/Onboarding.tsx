@@ -30,11 +30,32 @@ import {
   type OnboardingAnswers,
   type StrugglingId,
 } from "@/lib/onboarding";
-import { recordVisit } from "@/lib/visitor";
+import { recordVisit, type VisitStep } from "@/lib/visitor";
 
 type Stage = "problem" | "mechanism" | "habit" | "goal" | "blocker" | "motivation" | "struggling" | "summary";
 
 const ORDER: Stage[] = ["problem", "mechanism", "habit", "goal", "blocker", "motivation", "struggling", "summary"];
+
+/**
+ * The opening line — the very first words a visitor reads, before anything is
+ * asked or promised.
+ *
+ * Kept as one constant at the top of the file so a rewrite is a one-line swap.
+ * PLACEHOLDER: the real line is dictated copy and lands here when written.
+ */
+const OPENING_HEADLINE = "Telling yourself you'll be consistent with the gym — again?";
+
+/** Each screen's step in the same anonymous pipeline as the rest of the funnel. */
+const STEP_FOR_STAGE: Record<Stage, VisitStep> = {
+  problem: "ob_opening",
+  mechanism: "ob_mechanism",
+  habit: "ob_habit",
+  goal: "ob_goal",
+  blocker: "ob_blocker",
+  motivation: "ob_motivation",
+  struggling: "ob_struggling",
+  summary: "ob_summary",
+};
 
 /**
  * Where to pick the conversation back up.
@@ -77,6 +98,14 @@ export default function Onboarding() {
   useEffect(() => {
     void recordVisit("onboarding");
   }, []);
+
+  // Every screen is stamped on first view, so the stats page can show exactly
+  // where people stop answering. Back-taps and resumes re-fire the same step,
+  // but recordVisit de-dupes within a page load and the database keeps only
+  // the first timestamp, so nothing double-counts.
+  useEffect(() => {
+    void recordVisit(STEP_FOR_STAGE[stage]);
+  }, [stage]);
 
   const index = ORDER.indexOf(stage);
 
@@ -136,7 +165,7 @@ export default function Onboarding() {
           >
             <div className="pt-10">
               <p className="text-display leading-[1.1] text-foreground animate-rise-in">
-                You know how you've been telling yourself you'll be consistent with the gym, but somehow it never happens?
+                {OPENING_HEADLINE}
               </p>
               <p className="mt-8 text-2xl font-semibold leading-snug text-foreground animate-rise-in [animation-delay:700ms]">
                 You're not alone.

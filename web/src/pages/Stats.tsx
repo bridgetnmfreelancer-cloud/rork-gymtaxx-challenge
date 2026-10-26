@@ -54,6 +54,9 @@ type Person = {
 
 type Journey = { stages: Stage[]; steps: Step[] };
 
+/** The onboarding funnel, one row per screen. Same shape as a journey stage. */
+type OnboardingScreens = Stage[];
+
 type MoneyTotals = { gbp: number; usd: number };
 
 type Money = {
@@ -81,6 +84,7 @@ type Stats = {
   since: string;
   days: number;
   journey: Journey;
+  onboardingScreens: OnboardingScreens;
   trackingStartedAt: string | null;
   stages: Stage[];
   steps: Step[];
@@ -218,6 +222,7 @@ function normalise(data: Partial<Stats> | undefined): Stats {
       stages: data?.journey?.stages ?? [],
       steps: data?.journey?.steps ?? [],
     },
+    onboardingScreens: data?.onboardingScreens ?? [],
     trackingStartedAt: data?.trackingStartedAt ?? null,
     stages: data?.stages ?? [],
     steps: data?.steps ?? [],
@@ -278,6 +283,52 @@ function dateLabel(iso: string): string {
 function shortDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(
     new Date(`${iso}T12:00:00Z`),
+  );
+}
+
+/**
+ * The onboarding, one screen at a time.
+ *
+ * The bar is a share of the opening screen, so the shape of the leak is visible
+ * down the page; the red number beside each count is who left since the
+ * previous screen — the size of the leak, not just where it is.
+ */
+function OnboardingFunnel({ screens }: { screens: OnboardingScreens }) {
+  const top = screens[0]?.count ?? 0;
+  return (
+    <div className="space-y-4">
+      {screens.map((screen, position) => {
+        const previous = position === 0 ? null : screens[position - 1].count;
+        const lost = previous === null ? 0 : Math.max(previous - screen.count, 0);
+        const lostPercent = previous !== null && previous > 0 ? Math.round((lost / previous) * 100) : 0;
+        const share = top === 0 ? 0 : Math.round((screen.count / top) * 100);
+        return (
+          <div key={screen.key}>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-sm font-medium text-foreground">{screen.label}</p>
+              <p className="shrink-0 text-sm text-muted-foreground">
+                <span className="tabular font-semibold text-foreground">{screen.count}</span>
+                {previous !== null && lost > 0 ? (
+                  <span className="tabular text-danger-ink">
+                    {" \u00b7 \u2212"}
+                    {lost} ({lostPercent}%)
+                  </span>
+                ) : null}
+              </p>
+            </div>
+            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-[width] duration-700 ease-out",
+                  screen.count === 0 ? "bg-muted" : "bg-success-ink",
+                )}
+                style={{ width: `${share}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -654,6 +705,21 @@ export default function Stats() {
               Of the {signedUp} who signed up,{" "}
               <span className="tabular font-semibold text-foreground">{installedCount}</span> are running it from their
               home screen. Installs by people who never signed up cannot be counted at all.
+            </p>
+          </>
+        )}
+      </Card>
+
+      <Card title="Onboarding, screen by screen">
+        {data.onboardingScreens.every((screen) => screen.count === 0) ? (
+          <p className="text-sm text-muted-foreground">Nothing recorded in this range.</p>
+        ) : (
+          <>
+            <OnboardingFunnel screens={data.onboardingScreens} />
+            <p className="mt-4 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
+              Per-screen counting began 26 Oct 2026, the day the opening screen was rewritten — nothing was back-filled,
+              so earlier traffic reads zero here. Bars are shares of the opening screen; the red number is who left since
+              the previous screen. Browsers and the installed app both count, because the questions run in both.
             </p>
           </>
         )}

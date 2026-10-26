@@ -30,7 +30,16 @@ export type VisitStep =
   | "onboarding"
   | "signup_form"
   | "signed_up"
-  | "saw_paywall";
+  | "saw_paywall"
+  /** Onboarding, screen by screen — the first view of each, in flow order. */
+  | "ob_opening"
+  | "ob_mechanism"
+  | "ob_habit"
+  | "ob_goal"
+  | "ob_blocker"
+  | "ob_motivation"
+  | "ob_struggling"
+  | "ob_summary";
 
 /** This browser's anonymous id plus where it came from. */
 export type VisitorContext = {

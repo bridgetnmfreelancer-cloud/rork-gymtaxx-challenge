@@ -410,6 +410,14 @@ type VisitRow = {
   reached_install_at: string | null;
   continue_browser_at: string | null;
   onboarding_at: string | null;
+  ob_opening_at: string | null;
+  ob_mechanism_at: string | null;
+  ob_habit_at: string | null;
+  ob_goal_at: string | null;
+  ob_blocker_at: string | null;
+  ob_motivation_at: string | null;
+  ob_struggling_at: string | null;
+  ob_summary_at: string | null;
   reached_signup_at: string | null;
   signed_up_at: string | null;
   saw_paywall_at: string | null;
@@ -553,6 +561,61 @@ function buildJourney(visits: VisitRow[], rows: FunnelRow[], chosePlan: Set<stri
   // Steps stay empty on purpose: empty steps render no drop-off rows on the
   // card, which is exactly right for a ladder whose top is alternative exits.
   return { stages, steps: [] };
+}
+
+/**
+ * The onboarding one screen at a time — the same conversation, measured at each
+ * step instead of only at its ends.
+ *
+ * Counts all visit rows, browser and installed-app alike, for the same reason
+ * the journey's "Started onboarding" rung does: the flow runs in both places.
+ * Each column is a first-view stamp, so one person is never counted twice
+ * within a row, and no back-fill exists — screens seen before 26 Oct 2026
+ * simply read zero.
+ */
+function buildOnboardingScreens(visits: VisitRow[]): Stage[] {
+  return [
+    {
+      key: "opening",
+      label: "Saw the opening screen",
+      count: visits.filter((v) => v.ob_opening_at !== null).length,
+    },
+    {
+      key: "mechanism",
+      label: "Saw how it works",
+      count: visits.filter((v) => v.ob_mechanism_at !== null).length,
+    },
+    {
+      key: "habit",
+      label: "Q1 — how often they go",
+      count: visits.filter((v) => v.ob_habit_at !== null).length,
+    },
+    {
+      key: "goal",
+      label: "Q2 — weekly goal",
+      count: visits.filter((v) => v.ob_goal_at !== null).length,
+    },
+    {
+      key: "blocker",
+      label: "Q3 — what's stopping them",
+      count: visits.filter((v) => v.ob_blocker_at !== null).length,
+    },
+    {
+      key: "motivation",
+      label: "Q4 — why it matters",
+      count: visits.filter((v) => v.ob_motivation_at !== null).length,
+    },
+    {
+      key: "struggling",
+      label: "Q5 — how long struggling",
+      count: visits.filter((v) => v.ob_struggling_at !== null).length,
+    },
+    {
+      key: "summary",
+      label: "Reached the summary",
+      count: visits.filter((v) => v.ob_summary_at !== null).length,
+    },
+  ];
 }
 
 /** Which ad or link brought them, first touch only. */
@@ -776,7 +839,7 @@ Deno.serve(async (req) => {
         let query = admin
           .from("visits")
           .select(
-            "visitor_id, first_seen_at, landed_at, tapped_join_at, get_app_at, android_tally_at, reached_install_at, continue_browser_at, onboarding_at, reached_signup_at, signed_up_at, saw_paywall_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
+            "visitor_id, first_seen_at, landed_at, tapped_join_at, get_app_at, android_tally_at, reached_install_at, continue_browser_at, onboarding_at, ob_opening_at, ob_mechanism_at, ob_habit_at, ob_goal_at, ob_blocker_at, ob_motivation_at, ob_struggling_at, ob_summary_at, reached_signup_at, signed_up_at, saw_paywall_at, source, campaign, referrer_host, is_standalone, is_in_app_browser",
           )
           .gte("first_seen_at", since.toISOString());
         if (bound) query = query.lt("first_seen_at", bound.toISOString());
@@ -810,6 +873,7 @@ Deno.serve(async (req) => {
       stages,
       steps,
       journey: buildJourney(visits, rows, chosePlan),
+      onboardingScreens: buildOnboardingScreens(visits),
       trackingStartedAt: firstVisit?.first_seen_at ?? null,
       arrivals: buildArrivals(visits),
       sources: buildSources(visits),
