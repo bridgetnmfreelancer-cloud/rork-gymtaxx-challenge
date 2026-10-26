@@ -171,11 +171,12 @@ export default function Onboarding() {
       {stage === "problem" ? (
         <div className="flex flex-1 flex-col">
           {/* Stepped above the shared ScreenTitle on purpose: with only two small
-              answer boxes beneath it, this question is the whole screen, and at
-              the default title size the boxed answers out-prominence it. */}
+              answer boxes beneath it, this question is the whole screen. Larger
+              than the other titles, but at normal title weight — size carries
+              the prominence, not thickness (option B, 26 Oct 2026). */}
           <div className="pt-8">
             <h1
-              className="text-[2.75rem] font-black leading-[1.08] tracking-tight text-foreground animate-rise-in"
+              className="text-[1.875rem] font-bold leading-[1.2] text-foreground animate-rise-in"
             >
               {OPENING_QUESTION}
             </h1>
