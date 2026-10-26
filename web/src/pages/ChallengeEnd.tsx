@@ -222,6 +222,7 @@ export default function ChallengeEnd({
       ) : (
         <TrialFirstWeekActions
           nextStart={nextStart}
+          showRefund={progress.earned > 0}
           onRefund={() => setOfferOpen(true)}
         />
       )}
@@ -234,9 +235,19 @@ export default function ChallengeEnd({
 /**
  * Week one, goal hit — the deposit is already earned, so the choice is between
  * continuing and starting the refund conversation, which is where the leave-it-
- * in offer lives.
+ * in offer lives. A week with nothing earned gets no refund button at all:
+ * the deposit is refundable through workouts, and this week had none, so the
+ * only way the money comes home is the second chance.
  */
-function TrialFirstWeekActions({ nextStart, onRefund }: { nextStart: string; onRefund: () => void }) {
+function TrialFirstWeekActions({
+  nextStart,
+  showRefund,
+  onRefund,
+}: {
+  nextStart: string;
+  showRefund: boolean;
+  onRefund: () => void;
+}) {
   const navigate = useNavigate();
 
   return (
@@ -248,9 +259,11 @@ function TrialFirstWeekActions({ nextStart, onRefund }: { nextStart: string; onR
       <p className="text-center text-xs text-muted-foreground">
         A full month would start {nextStart}. Your first month of membership is free.
       </p>
-      <Button variant="outline" size="xl" className="w-full" onClick={onRefund}>
-        Get my deposit back
-      </Button>
+      {showRefund ? (
+        <Button variant="outline" size="xl" className="w-full" onClick={onRefund}>
+          Get my deposit back
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -268,6 +281,10 @@ interface TrialProgress {
  * Week two starts fresh at zero and its result alone decides the whole refund —
  * week one's figure is replaced, never combined. That has to be understood
  * before they accept, because it is the one rule that can surprise.
+ *
+ * Declining with anything earned starts the refund; declining with nothing
+ * earned just closes the trial — there is nothing to claim, and the screen
+ * above has already said so.
  */
 function SecondChanceOffer({
   progress,
@@ -305,7 +322,12 @@ function SecondChanceOffer({
             {repeatPending ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
             Start my final week
           </Button>
-          <Button variant="outline" className="w-full" disabled={repeatPending || refundPending} onClick={onDecline}>
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={repeatPending || refundPending}
+            onClick={progress.earned > 0 ? onDecline : onContinue}
+          >
             {refundPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
             {progress.earned > 0 ? "No thanks, return what I earned" : "No thanks, close my trial"}
           </Button>

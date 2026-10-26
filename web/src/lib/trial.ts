@@ -108,6 +108,8 @@ export function trialErrorCopy(code: string): string {
       return "A week is already running.";
     case "nothing_ended":
       return "Nothing to refund yet.";
+    case "nothing_earned":
+      return "Nothing was earned back this week, so there's nothing to claim.";
     default:
       return "Something went wrong. Check your connection and try again.";
   }

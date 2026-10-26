@@ -167,6 +167,12 @@ async function repeatWeek(admin: Admin, userId: string): Promise<Response> {
  * Joined and pinned to trial rows, so a standard challenge can never be marked
  * `requested` from here even if a client asks at the wrong moment.
  *
+ * A week with nothing earned is refused outright: the deposit was only ever
+ * refundable through workouts, so there is nothing to claim. Week two's screen
+ * already hides its button in that case; this refuses it server-side for every
+ * week, so a stale client or a hand-rolled call can never mark a forfeited
+ * week `requested` and leave the operator a card that reads as money owed.
+ *
  * Marks `requested` — never `refunded`; the money itself is moved by hand in
  * Stripe and then recorded through the operator screen as usual. A `carried`
  * row is refused: it is superseded by its repeat week, and refunding it as well
@@ -194,6 +200,18 @@ async function requestRefund(admin: Admin, userId: string): Promise<Response> {
   if (latest.refund_status === "refunded") return json({ error: "already_refunded" }, 422);
   if (latest.refund_status === "carried") return json({ error: "carried_row" }, 422);
   if (latest.refund_status === "requested") return json({ status: "ok", refundStatus: "requested" });
+
+  const { count: approved, error: countError } = await admin
+    .from("workout_submissions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_challenge_id", latest.id)
+    .eq("status", "approved");
+
+  if (countError) {
+    console.error("trial-actions: refund request count failed", latest.id, countError.message);
+    return json({ error: "read_failed" }, 500);
+  }
+  if (!approved) return json({ error: "nothing_earned" }, 422);
 
   const { data: updated, error: updateError } = await admin
     .from("user_challenges")
