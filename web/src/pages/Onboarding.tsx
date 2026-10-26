@@ -170,8 +170,15 @@ export default function Onboarding() {
 
       {stage === "problem" ? (
         <div className="flex flex-1 flex-col">
+          {/* Stepped above the shared ScreenTitle on purpose: with only two small
+              answer boxes beneath it, this question is the whole screen, and at
+              the default title size the boxed answers out-prominence it. */}
           <div className="pt-8">
-            <ScreenTitle className="animate-rise-in">{OPENING_QUESTION}</ScreenTitle>
+            <h1
+              className="text-[2.75rem] font-black leading-[1.08] tracking-tight text-foreground animate-rise-in"
+            >
+              {OPENING_QUESTION}
+            </h1>
           </div>
 
           <div className="mt-8 space-y-3">
