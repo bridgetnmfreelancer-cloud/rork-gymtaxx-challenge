@@ -9,7 +9,6 @@ import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
 import { flowProgress } from "@/lib/flow";
 import {
-  CHALLENGE_WEEKS,
   currencyForRegion,
   formatMoney,
   REWARD_PER_WORKOUT,
@@ -315,7 +314,7 @@ export default function Onboarding() {
           <div className="pt-8">
             <ScreenTitle className="animate-rise-in">This can change today.</ScreenTitle>
             <ScreenSubtitle className="animate-rise-in [animation-delay:60ms]">
-              Your next {CHALLENGE_WEEKS} weeks could look like this.
+              Your next few weeks could look like this.
             </ScreenSubtitle>
           </div>
 

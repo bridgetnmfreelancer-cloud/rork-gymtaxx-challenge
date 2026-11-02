@@ -139,7 +139,9 @@ export default function Pay() {
           <dd className="tabular text-sm font-semibold text-foreground">{formatFee(deposit, currency)}</dd>
         </div>
         <div className="flex items-baseline justify-between px-5 py-3.5">
-          <dt className="text-sm text-muted-foreground">GymTaxx access</dt>
+          <dt className="text-sm text-muted-foreground">
+            GymTaxx access{!data.trial && fee > 0 ? " · non-refundable" : ""}
+          </dt>
           <dd className="tabular text-sm font-semibold text-foreground">
             {data.trial ? "No membership needed" : fee === 0 ? "Free" : formatFee(fee, currency)}
           </dd>

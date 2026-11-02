@@ -200,7 +200,7 @@ export default function ChallengeEnd({
             <ChevronRight className="h-5 w-5" aria-hidden="true" />
           </Button>
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            A new month would start {nextStart}.
+            A new challenge would start {nextStart}.
           </p>
         </div>
       ) : isSecondWeek ? (
@@ -257,7 +257,7 @@ function TrialFirstWeekActions({
         <ChevronRight className="h-5 w-5" aria-hidden="true" />
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        A full month would start {nextStart}. Your first month of membership is free.
+        Your next challenge would start {nextStart} — pick any length on the next screen.
       </p>
       {showRefund ? (
         <Button variant="outline" size="xl" className="w-full" onClick={onRefund}>
@@ -369,7 +369,7 @@ function TrialSecondWeekActions({
         <ChevronRight className="h-5 w-5" aria-hidden="true" />
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        A full month would start {nextStart}. Your first month of membership is free.
+        Your next challenge would start {nextStart} — pick any length on the next screen.
       </p>
       {canRefund ? (
         <Button variant="outline" size="xl" className="w-full" disabled={refundPending} onClick={onRequestRefund}>

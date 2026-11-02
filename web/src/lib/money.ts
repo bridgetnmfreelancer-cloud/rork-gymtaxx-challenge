@@ -12,6 +12,20 @@ export type CurrencyCode = "gbp" | "usd";
 export const REWARD_PER_WORKOUT = 5;
 export const CHALLENGE_WEEKS = 4;
 
+/**
+ * The lengths a standard challenge can be run at.
+ *
+ * Each length is a real row in the `challenges` table, so the deposit and the
+ * access fee are always priced from the row's own terms — never from a number
+ * the client makes up.
+ */
+export const CHALLENGE_LENGTHS = [1, 2, 4] as const;
+export type ChallengeWeeks = (typeof CHALLENGE_LENGTHS)[number];
+
+export function isChallengeWeeks(value: unknown): value is ChallengeWeeks {
+  return (CHALLENGE_LENGTHS as readonly number[]).includes(value as number);
+}
+
 /** Weekly goals on offer. Two a week is too easy to be a real commitment. */
 export const WEEKLY_GOALS = [3, 4, 5] as const;
 export type WeeklyGoal = (typeof WEEKLY_GOALS)[number];
@@ -53,4 +67,9 @@ export function totalWorkouts(goal: number, weeks: number = CHALLENGE_WEEKS): nu
 /** deposit = goal per week x weeks x reward per workout. Matches the server. */
 export function depositFor(goal: number, weeks: number = CHALLENGE_WEEKS): number {
   return totalWorkouts(goal, weeks) * REWARD_PER_WORKOUT;
+}
+
+/** "1 week" / "2 weeks" / "4 weeks" — for a picker label. */
+export function labelWeeks(weeks: number): string {
+  return `${weeks} ${weeks === 1 ? "week" : "weeks"}`;
 }

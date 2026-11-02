@@ -1,7 +1,8 @@
 import { CreditCard, Dumbbell, Loader2, ShieldCheck } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
+import { LengthPicker } from "@/components/LengthPicker";
 import { Screen, ScreenActions, ScreenSubtitle, ScreenTitle } from "@/components/Screen";
 import { StepProgress } from "@/components/StepProgress";
 import { Button } from "@/components/ui/button";
@@ -10,12 +11,14 @@ import {
   WEEKLY_GOALS,
   currencyForRegion,
   isWeeklyGoal,
+  type ChallengeWeeks,
   type WeeklyGoal,
 } from "@/lib/money";
+import { loadLengthChoice, saveLengthChoice } from "@/lib/lengthChoice";
 import { flowProgress } from "@/lib/flow";
 import { currentZone, formatStartDate, weeklyStart } from "@/lib/gymweek";
 import { loadAnswers, saveAnswers } from "@/lib/onboarding";
-import { useCurrentChallenge } from "@/lib/queries";
+import { useCurrentChallenge, useParticipation } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,14 +34,21 @@ import { cn } from "@/lib/utils";
 export default function BuildChallenge() {
   const navigate = useNavigate();
   const { data: challenge, isLoading } = useCurrentChallenge();
+  // Only meaningful once signed in; the builder mostly runs before that. A live
+  // paid challenge — a trial week still running, most importantly — means this
+  // person already has terms in motion, and must never meet the length picker
+  // mid-trial: they go back to the dashboard their week lives on.
+  const { data: participation } = useParticipation();
 
   const saved = useMemo(() => loadAnswers(), []);
   const [goal, setGoal] = useState<WeeklyGoal>(() => (saved.goal && isWeeklyGoal(saved.goal) ? saved.goal : 4));
+  const [weeksChoice, setWeeksChoice] = useState<ChallengeWeeks>(
+    () => loadLengthChoice() ?? (challenge?.number_of_weeks as ChallengeWeeks | undefined) ?? CHALLENGE_WEEKS,
+  );
 
   const zone = useMemo(() => currentZone(), []);
   const currency = useMemo(() => currencyForRegion(), []);
 
-  const weeks = challenge?.number_of_weeks ?? CHALLENGE_WEEKS;
   const isTrial = challenge?.challenge_type === "trial_week";
 
   const start = useMemo(() => weeklyStart(new Date(), zone), [zone]);
@@ -47,9 +57,22 @@ export default function BuildChallenge() {
     [start, zone, currency],
   );
 
+  function pickLength(length: ChallengeWeeks): void {
+    setWeeksChoice(length);
+    saveLengthChoice(length);
+  }
+
   function commit(): void {
     saveAnswers({ ...saved, goal });
     navigate("/commit");
+  }
+
+  const hasLiveChallenge =
+    participation?.payment_status === "paid" &&
+    Boolean(participation.ends_at && new Date(participation.ends_at) > new Date());
+
+  if (hasLiveChallenge) {
+    return <Navigate to="/home" replace />;
   }
 
   if (isLoading) {
@@ -147,15 +170,24 @@ export default function BuildChallenge() {
       <StepProgress {...flowProgress("challenge")} onBack={() => navigate(-1)} />
 
       <div className="pt-6">
-        <ScreenTitle className="animate-rise-in">Choose your weekly commitment</ScreenTitle>
+        <ScreenTitle className="animate-rise-in">Build your challenge</ScreenTitle>
         <ScreenSubtitle className="animate-rise-in [animation-delay:80ms]">
-          {isTrial
-            ? "How many workouts will you complete during your GymTaxx trial week?"
-            : "How many workouts will you complete each week during your GymTaxx monthly challenge?"}
+          Pick how long it runs and how many workouts you'll commit to each week.
         </ScreenSubtitle>
       </div>
 
-      <div className="mt-8 animate-rise-in [animation-delay:160ms]">
+      <p className="mt-8 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground animate-rise-in [animation-delay:120ms]">
+        How long?
+      </p>
+      <div className="mt-3">
+        <LengthPicker goal={goal} currency={currency} selected={weeksChoice} onSelect={pickLength} />
+      </div>
+
+      <p className="mt-8 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground animate-rise-in [animation-delay:140ms]">
+        Each week
+      </p>
+
+      <div className="mt-3 animate-rise-in [animation-delay:160ms]">
         <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Workouts per week">
           {WEEKLY_GOALS.map((option) => {
             const isSelected = option === goal;
@@ -185,9 +217,9 @@ export default function BuildChallenge() {
         </div>
       </div>
 
-      {/* Money deliberately doesn't appear here — the deposit has its own
-          screen next, and showing two kinds of money on one screen is what made
-          this feel crowded. The date is the only fact still worth confirming. */}
+      {/* The picker already separated the two kinds of money per length; the
+          deposit maths gets its own screen next. The date is the other fact
+          worth confirming before the commitment is made. */}
       <div className="mt-8 animate-rise-in [animation-delay:220ms]">
         <dl className="overflow-hidden rounded-lg bg-card">
           <Row label="Starts" value={startLabel} />

@@ -1,4 +1,5 @@
 import type { ChallengeRow } from "./database.types";
+import { CHALLENGE_WEEKS, isChallengeWeeks } from "./money";
 import { supabase } from "./supabase";
 
 /** Which challenge terms apply — the 7-day trial week or the standard month. */
@@ -44,11 +45,21 @@ export async function isTrialEnabled(): Promise<boolean> {
  * `userId` may be null on the pre-signup screens, where eligibility is simply
  * the flag: an anonymous visitor has no trial history yet.
  *
+ * `weeks` selects the length of the standard challenge — 1, 2 or 4 weeks, as
+ * picked in the builder and stored on the phone (`lengthChoice.ts`). It only
+ * ever affects the standard path: a trial is one week by definition, so
+ * anyone entitled to the trial gets it whatever this says. Unrecognised or
+ * missing values fall back to 4 weeks, the length every existing screen and
+ * row was built around.
+ *
  * A trial-history read error fails toward standard, never toward the trial —
  * showing standard terms to someone eligible costs nothing, the reverse
  * quietly gives a free week away.
  */
-export async function decideChallenge(userId: string | null): Promise<ChallengeDecision | null> {
+export async function decideChallenge(
+  userId: string | null,
+  weeks?: number,
+): Promise<ChallengeDecision | null> {
   const enabled = await isTrialEnabled();
 
   let hasPaidTrial = false;
@@ -85,11 +96,32 @@ export async function decideChallenge(userId: string | null): Promise<ChallengeD
     .from("challenges")
     .select("*")
     .eq("challenge_type", "standard")
+    .eq("number_of_weeks", isChallengeWeeks(weeks) ? weeks : CHALLENGE_WEEKS)
     .order("start_date", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
   return standard ? { challenge: standard, kind: "standard" } : null;
+}
+
+/**
+ * The standard challenge row for a given length, read directly.
+ *
+ * Used where the length is the point — the builder's picker — rather than
+ * where the trial decision leads. Returns null when that length has no row,
+ * which callers treat as "fall back to the shared default terms".
+ */
+export async function standardChallenge(weeks: number): Promise<ChallengeRow | null> {
+  const { data, error } = await supabase
+    .from("challenges")
+    .select("*")
+    .eq("challenge_type", "standard")
+    .eq("number_of_weeks", weeks)
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 /** Friendly copy for a `trial-actions` error code, for a toast. */

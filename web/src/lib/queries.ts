@@ -2,6 +2,8 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import { useAuth } from "@/context/AuthProvider";
 import type { ChallengeRow, ProfileRow, UserChallengeRow, WorkoutSubmissionRow } from "./database.types";
+import { loadLengthChoice } from "./lengthChoice";
+import { CHALLENGE_WEEKS } from "./money";
 import { isDepositSettling } from "./settlement";
 import { supabase } from "./supabase";
 import { decideChallenge } from "./trial";
@@ -31,11 +33,15 @@ export const queryKeys = {
  */
 export function useCurrentChallenge(): UseQueryResult<ChallengeRow | null> {
   const { user } = useAuth();
+  // The length picked in the builder selects which standard row "next" means.
+  // Part of the key so changing the choice re-reads rather than serving the
+  // previous length's terms.
+  const weeks = loadLengthChoice() ?? CHALLENGE_WEEKS;
 
   return useQuery({
-    queryKey: queryKeys.currentChallenge(user?.id),
+    queryKey: [...queryKeys.currentChallenge(user?.id), weeks],
     queryFn: async (): Promise<ChallengeRow | null> => {
-      return (await decideChallenge(user?.id ?? null))?.challenge ?? null;
+      return (await decideChallenge(user?.id ?? null, weeks))?.challenge ?? null;
     },
     staleTime: 30_000,
   });

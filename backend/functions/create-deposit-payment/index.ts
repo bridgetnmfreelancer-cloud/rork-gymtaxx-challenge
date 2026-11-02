@@ -193,7 +193,15 @@ Deno.serve(async (req) => {
         return json({ error: "no_plan" }, 422);
       }
       planId = body.plan;
-      const pricing = resolvePlanPricing(planId, profile?.free_challenge_used === true);
+      // The fee follows the challenge's own length — the same row that priced
+      // the deposit above — so screen and charge can never disagree about the
+      // terms. A row without a recognisable week count falls back to the
+      // resolver's default price rather than inventing one.
+      const pricing = resolvePlanPricing(
+        planId,
+        profile?.free_challenge_used === true,
+        challenge.number_of_weeks,
+      );
       feeMinor = pricing.feeMinor;
       // A free first challenge still needs the card on file, or there is nothing
       // to charge when the trial ends.

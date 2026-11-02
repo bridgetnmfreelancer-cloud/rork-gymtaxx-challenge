@@ -11,6 +11,12 @@
  * Both can be taken in a single card charge, but they stay separated everywhere
  * else — in metadata, in reporting, and on screen.
  *
+ * Access is charged from day one: the free-first-challenge perk is no longer
+ * offered to new subscribers (accounts that joined under it keep their stored
+ * terms, read from their profile, never from this file). Recurring plans cover
+ * any challenge length; the one-off plan's fee scales with the length of the
+ * challenge it buys.
+ *
  * IMPORTANT: `backend/functions/_shared/plans.ts` is the server's copy of this
  * file and the two must be changed together. The server recomputes every amount
  * itself, so a drift here can only ever mislead the screen, never the charge.
@@ -29,8 +35,8 @@ export interface Plan {
   /** The recurring or one-off price, in major units. Same number either currency. */
   price: number;
   interval: PlanInterval;
-  /** True when the first challenge is free and the card is only saved, not charged. */
-  offersFreeChallenge: boolean;
+  /** Fee by challenge length, for the one-off plan priced per length. */
+  pricesByWeeks?: Partial<Record<number, number>>;
   /** One line under the name explaining what they're actually getting. */
   detail: string;
   /** Ribbon text, when this plan is worth steering people towards. */
@@ -43,8 +49,7 @@ export const PLANS: readonly Plan[] = [
     name: "Monthly",
     price: 7.99,
     interval: "month",
-    offersFreeChallenge: true,
-    detail: "First challenge free, then £7.99 a month. Cancel any time.",
+    detail: "£7.99 a month. Any challenge length, no extra fee. Cancel any time.",
     // No badge: it is pre-selected by default, and Annual carries the steer.
   },
   {
@@ -52,8 +57,7 @@ export const PLANS: readonly Plan[] = [
     name: "Annual",
     price: 59.99,
     interval: "year",
-    offersFreeChallenge: true,
-    detail: "First challenge free, then £59.99 a year — about £5 a month.",
+    detail: "£59.99 a year — about £5 a month. Any challenge length, no extra fee.",
     badge: "Best value",
   },
   {
@@ -61,7 +65,7 @@ export const PLANS: readonly Plan[] = [
     name: "One challenge",
     price: 9.99,
     interval: "one_off",
-    offersFreeChallenge: false,
+    pricesByWeeks: { 1: 2.99, 2: 4.99 },
     detail: "This challenge only. No subscription.",
   },
   {
@@ -69,7 +73,6 @@ export const PLANS: readonly Plan[] = [
     name: "Lifetime",
     price: 119.99,
     interval: "one_off",
-    offersFreeChallenge: false,
     detail: "Every challenge, for as long as GymTaxx runs. Paid once.",
     badge: "Founding member",
   },
@@ -92,18 +95,18 @@ export function planById(id: PlanId): Plan {
 /**
  * What this person is charged for access *today*, in major units.
  *
- * A free first challenge is once per account, ever. Someone who has already had
- * theirs pays the first period up front instead of getting another one — the
- * server applies the same rule, so the screen and the charge cannot disagree.
+ * Recurring plans cover any challenge length at their own price. The one-off
+ * plan scales with the length of the challenge it buys — 1 week £2.99,
+ * 2 weeks £4.99, 4 weeks £9.99 — and an unknown length falls back to the
+ * default price rather than inventing a number. The server applies the same
+ * rule from the challenge row itself, so the screen and the charge cannot
+ * disagree.
  */
-export function feeDueNow(plan: Plan, freeChallengeUsed: boolean): number {
-  if (plan.offersFreeChallenge && !freeChallengeUsed) return 0;
+export function feeDueNow(plan: Plan, weeks?: number): number {
+  if (plan.pricesByWeeks && weeks !== undefined) {
+    return plan.pricesByWeeks[weeks] ?? plan.price;
+  }
   return plan.price;
-}
-
-/** True when this plan starts as a free challenge for this particular person. */
-export function startsFree(plan: Plan, freeChallengeUsed: boolean): boolean {
-  return plan.offersFreeChallenge && !freeChallengeUsed;
 }
 
 /** "a month" / "a year" / "" — the suffix after a price. */

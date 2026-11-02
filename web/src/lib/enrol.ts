@@ -1,3 +1,4 @@
+import { loadLengthChoice } from "./lengthChoice";
 import { CHALLENGE_WEEKS, isWeeklyGoal } from "./money";
 import { loadAnswers } from "./onboarding";
 import { ensureParticipation } from "./participation";
@@ -13,9 +14,11 @@ import { decideChallenge, type ChallengeKind } from "./trial";
  * answered, and the challenge they configured is created against their new
  * account at the goal they picked.
  *
- * Which challenge they join — the 7-day trial week or the standard month — is
- * decided in one shared place (`decideChallenge`), the same function the
- * screens read their terms from, so what they were shown is what gets created.
+ * Which challenge they join — the 7-day trial week or the standard month, and
+ * for the standard month at which length — is decided in one shared place
+ * (`decideChallenge`), the same function the screens read their terms from, so
+ * what they were shown is what gets created. The length comes off the phone
+ * exactly as the goal does.
  *
  * Runs immediately after sign-up, and again as a safety net at the paywall if
  * that first attempt failed — the deposit is priced from the participation row,
@@ -30,7 +33,7 @@ export async function enrolFromAnswers(userId: string): Promise<ChallengeKind> {
   // an enrolment fails.
   void recordQuestionsAnswered();
 
-  const decision = await decideChallenge(userId);
+  const decision = await decideChallenge(userId, loadLengthChoice() ?? undefined);
   if (!decision) throw new Error("no live challenge to join");
 
   // Someone who came back to redo the flow may already have an unpaid row for

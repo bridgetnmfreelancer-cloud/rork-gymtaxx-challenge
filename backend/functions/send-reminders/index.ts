@@ -54,7 +54,7 @@ const PRE_CHALLENGE_SEQUENCE: Record<number, Record<number, Message | undefined>
       body: "Are you being consistent with the gym? We are still here for you if you need a little extra accountability.",
     },
     0: {
-      title: "Picture yourself 4 weeks from now",
+      title: "Picture the version of you who stuck with it",
       body: "Wouldn't it be nice to say you actually stuck to it?",
     },
   },
@@ -88,7 +88,7 @@ const PRE_CHALLENGE_SEQUENCE: Record<number, Record<number, Message | undefined>
     },
     0: {
       title: "It's been almost a month \u{1F440}",
-      body: "Are you going to the gym consistently without us? If not, what do you have to lose by giving us a chance. First challenge free.",
+      body: "Are you going to the gym consistently without us? If not, what do you have to lose by giving us a chance.",
     },
   },
 };
