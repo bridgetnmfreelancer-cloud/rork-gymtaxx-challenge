@@ -45,6 +45,28 @@ async function trialEnabled(admin: ReturnType<typeof createAdminClient>): Promis
   return data?.value === "on";
 }
 
+/**
+ * Whether the site is open for business — the pause switch.
+ *
+ * While `payments_enabled` is not 'on', no payment intent is created and no
+ * card is saved, whatever the client shows. Fails closed: a read error closes
+ * checkout, because the mistake that must never happen here is charging
+ * someone while the site is paused. The frontend reads the same row and shows
+ * its closed screen; this is the authority behind it.
+ */
+async function paymentsOpen(admin: ReturnType<typeof createAdminClient>): Promise<boolean> {
+  const { data, error } = await admin
+    .from("app_config")
+    .select("value")
+    .eq("key", "payments_enabled")
+    .maybeSingle();
+  if (error) {
+    console.error("create-deposit-payment: payments switch unreadable", error.message);
+    return false;
+  }
+  return data?.value === "on";
+}
+
 function asCookie(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -103,6 +125,13 @@ Deno.serve(async (req) => {
 
   try {
     const { user, supabase } = await requireAuth(req);
+    const admin = createAdminClient();
+
+    // The pause switch, checked before anything else is read or written. While
+    // it is off the site is closed: no intent, no saved card, no charge.
+    if (!(await paymentsOpen(admin))) {
+      return json({ error: "closed" }, 503);
+    }
 
     // RLS-scoped read: a user can only ever see their own participation.
     const { data: participation, error } = await supabase
@@ -124,7 +153,6 @@ Deno.serve(async (req) => {
       return json({ status: "paid" });
     }
 
-    const admin = createAdminClient();
     const body = (await req.json().catch(() => ({}))) as RequestBody;
 
     // Captured while the real person is on the payment screen. Only non-empty

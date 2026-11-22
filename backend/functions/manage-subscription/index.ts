@@ -42,6 +42,23 @@ Deno.serve(async (req) => {
     // Service role: billing columns are protected from the client by a trigger,
     // so this is the only path that can read and write them truthfully.
     const admin = createAdminClient();
+
+    // The pause switch. Cancelling stays open no matter what — a member must
+    // always be able to stop their plan, closed site or not. Resuming starts a
+    // new billing period, which is a charge, so a paused site refuses it.
+    if (action === "resume") {
+      const { data: config } = await admin
+        .from("app_config")
+        .select("value")
+        .eq("key", "payments_enabled")
+        .maybeSingle();
+      // Fail closed: if the switch can't be read, restarting billing is the
+      // side to be wrong on.
+      if (config?.value !== "on") {
+        return json({ error: "closed" }, 503);
+      }
+    }
+
     const { data: profile, error: readError } = await admin
       .from("profiles")
       .select("stripe_subscription_id, plan, plan_status")

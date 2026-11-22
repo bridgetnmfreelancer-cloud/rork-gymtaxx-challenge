@@ -296,6 +296,16 @@ export type Database = {
           is_standalone: boolean
           landed_at: string | null
           last_seen_at: string
+          ob_blocker_at: string | null
+          ob_goal_at: string | null
+          ob_habit_at: string | null
+          ob_mechanism_at: string | null
+          ob_motivation_at: string | null
+          ob_opening_at: string | null
+          ob_opening_no_at: string | null
+          ob_opening_yes_at: string | null
+          ob_struggling_at: string | null
+          ob_summary_at: string | null
           onboarding_at: string | null
           reached_install_at: string | null
           reached_signup_at: string | null
@@ -317,6 +327,16 @@ export type Database = {
           is_standalone?: boolean
           landed_at?: string | null
           last_seen_at?: string
+          ob_blocker_at?: string | null
+          ob_goal_at?: string | null
+          ob_habit_at?: string | null
+          ob_mechanism_at?: string | null
+          ob_motivation_at?: string | null
+          ob_opening_at?: string | null
+          ob_opening_no_at?: string | null
+          ob_opening_yes_at?: string | null
+          ob_struggling_at?: string | null
+          ob_summary_at?: string | null
           onboarding_at?: string | null
           reached_install_at?: string | null
           reached_signup_at?: string | null
@@ -338,6 +358,16 @@ export type Database = {
           is_standalone?: boolean
           landed_at?: string | null
           last_seen_at?: string
+          ob_blocker_at?: string | null
+          ob_goal_at?: string | null
+          ob_habit_at?: string | null
+          ob_mechanism_at?: string | null
+          ob_motivation_at?: string | null
+          ob_opening_at?: string | null
+          ob_opening_no_at?: string | null
+          ob_opening_yes_at?: string | null
+          ob_struggling_at?: string | null
+          ob_summary_at?: string | null
           onboarding_at?: string | null
           reached_install_at?: string | null
           reached_signup_at?: string | null

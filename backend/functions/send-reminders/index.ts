@@ -266,6 +266,20 @@ Deno.serve(async (req) => {
   const admin = createAdminClient();
   const now = new Date();
 
+  // The pause switch: a closed site has nothing to invite anyone back to, so
+  // every reminder slot passes silently. Reported as skipped rather than an
+  // error, so the cron keeps its success record and the pause leaves no
+  // failure trail. Everyone's `last_sent_on` is untouched, so reopening
+  // resumes the normal cadence the next day.
+  const { data: payments } = await admin
+    .from("app_config")
+    .select("value")
+    .eq("key", "payments_enabled")
+    .maybeSingle();
+  if (payments?.value !== "on") {
+    return json({ status: "ok", skipped: "site_paused", sent: 0 });
+  }
+
   const { data: subscriptions, error } = await admin
     .from("push_subscriptions")
     .select("id, user_id, endpoint, p256dh, auth, time_zone, last_sent_on, failure_count, created_at")

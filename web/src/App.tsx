@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import { AppOpenTracker } from "@/components/AppOpenTracker";
+import { ClosedGate } from "@/components/ClosedGate";
 import { GaPageViewTracker } from "@/components/GaPageViewTracker";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { PushSync } from "@/components/PushSync";
@@ -84,7 +85,12 @@ const App = () => (
         <AppOpenTracker />
         <OfflineBanner />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Routes>
+          {/* The site's pause lock: while app_config.payments_enabled is 'off'
+              every route renders the closed screen instead (operator screens
+              exempt). Flipping the row back to 'on' restores the site with no
+              deploy. */}
+          <ClosedGate>
+            <Routes>
             <Route path="/" element={<Entry />} />
             {/* The paid-traffic landing page. Currency-neutral slug, because the
                 deposit is charged in pounds or dollars depending on the reader. */}
@@ -124,7 +130,8 @@ const App = () => (
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </ClosedGate>
           {/* A sibling of Routes, not a child — Routes only accepts Route
               elements. Inside the router because it reads the location. */}
           <GaPageViewTracker />
